@@ -76,4 +76,16 @@ interface TmdbApiService {
         @Query("api_key") apiKey: String,
         @Query("append_to_response") appendToResponse: String = "combined_credits"
     ): TmdbPersonDetailDto
+
+    @GET("movie/{movie_id}/watch/providers")
+    suspend fun getMovieWatchProviders(
+        @Path("movie_id") movieId: Long,
+        @Query("api_key") apiKey: String
+    ): TmdbWatchProvidersResponse
+
+    @GET("tv/{series_id}/watch/providers")
+    suspend fun getTvWatchProviders(
+        @Path("series_id") seriesId: Long,
+        @Query("api_key") apiKey: String
+    ): TmdbWatchProvidersResponse
 }

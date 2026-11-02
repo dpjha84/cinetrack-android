@@ -62,13 +62,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
+import com.example.data.model.WatchProviderItem
+import com.example.data.model.WatchProviderType
+import com.example.data.model.WatchProvidersInfo
 import com.example.data.model.WatchStatus
 import com.example.ui.components.RatingReviewDialog
 import com.example.ui.components.WatchStatusPill
@@ -78,9 +83,14 @@ import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.CircularProgressIndicator
 import com.example.data.model.RegionalDefaults
 import com.example.ui.viewmodel.MediaViewModel
+import com.example.util.WatchProviderLauncher
 
 @Composable
 fun MediaDetailScreen(
@@ -92,6 +102,10 @@ fun MediaDetailScreen(
     modifier: Modifier = Modifier
 ) {
     BackHandler { onBack() }
+
+    val context = LocalContext.current
+    val activeWatchProviders by viewModel.activeWatchProviders.collectAsStateWithLifecycle()
+    val isLoadingWatchProviders by viewModel.isLoadingWatchProviders.collectAsStateWithLifecycle()
 
     var showRatingDialog by remember { mutableStateOf(false) }
     var showWatchlistDialog by remember { mutableStateOf(false) }
@@ -271,68 +285,262 @@ fun MediaDetailScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Regional Streaming Providers Card
-                val providers = remember(media, effectiveRegionCode) {
-                    media.getProvidersForRegion(effectiveRegionCode)
+                // Regional Streaming Providers Card with Direct Deep Linking
+                val providersInfo = activeWatchProviders ?: remember(media, effectiveRegionCode) {
+                    media.getWatchProvidersInfo(effectiveRegionCode)
                 }
+                val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
+
                 Card(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("card_where_to_watch")
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.LiveTv,
-                                contentDescription = null,
-                                tint = CinemaGold,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Where to Watch in ${RegionalDefaults.getRegionLabel(effectiveRegionCode)}",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.LiveTv,
+                                    contentDescription = null,
+                                    tint = CinemaGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Where to Watch",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // Region badge
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = CinemaGold.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "${RegionalDefaults.supportedRegions.find { it.code.equals(effectiveRegionCode, ignoreCase = true) }?.flag ?: "🌐"} ${RegionalDefaults.getRegionLabel(effectiveRegionCode)}",
+                                    color = CinemaGold,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        if (isLoadingWatchProviders) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = CinemaGold,
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    text = "Checking streaming availability...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
 
-                        if (providers.isNotEmpty()) {
+                        val streamAndFree = (providersInfo.stream + providersInfo.free).distinctBy { it.name }
+
+                        if (streamAndFree.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = CinemaGreen,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "STREAM NOW (SUBSCRIPTION & FREE)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = CinemaGreen
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                streamAndFree.forEach { provider ->
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        shadowElevation = 2.dp,
+                                        modifier = Modifier
+                                            .clickable {
+                                                WatchProviderLauncher.launchProvider(
+                                                    context = context,
+                                                    providerName = provider.name,
+                                                    title = media.title,
+                                                    releaseYear = media.releaseYear,
+                                                    isMovie = isMovie,
+                                                    webLink = provider.webLink ?: providersInfo.justWatchLink
+                                                )
+                                            }
+                                            .testTag("btn_watch_${provider.name.lowercase().replace(" ", "_")}")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            if (provider.logoUrl != null) {
+                                                AsyncImage(
+                                                    model = provider.logoUrl,
+                                                    contentDescription = provider.name,
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clip(RoundedCornerShape(6.dp)),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Default.PlayArrow,
+                                                    contentDescription = null,
+                                                    tint = CinemaGold,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            Text(
+                                                text = provider.name,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Icon(
+                                                imageVector = Icons.Default.OpenInNew,
+                                                contentDescription = "Open in app",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        val rentOrBuy = (providersInfo.rent + providersInfo.buy).distinctBy { it.name }
+                        if (rentOrBuy.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.ShoppingCart,
+                                    contentDescription = null,
+                                    tint = CinemaCyan,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "RENT OR BUY",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CinemaCyan
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                providers.forEach { provider ->
+                                rentOrBuy.forEach { provider ->
                                     Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = CinemaGold.copy(alpha = 0.2f)
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                                        modifier = Modifier
+                                            .clickable {
+                                                WatchProviderLauncher.launchProvider(
+                                                    context = context,
+                                                    providerName = provider.name,
+                                                    title = media.title,
+                                                    releaseYear = media.releaseYear,
+                                                    isMovie = isMovie,
+                                                    webLink = provider.webLink ?: providersInfo.justWatchLink
+                                                )
+                                            }
+                                            .testTag("btn_buy_${provider.name.lowercase().replace(" ", "_")}")
                                     ) {
-                                        Text(
-                                            text = provider,
-                                            color = CinemaGold,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                        )
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            if (provider.logoUrl != null) {
+                                                AsyncImage(
+                                                    model = provider.logoUrl,
+                                                    contentDescription = provider.name,
+                                                    modifier = Modifier
+                                                        .size(18.dp)
+                                                        .clip(RoundedCornerShape(4.dp)),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            }
+                                            Text(
+                                                text = provider.name,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+
+                        if (streamAndFree.isEmpty() && rentOrBuy.isEmpty() && !isLoadingWatchProviders) {
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Availability localized for your selected region.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            Text(
-                                text = "Check local digital rentals or regional network listings.",
+                                text = "Not currently streaming on subscription in ${RegionalDefaults.getRegionLabel(effectiveRegionCode)}.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            FilledTonalButton(
+                                onClick = {
+                                    WatchProviderLauncher.launchProvider(
+                                        context = context,
+                                        providerName = "Google TV",
+                                        title = media.title,
+                                        releaseYear = media.releaseYear,
+                                        isMovie = isMovie,
+                                        webLink = providersInfo.justWatchLink
+                                    )
+                                },
+                                modifier = Modifier.testTag("btn_search_digital_stores")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.OpenInNew,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Check Digital Stores & Theaters")
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Tap any provider to watch directly in app or web.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                             )
                         }
                     }

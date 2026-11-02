@@ -274,7 +274,7 @@ fun SearchScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "Querying TMDB /search/multi...",
+                                text = "Searching live catalog...",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -935,7 +935,7 @@ fun EmptyQueryView(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "TMDB Multi Search Capabilities",
+                        text = "Universal Search Capabilities",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface

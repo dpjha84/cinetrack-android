@@ -538,7 +538,7 @@ fun GoogleTvForYouView(
         item {
             GoogleTvSectionHeader(
                 title = "🔥 Trending Now on Google TV",
-                badgeText = "TMDB /trending/all/day"
+                badgeText = "Top Trending"
             )
 
             val displayTrending = if (trendingList.isNotEmpty()) trendingList else allMedia.take(10)

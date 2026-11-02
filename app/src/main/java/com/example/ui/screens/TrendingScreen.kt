@@ -150,7 +150,7 @@ fun TrendingScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = if (timeWindow == "day") "TMDB /trending/all/day • Today" else "TMDB /trending/all/week • This Week",
+                                    text = if (timeWindow == "day") "Top Trending • Today" else "Top Trending • This Week",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -218,7 +218,7 @@ fun TrendingScreen(
                                 color = if (isTmdbConfigured) CinemaGreen.copy(alpha = 0.2f) else CinemaGold.copy(alpha = 0.2f)
                             ) {
                                 Text(
-                                    text = if (isTmdbConfigured) "⚡ TMDB /trending/all/day" else "TMDB Config",
+                                    text = if (isTmdbConfigured) "⚡ LIVE CHARTS" else "CATALOG",
                                     color = if (isTmdbConfigured) CinemaGreen else CinemaGold,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
@@ -350,12 +350,12 @@ fun TrendingScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Fetching popular titles from TMDB...",
+                            text = "Fetching trending titles...",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Endpoint: /trending/all/$timeWindow",
+                            text = "Updating worldwide rankings",
                             style = MaterialTheme.typography.labelSmall,
                             color = CinemaGold
                         )
@@ -382,7 +382,7 @@ fun TrendingScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = trendingError ?: "Check your network connection or TMDB API key.",
+                            text = trendingError ?: "Check your network connection or catalog settings.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -470,7 +470,7 @@ fun TrendingScreen(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Refreshing TMDB trending...",
+                                text = "Refreshing trending titles...",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = CinemaGold
                             )

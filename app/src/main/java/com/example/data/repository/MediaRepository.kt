@@ -8,7 +8,11 @@ import com.example.data.local.SearchHistoryDao
 import com.example.data.local.SearchHistoryEntity
 import com.example.data.local.UserPreferencesEntity
 import com.example.data.model.MediaType
+import com.example.data.model.RegionalDefaults
 import com.example.data.model.TmdbSearchResultItem
+import com.example.data.model.WatchProviderItem
+import com.example.data.model.WatchProviderType
+import com.example.data.model.WatchProvidersInfo
 import com.example.data.model.WatchStatus
 import com.example.data.remote.tmdb.TmdbClient
 import com.example.data.remote.tmdb.TmdbPersonDetailDto
@@ -301,6 +305,95 @@ class MediaRepository(
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    suspend fun fetchLiveWatchProviders(
+        mediaId: String,
+        regionCode: String,
+        apiKey: String
+    ): WatchProvidersInfo? = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank() || apiKey == "YOUR_TMDB_API_KEY") return@withContext null
+        try {
+            val response = if (mediaId.startsWith("tmdb_m_")) {
+                val movieId = mediaId.removePrefix("tmdb_m_").toLongOrNull() ?: return@withContext null
+                TmdbClient.api.getMovieWatchProviders(movieId, apiKey)
+            } else if (mediaId.startsWith("tmdb_tv_")) {
+                val tvId = mediaId.removePrefix("tmdb_tv_").toLongOrNull() ?: return@withContext null
+                TmdbClient.api.getTvWatchProviders(tvId, apiKey)
+            } else {
+                return@withContext null
+            }
+
+            val regionData = response.results?.get(regionCode.uppercase())
+                ?: response.results?.get("US")
+                ?: response.results?.values?.firstOrNull()
+                ?: return@withContext null
+
+            val regionLabel = RegionalDefaults.getRegionLabel(regionCode)
+            val streamItems = (regionData.flatrate.orEmpty()).mapIndexed { idx, p ->
+                WatchProviderItem(
+                    id = p.providerId ?: (idx + 1),
+                    name = p.providerName,
+                    logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
+                    type = WatchProviderType.STREAM,
+                    webLink = regionData.link
+                )
+            }
+            val freeItems = (regionData.free.orEmpty() + regionData.ads.orEmpty()).mapIndexed { idx, p ->
+                WatchProviderItem(
+                    id = p.providerId ?: (idx + 100),
+                    name = p.providerName,
+                    logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
+                    type = WatchProviderType.FREE,
+                    webLink = regionData.link
+                )
+            }
+            val rentItems = regionData.rent.orEmpty().mapIndexed { idx, p ->
+                WatchProviderItem(
+                    id = p.providerId ?: (idx + 200),
+                    name = p.providerName,
+                    logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
+                    type = WatchProviderType.RENT,
+                    webLink = regionData.link
+                )
+            }
+            val buyItems = regionData.buy.orEmpty().mapIndexed { idx, p ->
+                WatchProviderItem(
+                    id = p.providerId ?: (idx + 300),
+                    name = p.providerName,
+                    logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
+                    type = WatchProviderType.BUY,
+                    webLink = regionData.link
+                )
+            }
+
+            val info = WatchProvidersInfo(
+                regionCode = regionCode,
+                regionLabel = regionLabel,
+                stream = streamItems,
+                free = freeItems,
+                rent = rentItems,
+                buy = buyItems,
+                justWatchLink = regionData.link
+            )
+
+            // Update local media streaming providers string if present
+            val existing = mediaDao.getMediaByIdDirect(mediaId)
+            if (existing != null && streamItems.isNotEmpty()) {
+                val newProviderNames = streamItems.joinToString(",") { it.name }
+                val updatedProviders = if (existing.streamingProviders.isBlank()) {
+                    "$regionCode:$newProviderNames"
+                } else {
+                    "${existing.streamingProviders}|$regionCode:$newProviderNames"
+                }
+                mediaDao.insertOrUpdate(existing.copy(streamingProviders = updatedProviders))
+            }
+
+            info
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 

@@ -14,6 +14,7 @@ import com.example.data.model.MultiSearchCategory
 import com.example.data.model.RegionalDefaults
 import com.example.data.model.TmdbSearchResultItem
 import com.example.data.model.ViewingStats
+import com.example.data.model.WatchProvidersInfo
 import com.example.data.model.WatchStatus
 import com.example.data.remote.tmdb.TmdbPersonDetailDto
 import com.example.data.repository.MediaRepository
@@ -113,6 +114,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val selectedPersonForDetail = MutableStateFlow<TmdbSearchResultItem.Person?>(null)
     val personDetailData = MutableStateFlow<TmdbPersonDetailDto?>(null)
     val isLoadingPersonDetail = MutableStateFlow(false)
+    val activeWatchProviders = MutableStateFlow<WatchProvidersInfo?>(null)
+    val isLoadingWatchProviders = MutableStateFlow(false)
     val searchHistory: StateFlow<List<SearchHistoryEntity>> = repository.searchHistory.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
@@ -570,11 +573,46 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectMedia(id: String?) {
         selectedMediaId.value = id
-        if (id != null && (id.startsWith("tmdb_m_") || id.startsWith("tmdb_tv_"))) {
+        activeWatchProviders.value = null
+        if (id != null) {
+            val media = allMedia.value.find { it.id == id }
+            val region = effectiveRegionCode.value
+            if (media != null) {
+                activeWatchProviders.value = media.getWatchProvidersInfo(region)
+            }
+            if (id.startsWith("tmdb_m_") || id.startsWith("tmdb_tv_")) {
+                viewModelScope.launch {
+                    val key = getActiveTmdbApiKey()
+                    if (key.isNotBlank() && key != "YOUR_TMDB_API_KEY") {
+                        repository.fetchDetailsFromTmdb(id, key)
+                        isLoadingWatchProviders.value = true
+                        val liveProviders = repository.fetchLiveWatchProviders(id, region, key)
+                        if (liveProviders != null && !liveProviders.isEmpty) {
+                            activeWatchProviders.value = liveProviders
+                        }
+                        isLoadingWatchProviders.value = false
+                    }
+                }
+            }
+        }
+    }
+
+    fun refreshWatchProviders(mediaId: String) {
+        val region = effectiveRegionCode.value
+        val media = allMedia.value.find { it.id == mediaId }
+        if (media != null) {
+            activeWatchProviders.value = media.getWatchProvidersInfo(region)
+        }
+        if (mediaId.startsWith("tmdb_m_") || mediaId.startsWith("tmdb_tv_")) {
             viewModelScope.launch {
                 val key = getActiveTmdbApiKey()
                 if (key.isNotBlank() && key != "YOUR_TMDB_API_KEY") {
-                    repository.fetchDetailsFromTmdb(id, key)
+                    isLoadingWatchProviders.value = true
+                    val liveProviders = repository.fetchLiveWatchProviders(mediaId, region, key)
+                    if (liveProviders != null && !liveProviders.isEmpty) {
+                        activeWatchProviders.value = liveProviders
+                    }
+                    isLoadingWatchProviders.value = false
                 }
             }
         }

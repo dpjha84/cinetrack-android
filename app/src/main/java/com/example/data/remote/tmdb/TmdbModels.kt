@@ -140,13 +140,18 @@ data class TmdbWatchProvidersResponse(
 
 @JsonClass(generateAdapter = true)
 data class TmdbCountryProvidersDto(
+    val link: String? = null,
     val flatrate: List<TmdbProviderDto>? = null,
     val rent: List<TmdbProviderDto>? = null,
-    val buy: List<TmdbProviderDto>? = null
+    val buy: List<TmdbProviderDto>? = null,
+    val free: List<TmdbProviderDto>? = null,
+    val ads: List<TmdbProviderDto>? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class TmdbProviderDto(
+    @Json(name = "provider_id") val providerId: Int? = null,
     @Json(name = "provider_name") val providerName: String,
-    @Json(name = "logo_path") val logoPath: String? = null
+    @Json(name = "logo_path") val logoPath: String? = null,
+    @Json(name = "display_priority") val displayPriority: Int? = null
 )

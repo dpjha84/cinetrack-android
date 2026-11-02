@@ -103,7 +103,7 @@ fun LocalizationPreferencesDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Region, Language & TMDB",
+                            text = "Region, Language & Catalog",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -114,7 +114,7 @@ fun LocalizationPreferencesDialog(
                 }
 
                 Text(
-                    text = "Personalize content catalog, regional streaming providers, and connect TMDB for live titles.",
+                    text = "Personalize content catalog, regional streaming providers, and live entertainment data.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -269,7 +269,7 @@ fun LocalizationPreferencesDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Section 3: TMDB API Key Integration
+                // Section 3: Live Catalog API Integration
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -284,7 +284,7 @@ fun LocalizationPreferencesDialog(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "TMDB API Integration",
+                            text = "Live Catalog API",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -295,7 +295,7 @@ fun LocalizationPreferencesDialog(
                         color = if (isKeyActive) CinemaGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
-                            text = if (isKeyActive) "Connected" else "Key Not Set",
+                            text = if (isKeyActive) "Active" else "Ready",
                             color = if (isKeyActive) CinemaGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.sp,
@@ -307,7 +307,7 @@ fun LocalizationPreferencesDialog(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "Enables live search across millions of movies & TV shows, trending sync, and official JustWatch streaming links.",
+                    text = "Powers live global search across millions of movies & TV shows, trending sync, and streaming providers.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -317,8 +317,8 @@ fun LocalizationPreferencesDialog(
                 OutlinedTextField(
                     value = tmdbKeyInput,
                     onValueChange = { tmdbKeyInput = it },
-                    label = { Text("TMDB API Key (v3)") },
-                    placeholder = { Text("Enter or paste your TMDB API Key") },
+                    label = { Text("Custom Catalog API Key (Optional)") },
+                    placeholder = { Text("Enter or paste your custom API key") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
@@ -329,7 +329,7 @@ fun LocalizationPreferencesDialog(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "Get a free API key at themoviedb.org/settings/api, or set TMDB_API_KEY in AI Studio Secrets.",
+                    text = "CineTrack includes an active live streaming catalog by default. Custom API key is completely optional.",
                     style = MaterialTheme.typography.labelSmall,
                     color = CinemaCyan
                 )

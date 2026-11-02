@@ -320,7 +320,7 @@ fun HomeScreen(
                                     modifier = Modifier.padding(end = 8.dp)
                                 ) {
                                     Text(
-                                        text = if (isTmdbConfigured) "⚡ TMDB LIVE" else "TMDB Setup",
+                                        text = if (isTmdbConfigured) "⚡ LIVE CATALOG" else "CATALOG",
                                         color = if (isTmdbConfigured) CinemaGreen else CinemaGold,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
@@ -344,7 +344,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("search_input"),
-                        placeholder = { Text(if (isTmdbConfigured) "Search millions of titles on TMDB..." else "Search title, actor, director...") },
+                        placeholder = { Text("Search movies, series, actors...") },
                         leadingIcon = {
                             IconButton(
                                 onClick = onNavigateToSearch,
@@ -534,7 +534,7 @@ fun HomeScreen(
                                     color = CinemaGold.copy(alpha = 0.2f)
                                 ) {
                                     Text(
-                                        text = "TMDB LIVE",
+                                        text = "TOP CHARTS",
                                         color = CinemaGold,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.ExtraBold,

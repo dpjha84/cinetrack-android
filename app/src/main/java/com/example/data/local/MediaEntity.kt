@@ -4,6 +4,9 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.example.data.model.MediaType
 import com.example.data.model.RegionalDefaults
+import com.example.data.model.WatchProviderItem
+import com.example.data.model.WatchProviderType
+import com.example.data.model.WatchProvidersInfo
 import com.example.data.model.WatchStatus
 
 @Entity(tableName = "media_items")
@@ -82,6 +85,24 @@ data class MediaEntity(
         // Fallback to GLOBAL or first entry
         val globalBlock = blocks.firstOrNull { it.startsWith("GLOBAL:", ignoreCase = true) }
         return globalBlock?.substringAfter(":")?.split(",")?.map { it.trim() } ?: emptyList()
+    }
+
+    fun getWatchProvidersInfo(regionCode: String): WatchProvidersInfo {
+        val regionLabel = RegionalDefaults.getRegionLabel(regionCode)
+        val names = getProvidersForRegion(regionCode)
+        val items = names.mapIndexed { index, name ->
+            WatchProviderItem(
+                id = index + 1,
+                name = name,
+                logoUrl = null,
+                type = WatchProviderType.STREAM
+            )
+        }
+        return WatchProvidersInfo(
+            regionCode = regionCode,
+            regionLabel = regionLabel,
+            stream = items
+        )
     }
 
     fun getLanguageFlagAndName(): String {
