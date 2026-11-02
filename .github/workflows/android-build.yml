@@ -1,106 +1,46 @@
-name: Android CI & Release Build
-
+name: Android build
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
-
+  push:
+    tags: ['v*']
 permissions:
   contents: read
-
 jobs:
   build:
-    name: Build Android APKs & Play Store Bundle
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
+    env:
+      KS_B64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-read-only: false
-
-      - name: Grant Execute Permission to Gradle Wrapper
-        run: chmod +x gradlew
-
-      - name: Restore Debug Keystore
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: 21 }
+      # app/build.gradle.kts signs the debug build with ${rootDir}/debug.keystore, which is
+      # gitignored, so generate one (or restore it from debug.keystore.base64 if committed).
+      - name: Prepare debug keystore
         run: |
-          if [ -f "debug.keystore.base64" ]; then
+          if [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore
-            echo "Restored debug.keystore from base64."
+          else
+            keytool -genkeypair -keystore debug.keystore -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US"
           fi
-
-      - name: Configure Release Signing Keystore
+      # Test APK (debug-signed, installable on any phone)
+      - run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with: { name: cinetrack-debug-apk, path: app/build/outputs/apk/debug/*.apk }
+      # Signed AAB for Play Store (only if the signing secrets are set).
+      # The key alias must be "upload" (hardcoded in app/build.gradle.kts).
+      - name: Signed release AAB
+        if: ${{ env.KS_B64 != '' }}
         env:
-          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEYSTORE_PATH: ${{ runner.temp }}/upload.jks
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
-            echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > my-upload-key.jks
-            echo "Using custom release keystore from GitHub Secrets."
-          else
-            echo "No custom release keystore provided in Secrets. Generating fallback upload keystore for CI build..."
-            keytool -genkeypair -v \
-              -keystore my-upload-key.jks \
-              -alias upload \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
-              -dname "CN=CineTrack CI, OU=Mobile, O=AI Studio, L=Mountain View, S=CA, C=US"
-            echo "STORE_PASSWORD=android" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
-          fi
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
-
-      - name: Build Release Bundle (AAB for Google Play Store)
-        env:
-          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
-          STORE_PASSWORD: ${{ env.STORE_PASSWORD || secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ env.KEY_PASSWORD || secrets.KEY_PASSWORD }}
-        run: ./gradlew bundleRelease --stacktrace --no-daemon
-
-      - name: Build Release APK
-        env:
-          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
-          STORE_PASSWORD: ${{ env.STORE_PASSWORD || secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ env.KEY_PASSWORD || secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --stacktrace --no-daemon
-
-      - name: Upload Debug APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: CineTrack-Debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload Play Store Release Bundle (AAB)
-        uses: actions/upload-artifact@v4
-        with:
-          name: CineTrack-PlayStore-Release-AAB
-          path: app/build/outputs/bundle/release/app-release.aab
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload Release APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: CineTrack-Release-APK
-          path: app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: warn
-          retention-days: 14
+          echo "$KS_B64" | base64 -d > "$KEYSTORE_PATH"
+          ./gradlew bundleRelease --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles('app/build/outputs/bundle/release/*.aab') != '' }}
+        with: { name: cinetrack-release-aab, path: app/build/outputs/bundle/release/*.aab }
