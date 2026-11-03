@@ -16,6 +16,7 @@ import com.example.data.model.WatchProvidersInfo
 import com.example.data.model.WatchStatus
 import com.example.data.remote.tmdb.TmdbClient
 import com.example.data.remote.tmdb.TmdbPersonDetailDto
+import com.example.util.JustWatchScraper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -330,6 +331,19 @@ class MediaRepository(
                 ?: response.results?.values?.firstOrNull()
                 ?: return@withContext null
 
+            // Scrape JustWatch direct outbound content URLs
+            val directLinks = if (!regionData.link.isNullOrBlank()) {
+                JustWatchScraper.scrapeDirectContentUrls(regionData.link)
+            } else {
+                emptyMap()
+            }
+
+            fun findDirectUrl(providerName: String): String? {
+                val clean = providerName.trim().lowercase()
+                return directLinks[clean]
+                    ?: directLinks.entries.firstOrNull { (k, _) -> clean.contains(k) || k.contains(clean) }?.value
+            }
+
             val regionLabel = RegionalDefaults.getRegionLabel(regionCode)
             val streamItems = (regionData.flatrate.orEmpty()).mapIndexed { idx, p ->
                 WatchProviderItem(
@@ -337,7 +351,8 @@ class MediaRepository(
                     name = p.providerName,
                     logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
                     type = WatchProviderType.STREAM,
-                    webLink = regionData.link
+                    webLink = regionData.link,
+                    directContentUrl = findDirectUrl(p.providerName)
                 )
             }
             val freeItems = (regionData.free.orEmpty() + regionData.ads.orEmpty()).mapIndexed { idx, p ->
@@ -346,7 +361,8 @@ class MediaRepository(
                     name = p.providerName,
                     logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
                     type = WatchProviderType.FREE,
-                    webLink = regionData.link
+                    webLink = regionData.link,
+                    directContentUrl = findDirectUrl(p.providerName)
                 )
             }
             val rentItems = regionData.rent.orEmpty().mapIndexed { idx, p ->
@@ -355,7 +371,8 @@ class MediaRepository(
                     name = p.providerName,
                     logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
                     type = WatchProviderType.RENT,
-                    webLink = regionData.link
+                    webLink = regionData.link,
+                    directContentUrl = findDirectUrl(p.providerName)
                 )
             }
             val buyItems = regionData.buy.orEmpty().mapIndexed { idx, p ->
@@ -364,7 +381,8 @@ class MediaRepository(
                     name = p.providerName,
                     logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
                     type = WatchProviderType.BUY,
-                    webLink = regionData.link
+                    webLink = regionData.link,
+                    directContentUrl = findDirectUrl(p.providerName)
                 )
             }
 

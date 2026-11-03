@@ -9,13 +9,53 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="nflx" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="primevideo" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="hotstar" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="disneyplus" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="vnd.youtube" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="jiocinema" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="zee5" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="sonyliv" />
+        </intent>
         <package android:name="com.netflix.mediaclient" />
         <package android:name="com.amazon.avod.thirdpartyclient" />
+        <package android:name="com.amazon.amazonvideo.livingroom" />
         <package android:name="com.disney.disneyplus" />
         <package android:name="in.startv.hotstar" />
+        <package android:name="com.hotstar.hotstar" />
         <package android:name="com.google.android.youtube" />
         <package android:name="com.google.android.videos" />
         <package android:name="com.wbd.stream" />
+        <package android:name="com.hbo.hbonow" />
+        <package android:name="com.hbo.max" />
         <package android:name="com.hulu.plus" />
         <package android:name="com.peacocktv.peacockandroid" />
         <package android:name="com.cbs.app" />
@@ -25,6 +65,11 @@
         <package android:name="com.crunchyroll.crunchyroid" />
         <package android:name="com.tubitv" />
         <package android:name="tv.pluto.android" />
+        <package android:name="com.apple.atve.androidtv.appletv" />
+        <package android:name="com.apple.atve.sony.appletv" />
+        <package android:name="com.mxtech.videoplayer.ad" />
+        <package android:name="com.mxtech.videoplayer.pro" />
+        <package android:name="aha.ott.video.movies" />
     </queries>
 
     <application

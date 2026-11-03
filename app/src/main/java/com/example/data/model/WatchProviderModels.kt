@@ -12,7 +12,8 @@ data class WatchProviderItem(
     val name: String,
     val logoUrl: String?,
     val type: WatchProviderType,
-    val webLink: String? = null
+    val webLink: String? = null,
+    val directContentUrl: String? = null
 )
 
 data class WatchProvidersInfo(

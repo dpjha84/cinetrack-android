@@ -53,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -110,6 +111,25 @@ fun MediaDetailScreen(
     var showRatingDialog by remember { mutableStateOf(false) }
     var showWatchlistDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
+    val maxSeasons = maxOf(1, media.totalSeasons)
+    val totalEpisodes = maxOf(1, media.totalEpisodes)
+
+    // Interactive Season and Episode selection for TV series direct playback
+    var selectedSeason by remember(media.id) {
+        val initialSeason = if (media.totalSeasons > 0 && media.totalEpisodes > 0) {
+            val epsPerSeason = maxOf(1, (media.totalEpisodes + media.totalSeasons - 1) / media.totalSeasons)
+            val current = (media.watchedEpisodes / epsPerSeason) + 1
+            current.coerceIn(1, maxSeasons)
+        } else 1
+        mutableIntStateOf(initialSeason)
+    }
+
+    var selectedEpisode by remember(media.id, selectedSeason) {
+        val nextEp = if (media.watchedEpisodes < media.totalEpisodes) (media.watchedEpisodes % 10) + 1 else 1
+        mutableIntStateOf(nextEp.coerceAtLeast(1))
+    }
 
     Box(
         modifier = modifier
@@ -289,7 +309,7 @@ fun MediaDetailScreen(
                 val providersInfo = activeWatchProviders ?: remember(media, effectiveRegionCode) {
                     media.getWatchProvidersInfo(effectiveRegionCode)
                 }
-                val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
+                val streamAndFree = (providersInfo.stream + providersInfo.free).distinctBy { it.name }
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -334,6 +354,119 @@ fun MediaDetailScreen(
                             }
                         }
 
+                        // TV Series Season & Episode Selector for direct playback deep linking
+                        if (!isMovie) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp)
+                                    .testTag("tv_episode_direct_selector")
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.LiveTv,
+                                                contentDescription = null,
+                                                tint = CinemaCyan,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "EPISODE PLAYBACK TARGET",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = CinemaCyan
+                                            )
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = CinemaCyan.copy(alpha = 0.2f)
+                                        ) {
+                                            Text(
+                                                text = "S$selectedSeason:E$selectedEpisode",
+                                                color = CinemaCyan,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Season Stepper
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Season ", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                            IconButton(
+                                                onClick = { if (selectedSeason > 1) selectedSeason-- },
+                                                enabled = selectedSeason > 1,
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                            ) {
+                                                Icon(imageVector = Icons.Default.Remove, contentDescription = "Prev Season", modifier = Modifier.size(14.dp))
+                                            }
+                                            Text(
+                                                text = "$selectedSeason",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.padding(horizontal = 8.dp)
+                                            )
+                                            IconButton(
+                                                onClick = { if (selectedSeason < maxSeasons) selectedSeason++ },
+                                                enabled = selectedSeason < maxSeasons,
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                            ) {
+                                                Icon(imageVector = Icons.Default.Add, contentDescription = "Next Season", modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+
+                                        // Episode Stepper
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Episode ", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                            IconButton(
+                                                onClick = { if (selectedEpisode > 1) selectedEpisode-- },
+                                                enabled = selectedEpisode > 1,
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                            ) {
+                                                Icon(imageVector = Icons.Default.Remove, contentDescription = "Prev Episode", modifier = Modifier.size(14.dp))
+                                            }
+                                            Text(
+                                                text = "$selectedEpisode",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.padding(horizontal = 8.dp)
+                                            )
+                                            IconButton(
+                                                onClick = { selectedEpisode++ },
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                            ) {
+                                                Icon(imageVector = Icons.Default.Add, contentDescription = "Next Episode", modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         if (isLoadingWatchProviders) {
                             Spacer(modifier = Modifier.height(10.dp))
                             Row(
@@ -352,9 +485,6 @@ fun MediaDetailScreen(
                                 )
                             }
                         }
-
-                        val streamAndFree = (providersInfo.stream + providersInfo.free).distinctBy { it.name }
-
                         if (streamAndFree.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(12.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -366,7 +496,7 @@ fun MediaDetailScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "STREAM NOW (SUBSCRIPTION & FREE)",
+                                    text = if (isMovie) "STREAM NOW (SUBSCRIPTION & FREE)" else "WATCH S$selectedSeason:E$selectedEpisode NOW",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = CinemaGreen
@@ -392,7 +522,10 @@ fun MediaDetailScreen(
                                                     title = media.title,
                                                     releaseYear = media.releaseYear,
                                                     isMovie = isMovie,
-                                                    webLink = provider.webLink ?: providersInfo.justWatchLink
+                                                    seasonNumber = if (!isMovie) selectedSeason else null,
+                                                    episodeNumber = if (!isMovie) selectedEpisode else null,
+                                                    webLink = provider.webLink ?: providersInfo.justWatchLink,
+                                                    directContentUrl = provider.directContentUrl
                                                 )
                                             }
                                             .testTag("btn_watch_${provider.name.lowercase().replace(" ", "_")}")
@@ -474,7 +607,10 @@ fun MediaDetailScreen(
                                                     title = media.title,
                                                     releaseYear = media.releaseYear,
                                                     isMovie = isMovie,
-                                                    webLink = provider.webLink ?: providersInfo.justWatchLink
+                                                    seasonNumber = if (!isMovie) selectedSeason else null,
+                                                    episodeNumber = if (!isMovie) selectedEpisode else null,
+                                                    webLink = provider.webLink ?: providersInfo.justWatchLink,
+                                                    directContentUrl = provider.directContentUrl
                                                 )
                                             }
                                             .testTag("btn_buy_${provider.name.lowercase().replace(" ", "_")}")
@@ -522,6 +658,8 @@ fun MediaDetailScreen(
                                         title = media.title,
                                         releaseYear = media.releaseYear,
                                         isMovie = isMovie,
+                                        seasonNumber = if (!isMovie) selectedSeason else null,
+                                        episodeNumber = if (!isMovie) selectedEpisode else null,
                                         webLink = providersInfo.justWatchLink
                                     )
                                 },
@@ -655,6 +793,45 @@ fun MediaDetailScreen(
                                     Icon(imageVector = Icons.Default.Add, contentDescription = "Plus Episode")
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("Mark Next Episode", fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            if (streamAndFree.isNotEmpty()) {
+                                val topProvider = streamAndFree.first()
+                                Spacer(modifier = Modifier.height(12.dp))
+                                FilledTonalButton(
+                                    onClick = {
+                                        WatchProviderLauncher.launchProvider(
+                                            context = context,
+                                            providerName = topProvider.name,
+                                            title = media.title,
+                                            releaseYear = media.releaseYear,
+                                            isMovie = false,
+                                            seasonNumber = selectedSeason,
+                                            episodeNumber = selectedEpisode,
+                                            webLink = topProvider.webLink ?: providersInfo.justWatchLink,
+                                            directContentUrl = topProvider.directContentUrl
+                                        )
+                                    },
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = CinemaGreen.copy(alpha = 0.2f),
+                                        contentColor = CinemaGreen
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("btn_watch_episode_progress_direct")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Watch S$selectedSeason:E$selectedEpisode on ${topProvider.name}",
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
