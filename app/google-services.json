@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "835736831035",
+    "project_id": "gen-lang-client-0915382091",
+    "storage_bucket": "gen-lang-client-0915382091.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:835736831035:android:c7284437ef9f6c1a9e481e",
+        "android_client_info": {
+          "package_name": "com.aistudio.cinetrack.tvexpl"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "835736831035-dl429ch5pk3bp8gdah9aakmqa4kqjo9t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.cinetrack.tvexpl",
+            "certificate_hash": "f60af66eabe60a8ce3823562b6abe12cced55569"
+          }
+        },
+        {
+          "client_id": "835736831035-b8gh140rffdc1rrbinicu3rf2catg4lm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApqCwS9_3cfOM8uGrx73WY5pK0ynQ4uco"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "835736831035-b8gh140rffdc1rrbinicu3rf2catg4lm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
