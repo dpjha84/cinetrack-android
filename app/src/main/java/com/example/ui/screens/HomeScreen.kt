@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -32,7 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
@@ -45,7 +46,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -88,318 +88,126 @@ import com.example.ui.viewmodel.MediaViewModel
 fun HomeScreen(
     viewModel: MediaViewModel,
     onMediaClick: (String) -> Unit,
-    onOpenAddDialog: () -> Unit,
     onNavigateToSearch: () -> Unit = {},
-    onNavigateToTrending: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedType by viewModel.selectedTypeFilter.collectAsStateWithLifecycle()
     val selectedGenre by viewModel.selectedGenreFilter.collectAsStateWithLifecycle()
     val availableGenres by viewModel.availableGenres.collectAsStateWithLifecycle()
     val continueWatchingList by viewModel.continueWatching.collectAsStateWithLifecycle()
     val discoverItems by viewModel.filteredDiscover.collectAsStateWithLifecycle()
     val trendingList by viewModel.trendingItems.collectAsStateWithLifecycle()
-    val userPreferences by viewModel.userPreferences.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
-    val isSearchingTmdb by viewModel.isSearchingTmdb.collectAsStateWithLifecycle()
-    val isTmdbConfigured by viewModel.isTmdbConfigured.collectAsStateWithLifecycle()
 
-    var showLocalizationDialog by remember { mutableStateOf(false) }
+    val regionOption = remember(effectiveRegion) {
+        RegionalDefaults.supportedRegions.find { it.code.equals(effectiveRegion, ignoreCase = true) }
+            ?: RegionalDefaults.detectDeviceRegion()
+    }
+
+    val topSpotlightItems = remember(trendingList, discoverItems) {
+        if (trendingList.isNotEmpty()) trendingList.take(10) else discoverItems.take(10)
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(bottom = 96.dp),
+            contentPadding = PaddingValues(bottom = 24.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .testTag("home_screen_grid")
         ) {
-            // Hero Spotlight Banner
-            item(span = { GridItemSpan(2) }) {
-                val featured = discoverItems.firstOrNull { it.backdropUrl.isNotBlank() } ?: discoverItems.firstOrNull()
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable {
-                            featured?.let { onMediaClick(it.id) }
-                        }
-                        .testTag("hero_spotlight_banner")
-                ) {
-                    if (featured != null && featured.backdropUrl.isNotBlank()) {
-                        AsyncImage(
-                            model = featured.backdropUrl,
-                            contentDescription = featured.title,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.banner_cinema),
-                            contentDescription = "Cinema Banner",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-
-                    // Scrim gradient
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        MaterialTheme.colorScheme.background.copy(alpha = 0.65f),
-                                        MaterialTheme.colorScheme.background
-                                    )
-                                )
-                            )
-                    )
-
+            // Top Horizontal Scrolling Spotlight Carousel (Trending & Featured)
+            if (topSpotlightItems.isNotEmpty()) {
+                item(span = { GridItemSpan(2) }) {
                     Column(
                         modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = CinemaGold.copy(alpha = 0.25f),
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                                    contentDescription = null,
-                                    tint = CinemaGold,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "FEATURED SPOTLIGHT • ${featured?.releaseYear ?: 2024}",
-                                    color = CinemaGold,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = featured?.title ?: "Track Every Story",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
-                            maxLines = 1
-                        )
-                        Text(
-                            text = "${featured?.genres ?: "Cinema & TV"} • ★ ${String.format("%.1f", featured?.communityRating ?: 8.8f)} • Tap to view",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.85f)
-                        )
-                    }
-                }
-            }
-
-            // Search Bar & Filter Section
-            item(span = { GridItemSpan(2) }) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    // Google TV Mode Switcher Banner
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF141721),
-                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp)
-                            .clickable { viewModel.setGoogleTvMode(true) }
-                            .testTag("btn_enable_googletv_mode")
+                            .padding(top = 10.dp, bottom = 6.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF4C8DF6).copy(alpha = 0.25f),
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Tv,
-                                            contentDescription = null,
-                                            tint = Color(0xFF8AB4F8),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = "Google TV Mode (v2.0)",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = "Experience the cinematic Android TV look & feel",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White.copy(alpha = 0.65f)
-                                    )
-                                }
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color(0xFF4C8DF6)
-                            ) {
-                                Text(
-                                    text = "Switch",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Regional Localization Banner
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showLocalizationDialog = true }
-                            .testTag("btn_open_localization")
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.Public,
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                     contentDescription = null,
                                     tint = CinemaGold,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Region: ${RegionalDefaults.getRegionLabel(effectiveRegion)}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
+                                    modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "• ${RegionalDefaults.getLanguageLabel(userPreferences.languageCode)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = "${regionOption.flag} Trending in ${regionOption.name}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
                                 )
                             }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = CinemaGold.copy(alpha = 0.15f)
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = if (isTmdbConfigured) CinemaGreen.copy(alpha = 0.2f) else CinemaGold.copy(alpha = 0.2f),
-                                    modifier = Modifier.padding(end = 8.dp)
-                                ) {
-                                    Text(
-                                        text = if (isTmdbConfigured) "⚡ LIVE CATALOG" else "CATALOG",
-                                        color = if (isTmdbConfigured) CinemaGreen else CinemaGold,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
                                 Text(
-                                    text = "Settings",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = CinemaCyan,
-                                    fontWeight = FontWeight.Bold
+                                    text = "TOP PICKS",
+                                    color = CinemaGold,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("home_top_spotlight_carousel")
+                        ) {
+                            itemsIndexed(
+                                items = topSpotlightItems,
+                                key = { index, item -> "top_spotlight_${item.id}_$index" }
+                            ) { index, item ->
+                                SpotlightBannerCard(
+                                    rank = index + 1,
+                                    media = item,
+                                    onClick = { onMediaClick(item.id) }
                                 )
                             }
                         }
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.searchQuery.value = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("search_input"),
-                        placeholder = { Text("Search movies, series, actors...") },
-                        leadingIcon = {
-                            IconButton(
-                                onClick = onNavigateToSearch,
-                                modifier = Modifier.testTag("btn_home_open_search")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Open Full Search Screen",
-                                    tint = CinemaGold
-                                )
-                            }
-                        },
-                        trailingIcon = {
-                            if (isSearchingTmdb) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    color = CinemaGold,
-                                    strokeWidth = 2.dp
-                                )
-                            } else if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.searchQuery.value = "" }) {
-                                    Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear")
-                                }
-                            }
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = CinemaGold,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
+            // Category & Genre Filter Section (Consolidated & Streamlined)
+            item(span = { GridItemSpan(2) }) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     // Media Type Chips (All, Movies, TV)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
                             selected = selectedType == null,
                             onClick = { viewModel.selectedTypeFilter.value = null },
-                            label = { Text("All Media") },
+                            label = { Text("All Media", maxLines = 1, softWrap = false) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CinemaGold,
                                 selectedLabelColor = MaterialTheme.colorScheme.surface
-                            ),
-                            modifier = Modifier.weight(1f)
+                            )
                         )
                         FilterChip(
                             selected = selectedType == MediaType.MOVIE,
                             onClick = { viewModel.selectedTypeFilter.value = MediaType.MOVIE },
-                            label = { Text("Movies") },
+                            label = { Text("Movies", maxLines = 1, softWrap = false) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Movie,
@@ -410,13 +218,12 @@ fun HomeScreen(
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CinemaGold,
                                 selectedLabelColor = MaterialTheme.colorScheme.surface
-                            ),
-                            modifier = Modifier.weight(1f)
+                            )
                         )
                         FilterChip(
                             selected = selectedType == MediaType.TV_SHOW,
                             onClick = { viewModel.selectedTypeFilter.value = MediaType.TV_SHOW },
-                            label = { Text("TV Shows") },
+                            label = { Text("TV Shows", maxLines = 1, softWrap = false) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Tv,
@@ -427,8 +234,7 @@ fun HomeScreen(
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CinemaCyan,
                                 selectedLabelColor = MaterialTheme.colorScheme.surface
-                            ),
-                            modifier = Modifier.weight(1f)
+                            )
                         )
                     }
 
@@ -507,84 +313,6 @@ fun HomeScreen(
                 }
             }
 
-            // Trending Today Horizontal Spotlight (/trending/all/day)
-            if (trendingList.isNotEmpty() && searchQuery.isEmpty()) {
-                item(span = { GridItemSpan(2) }) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "🔥 Trending Today",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = CinemaGold.copy(alpha = 0.2f)
-                                ) {
-                                    Text(
-                                        text = "TOP CHARTS",
-                                        color = CinemaGold,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-
-                            TextButton(
-                                onClick = onNavigateToTrending,
-                                modifier = Modifier.testTag("btn_see_all_trending")
-                            ) {
-                                Text(
-                                    text = "See All",
-                                    color = CinemaGold,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "See All Trending",
-                                    tint = CinemaGold,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.testTag("home_trending_carousel")
-                        ) {
-                            itemsIndexed(
-                                items = trendingList.take(10),
-                                key = { index, item -> "home_trending_${item.id}_$index" }
-                            ) { index, item ->
-                                TrendingMiniPosterCard(
-                                    rank = index + 1,
-                                    media = item,
-                                    onClick = { onMediaClick(item.id) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
             // Catalog Grid Header
             item(span = { GridItemSpan(2) }) {
                 Row(
@@ -595,12 +323,12 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (searchQuery.isNotEmpty()) "Search Results" else "Explore Titles",
+                        text = "Popular in ${regionOption.name}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "${discoverItems.size} items",
+                        text = "${discoverItems.size} titles",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -645,138 +373,106 @@ fun HomeScreen(
                 }
             }
         }
-
-        // Floating Action Button to add custom title
-        FloatingActionButton(
-            onClick = onOpenAddDialog,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 80.dp, end = 20.dp)
-                .testTag("fab_add_custom_media"),
-            containerColor = CinemaGold,
-            contentColor = MaterialTheme.colorScheme.surface
-        ) {
-            Icon(imageVector = Icons.Default.Add, contentDescription = "Add Custom Title")
-        }
-    }
-
-    if (showLocalizationDialog) {
-        LocalizationPreferencesDialog(
-            currentPreferences = userPreferences,
-            effectiveRegionCode = effectiveRegion,
-            activeApiKey = viewModel.getActiveTmdbApiKey(),
-            onDismiss = { showLocalizationDialog = false },
-            onSave = { regionCode, autoDetect, langCode, filterOnly, tmdbKey ->
-                viewModel.updateRegion(regionCode, autoDetect)
-                viewModel.updateLanguage(langCode)
-                viewModel.toggleFilterByLanguage(filterOnly)
-                viewModel.updateCustomTmdbApiKey(tmdbKey)
-                showLocalizationDialog = false
-            }
-        )
     }
 }
 
 @Composable
-fun TrendingMiniPosterCard(
+fun SpotlightBannerCard(
     rank: Int,
     media: MediaEntity,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
-    val (rankBgColor, rankTextColor) = when (rank) {
-        1 -> Pair(CinemaGold, Color.Black)
-        2 -> Pair(Color(0xFFC0C0C0), Color.Black)
-        3 -> Pair(Color(0xFFCD7F32), Color.White)
-        else -> Pair(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         modifier = modifier
-            .width(130.dp)
-            .clickable { onClick() }
-            .testTag("trending_mini_card_${media.id}")
+            .width(290.dp)
+            .height(175.dp)
+            .clickable(onClick = onClick)
+            .testTag("spotlight_card_${media.id}")
     ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            val bgUrl = media.backdropUrl.ifBlank { media.posterUrl }
+            Image(
+                painter = painterResource(id = R.drawable.banner_cinema),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+
+            if (bgUrl.isNotBlank()) {
+                val context = LocalContext.current
                 AsyncImage(
-                    model = media.posterUrl,
+                    model = ImageRequest.Builder(context)
+                        .data(bgUrl)
+                        .crossfade(true)
+                        .placeholder(R.drawable.banner_cinema)
+                        .error(R.drawable.banner_cinema)
+                        .build(),
                     contentDescription = media.title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
-
-                // Dark bottom gradient
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
-                            )
-                        )
-                )
-
-                // Rank Badge in top-left
-                Surface(
-                    shape = RoundedCornerShape(bottomEnd = 8.dp),
-                    color = rankBgColor,
-                    modifier = Modifier.align(Alignment.TopStart)
-                ) {
-                    Text(
-                        text = "#$rank",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 11.sp,
-                        color = rankTextColor,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-
-                // Media type chip in bottom-left
-                Surface(
-                    shape = RoundedCornerShape(topEnd = 6.dp),
-                    color = (if (isMovie) CinemaGold else CinemaCyan).copy(alpha = 0.85f),
-                    modifier = Modifier.align(Alignment.BottomStart)
-                ) {
-                    Text(
-                        text = if (isMovie) "MOVIE" else "TV",
-                        color = Color.Black,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                    )
-                }
             }
 
-            Column(
-                modifier = Modifier.padding(8.dp)
+            // Dark gradient scrim
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.25f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.85f)
+                            )
+                        )
+                    )
+            )
+
+            // Top Badges
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = media.title,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.Black.copy(alpha = 0.65f)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "#$rank",
+                            color = CinemaGold,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "• ${if (isMovie) "MOVIE" else "SERIES"}",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.Black.copy(alpha = 0.65f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = null,
@@ -786,20 +482,35 @@ fun TrendingMiniPosterCard(
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = String.format("%.1f", media.communityRating),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = CinemaGold
-                        )
-                    }
-
-                    if (media.releaseYear > 0) {
-                        Text(
-                            text = media.releaseYear.toString(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = CinemaGold,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
+            }
+
+            // Bottom Info
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = media.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${media.releaseYear} • ${media.genres.ifBlank { "Drama" }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
         }
     }

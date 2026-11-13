@@ -18,11 +18,11 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VideoLibrary
@@ -42,19 +42,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.ui.components.AddCustomMediaDialog
-import com.example.ui.screens.GoogleTvScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.MediaDetailScreen
+import com.example.ui.screens.PersonDetailScreen
+import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.SearchScreen
-import com.example.ui.screens.StatsScreen
-import com.example.ui.screens.TrendingScreen
-import com.example.ui.theme.CineTrackTheme
+import com.example.ui.screens.SeasonDetailScreen
+import com.example.ui.screens.TrailersScreen
+import com.example.ui.theme.MovieverseTheme
 import com.example.ui.theme.CinemaGold
 import com.example.ui.viewmodel.MediaViewModel
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.outlined.PlayCircle
 
 enum class MainNavDestination(
     val title: String,
@@ -62,11 +68,11 @@ enum class MainNavDestination(
     val unselectedIcon: ImageVector,
     val testTag: String
 ) {
-    DISCOVER("Discover", Icons.Filled.Explore, Icons.Outlined.Explore, "nav_discover"),
-    TRENDING("Trending", Icons.AutoMirrored.Filled.TrendingUp, Icons.AutoMirrored.Outlined.TrendingUp, "nav_trending"),
+    HOME("Home", Icons.Filled.Home, Icons.Outlined.Home, "nav_home"),
+    TRAILERS("Trailers", Icons.Filled.PlayCircle, Icons.Outlined.PlayCircle, "nav_trailers"),
     SEARCH("Search", Icons.Filled.Search, Icons.Outlined.Search, "nav_search"),
-    LIBRARY("Watchlist", Icons.Filled.VideoLibrary, Icons.Outlined.VideoLibrary, "nav_library"),
-    STATS("Stats", Icons.Filled.Insights, Icons.Outlined.Insights, "nav_stats")
+    LIBRARY("Library", Icons.Filled.VideoLibrary, Icons.Outlined.VideoLibrary, "nav_library"),
+    PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.Person, "nav_profile")
 }
 
 class MainActivity : ComponentActivity() {
@@ -76,32 +82,40 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            CineTrackTheme {
-                CineTrackApp(viewModel = viewModel)
+            MovieverseTheme {
+                MovieverseApp(viewModel = viewModel)
             }
         }
     }
 }
 
 @Composable
-fun CineTrackApp(viewModel: MediaViewModel) {
-    var currentNav by remember { mutableStateOf(MainNavDestination.DISCOVER) }
-    var showAddDialog by remember { mutableStateOf(false) }
+fun MovieverseApp(viewModel: MediaViewModel) {
+    var currentNav by remember { mutableStateOf(MainNavDestination.HOME) }
 
     val allMedia by viewModel.allMedia.collectAsStateWithLifecycle()
     val customCollections by viewModel.customCollections.collectAsStateWithLifecycle()
     val selectedMediaId by viewModel.selectedMediaId.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
-    val isGoogleTvMode by viewModel.isGoogleTvMode.collectAsStateWithLifecycle()
+    val selectedSeasonForDetail by viewModel.selectedSeasonForDetail.collectAsStateWithLifecycle()
 
-    val selectedMedia = remember(selectedMediaId, allMedia) {
+    val trendingItems by viewModel.trendingItems.collectAsStateWithLifecycle()
+    val currentTopRatedList by viewModel.currentTopRatedList.collectAsStateWithLifecycle()
+    val favoritePeople by viewModel.favoritePeople.collectAsStateWithLifecycle()
+    val selectedPerson by viewModel.selectedPersonForDetail.collectAsStateWithLifecycle()
+    val personDetail by viewModel.personDetailData.collectAsStateWithLifecycle()
+    val isLoadingPersonDetail by viewModel.isLoadingPersonDetail.collectAsStateWithLifecycle()
+
+    val selectedMedia = remember(selectedMediaId, allMedia, trendingItems, currentTopRatedList) {
         allMedia.find { it.id == selectedMediaId }
+            ?: trendingItems.find { it.id == selectedMediaId }
+            ?: currentTopRatedList.find { it.id == selectedMediaId }
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            if (selectedMedia == null && !isGoogleTvMode) {
+            if (selectedMedia == null && selectedPerson == null) {
                 NavigationBar(
                     modifier = Modifier
                         .windowInsetsPadding(WindowInsets.navigationBars)
@@ -114,6 +128,7 @@ fun CineTrackApp(viewModel: MediaViewModel) {
                         NavigationBarItem(
                             selected = selected,
                             onClick = { currentNav = destination },
+                            alwaysShowLabel = true,
                             icon = {
                                 Icon(
                                     imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
@@ -123,7 +138,11 @@ fun CineTrackApp(viewModel: MediaViewModel) {
                             label = {
                                 Text(
                                     text = destination.title,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
@@ -141,46 +160,72 @@ fun CineTrackApp(viewModel: MediaViewModel) {
         }
     ) { innerPadding ->
         AnimatedContent(
-            targetState = selectedMedia,
+            targetState = Triple(selectedPerson, selectedMedia, selectedSeasonForDetail),
+            contentKey = { (person, media, season) ->
+                Triple(person != null, media?.id, season?.seasonNumber)
+            },
             transitionSpec = { fadeIn() togetherWith fadeOut() },
             label = "screenTransition",
             modifier = Modifier.padding(innerPadding)
-        ) { activeMedia ->
-            if (activeMedia != null) {
-                MediaDetailScreen(
-                    media = activeMedia,
-                    viewModel = viewModel,
-                    availableCollections = customCollections,
-                    effectiveRegionCode = effectiveRegion,
-                    onBack = { viewModel.selectMedia(null) }
-                )
-            } else if (isGoogleTvMode) {
-                GoogleTvScreen(
-                    viewModel = viewModel,
-                    onMediaClick = { id -> viewModel.selectMedia(id) },
-                    onSwitchToClassic = { viewModel.setGoogleTvMode(false) },
-                    onNavigateToSearch = {
-                        currentNav = MainNavDestination.SEARCH
-                        viewModel.setGoogleTvMode(false)
+        ) { (activePerson, activeMedia, activeSeason) ->
+            if (activePerson != null) {
+                val resolvedId = personDetail?.id?.takeIf { it > 0L } ?: activePerson.id
+                val resolvedName = personDetail?.name?.takeIf { it.isNotBlank() } ?: activePerson.name
+                val isPersonFavorite = remember(resolvedId, resolvedName, favoritePeople) {
+                    favoritePeople.any { fav ->
+                        (resolvedId > 0L && fav.personId == resolvedId) ||
+                            fav.name.equals(resolvedName, ignoreCase = true)
+                    }
+                }
+                PersonDetailScreen(
+                    person = activePerson,
+                    detailDto = personDetail,
+                    isLoading = isLoadingPersonDetail,
+                    isFavorite = isPersonFavorite,
+                    trackedMedia = allMedia,
+                    onBack = { viewModel.selectPersonForDetail(null) },
+                    onToggleFavorite = { viewModel.toggleFavoritePerson(activePerson, personDetail) },
+                    onMediaClick = { media ->
+                        viewModel.selectPersonForDetail(null)
+                        viewModel.openMediaFromSearch(media)
+                    },
+                    onToggleWatchlist = { media ->
+                        viewModel.toggleWatchlistQuick(media)
                     }
                 )
+            } else if (activeMedia != null) {
+                if (activeSeason != null) {
+                    SeasonDetailScreen(
+                        media = activeMedia,
+                        season = activeSeason,
+                        viewModel = viewModel,
+                        effectiveRegionCode = effectiveRegion,
+                        onBack = { viewModel.closeSeasonDetail() }
+                    )
+                } else {
+                    MediaDetailScreen(
+                        media = activeMedia,
+                        viewModel = viewModel,
+                        availableCollections = customCollections,
+                        effectiveRegionCode = effectiveRegion,
+                        onBack = { viewModel.selectMedia(null) }
+                    )
+                }
             } else {
-                if (currentNav != MainNavDestination.DISCOVER) {
+                if (currentNav != MainNavDestination.HOME) {
                     BackHandler {
-                        currentNav = MainNavDestination.DISCOVER
+                        currentNav = MainNavDestination.HOME
                     }
                 }
 
                 when (currentNav) {
-                    MainNavDestination.DISCOVER -> HomeScreen(
+                    MainNavDestination.HOME -> HomeScreen(
                         viewModel = viewModel,
                         onMediaClick = { id -> viewModel.selectMedia(id) },
-                        onOpenAddDialog = { showAddDialog = true },
-                        onNavigateToSearch = { currentNav = MainNavDestination.SEARCH },
-                        onNavigateToTrending = { currentNav = MainNavDestination.TRENDING }
+                        onNavigateToSearch = { currentNav = MainNavDestination.SEARCH }
                     )
 
-                    MainNavDestination.TRENDING -> TrendingScreen(
+                    MainNavDestination.TRAILERS -> TrailersScreen(
                         viewModel = viewModel,
                         onMediaClick = { id -> viewModel.selectMedia(id) }
                     )
@@ -193,40 +238,14 @@ fun CineTrackApp(viewModel: MediaViewModel) {
                     MainNavDestination.LIBRARY -> LibraryScreen(
                         viewModel = viewModel,
                         onMediaClick = { id -> viewModel.selectMedia(id) },
-                        onExploreClick = { currentNav = MainNavDestination.DISCOVER }
+                        onExploreClick = { currentNav = MainNavDestination.HOME }
                     )
 
-                    MainNavDestination.STATS -> StatsScreen(
+                    MainNavDestination.PROFILE -> ProfileScreen(
                         viewModel = viewModel
                     )
                 }
             }
         }
-    }
-
-    if (showAddDialog) {
-        AddCustomMediaDialog(
-            onDismiss = { showAddDialog = false },
-            onConfirm = { title, mediaType, releaseYear, genres, runtimeMinutes, totalSeasons, totalEpisodes, overview, director, cast, status, initialRating, posterUrl, language, originCountry ->
-                viewModel.addCustomMedia(
-                    title = title,
-                    mediaType = mediaType,
-                    releaseYear = releaseYear,
-                    genres = genres,
-                    runtimeMinutes = runtimeMinutes,
-                    totalSeasons = totalSeasons,
-                    totalEpisodes = totalEpisodes,
-                    overview = overview,
-                    director = director,
-                    cast = cast,
-                    status = status,
-                    initialRating = initialRating,
-                    posterUrl = posterUrl,
-                    language = language,
-                    originCountry = originCountry
-                )
-                showAddDialog = false
-            }
-        )
     }
 }

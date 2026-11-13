@@ -20,4 +20,4 @@ debug.keystore
 my-upload-key.jks
 *.apk
 .build-outputs/
-
+*-debug.log

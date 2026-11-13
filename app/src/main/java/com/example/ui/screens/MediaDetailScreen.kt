@@ -1,15 +1,22 @@
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.res.painterResource
+import coil.request.ImageRequest
+import com.example.R
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,23 +24,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -50,7 +64,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -83,13 +96,18 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.data.model.CastMemberItem
 import com.example.data.model.RegionalDefaults
+import com.example.data.model.SeasonItem
+import com.example.data.model.TvWatchStatus
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.WatchProviderLauncher
 
@@ -107,28 +125,54 @@ fun MediaDetailScreen(
     val context = LocalContext.current
     val activeWatchProviders by viewModel.activeWatchProviders.collectAsStateWithLifecycle()
     val isLoadingWatchProviders by viewModel.isLoadingWatchProviders.collectAsStateWithLifecycle()
+    val currentMediaCast by viewModel.currentMediaCast.collectAsStateWithLifecycle()
+    val seasons by viewModel.currentTvSeasons.collectAsStateWithLifecycle()
+    val isLoadingSeasons by viewModel.isLoadingSeasons.collectAsStateWithLifecycle()
 
     var showRatingDialog by remember { mutableStateOf(false) }
     var showWatchlistDialog by remember { mutableStateOf(false) }
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
-    val maxSeasons = maxOf(1, media.totalSeasons)
+    val maxSeasons = maxOf(1, media.totalSeasons, seasons.count { it.seasonNumber > 0 })
     val totalEpisodes = maxOf(1, media.totalEpisodes)
 
+    val nextUpTarget = remember(media.id, media.watchedEpisodes, totalEpisodes, maxSeasons, seasons) {
+        val regularSeasons = seasons.filter { it.seasonNumber > 0 }.ifEmpty { seasons }.sortedBy { it.seasonNumber }
+        if (regularSeasons.isNotEmpty()) {
+            val nextSeasonItem = regularSeasons.firstOrNull { !it.isAllWatched && it.episodeCount > 0 }
+            if (nextSeasonItem != null) {
+                nextSeasonItem.seasonNumber to (nextSeasonItem.watchedEpisodesCount + 1).coerceIn(1, maxOf(1, nextSeasonItem.episodeCount))
+            } else {
+                1 to 1
+            }
+        } else {
+            val epsPerSeason = maxOf(1, (totalEpisodes + maxSeasons - 1) / maxSeasons)
+            if (media.watchedEpisodes < totalEpisodes) {
+                val s = ((media.watchedEpisodes / epsPerSeason) + 1).coerceIn(1, maxSeasons)
+                val e = ((media.watchedEpisodes % epsPerSeason) + 1).coerceAtLeast(1)
+                s to e
+            } else {
+                1 to 1
+            }
+        }
+    }
+    val nextUpSeason = nextUpTarget.first
+    val nextUpEpisode = nextUpTarget.second
+
     // Interactive Season and Episode selection for TV series direct playback
-    var selectedSeason by remember(media.id) {
-        val initialSeason = if (media.totalSeasons > 0 && media.totalEpisodes > 0) {
-            val epsPerSeason = maxOf(1, (media.totalEpisodes + media.totalSeasons - 1) / media.totalSeasons)
-            val current = (media.watchedEpisodes / epsPerSeason) + 1
-            current.coerceIn(1, maxSeasons)
-        } else 1
-        mutableIntStateOf(initialSeason)
+    var hasCustomPlaybackTarget by remember(media.id) { mutableStateOf(false) }
+    var selectedSeason by remember(media.id) { mutableIntStateOf(nextUpSeason) }
+    var selectedEpisode by remember(media.id) { mutableIntStateOf(nextUpEpisode) }
+
+    LaunchedEffect(media.id, nextUpSeason, nextUpEpisode) {
+        if (!hasCustomPlaybackTarget) {
+            selectedSeason = nextUpSeason
+            selectedEpisode = nextUpEpisode
+        }
     }
 
-    var selectedEpisode by remember(media.id, selectedSeason) {
-        val nextEp = if (media.watchedEpisodes < media.totalEpisodes) (media.watchedEpisodes % 10) + 1 else 1
-        mutableIntStateOf(nextEp.coerceAtLeast(1))
+    val maxEpisodesInSelectedSeason = remember(seasons, selectedSeason) {
+        seasons.find { it.seasonNumber == selectedSeason }?.episodeCount?.takeIf { it > 0 }
     }
 
     Box(
@@ -147,13 +191,30 @@ fun MediaDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(280.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                AsyncImage(
-                    model = media.backdropUrl,
-                    contentDescription = media.title,
+                Image(
+                    painter = painterResource(id = R.drawable.banner_cinema),
+                    contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
+                val backdropSource = media.backdropUrl.ifBlank { media.posterUrl }
+                if (backdropSource.isNotBlank()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(backdropSource)
+                            .crossfade(true)
+                            .placeholder(R.drawable.banner_cinema)
+                            .error(R.drawable.banner_cinema)
+                            .build(),
+                        contentDescription = media.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        alignment = Alignment.Center
+                    )
+                }
 
                 // Scrim
                 Box(
@@ -217,17 +278,33 @@ fun MediaDetailScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .width(100.dp)
-                            .aspectRatio(0.68f)
+                            .width(105.dp)
+                            .aspectRatio(2f / 3f)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        AsyncImage(
-                            model = media.posterUrl,
-                            contentDescription = media.title,
+                        Image(
+                            painter = painterResource(id = R.drawable.banner_cinema),
+                            contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
+
+                        val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
+                        if (posterSource.isNotBlank()) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(posterSource)
+                                    .crossfade(true)
+                                    .placeholder(R.drawable.banner_cinema)
+                                    .error(R.drawable.banner_cinema)
+                                    .build(),
+                                contentDescription = media.title,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                                alignment = Alignment.Center
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(16.dp))
@@ -358,10 +435,11 @@ fun MediaDetailScreen(
                         if (!isMovie) {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                                border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.2f)),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 10.dp)
+                                    .padding(top = 12.dp)
                                     .testTag("tv_episode_direct_selector")
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
@@ -370,98 +448,90 @@ fun MediaDetailScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.LiveTv,
-                                                contentDescription = null,
-                                                tint = CinemaCyan,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
+                                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                                             Text(
-                                                text = "EPISODE PLAYBACK TARGET",
+                                                text = "Episode to Open",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Opens this episode when you tap a streaming app",
+                                                style = MaterialTheme.typography.labelSmall,
                                                 fontSize = 11.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = CinemaCyan
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = CinemaCyan.copy(alpha = 0.2f)
+                                            color = CinemaCyan.copy(alpha = 0.16f),
+                                            border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.35f))
                                         ) {
                                             Text(
-                                                text = "S$selectedSeason:E$selectedEpisode",
+                                                text = "S$selectedSeason · E$selectedEpisode",
                                                 color = CinemaCyan,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 12.sp,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                                             )
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
 
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        // Season Stepper
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Season ", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                                            IconButton(
-                                                onClick = { if (selectedSeason > 1) selectedSeason-- },
-                                                enabled = selectedSeason > 1,
-                                                modifier = Modifier
-                                                    .size(28.dp)
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                                            ) {
-                                                Icon(imageVector = Icons.Default.Remove, contentDescription = "Prev Season", modifier = Modifier.size(14.dp))
-                                            }
-                                            Text(
-                                                text = "$selectedSeason",
-                                                fontWeight = FontWeight.Bold,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                modifier = Modifier.padding(horizontal = 8.dp)
-                                            )
-                                            IconButton(
-                                                onClick = { if (selectedSeason < maxSeasons) selectedSeason++ },
-                                                enabled = selectedSeason < maxSeasons,
-                                                modifier = Modifier
-                                                    .size(28.dp)
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                                            ) {
-                                                Icon(imageVector = Icons.Default.Add, contentDescription = "Next Season", modifier = Modifier.size(14.dp))
-                                            }
-                                        }
+                                        CompactStepperControl(
+                                            label = "Season",
+                                            limitHint = if (maxSeasons > 1) "of $maxSeasons" else null,
+                                            value = selectedSeason,
+                                            canDecrement = selectedSeason > 1,
+                                            canIncrement = selectedSeason < maxSeasons,
+                                            onDecrement = {
+                                                if (selectedSeason > 1) {
+                                                    hasCustomPlaybackTarget = true
+                                                    selectedSeason--
+                                                    selectedEpisode = 1
+                                                }
+                                            },
+                                            onIncrement = {
+                                                if (selectedSeason < maxSeasons) {
+                                                    hasCustomPlaybackTarget = true
+                                                    selectedSeason++
+                                                    selectedEpisode = 1
+                                                }
+                                            },
+                                            decrementDescription = "Previous season",
+                                            incrementDescription = "Next season",
+                                            modifier = Modifier.weight(1f)
+                                        )
 
-                                        // Episode Stepper
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Episode ", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                                            IconButton(
-                                                onClick = { if (selectedEpisode > 1) selectedEpisode-- },
-                                                enabled = selectedEpisode > 1,
-                                                modifier = Modifier
-                                                    .size(28.dp)
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                                            ) {
-                                                Icon(imageVector = Icons.Default.Remove, contentDescription = "Prev Episode", modifier = Modifier.size(14.dp))
-                                            }
-                                            Text(
-                                                text = "$selectedEpisode",
-                                                fontWeight = FontWeight.Bold,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                modifier = Modifier.padding(horizontal = 8.dp)
-                                            )
-                                            IconButton(
-                                                onClick = { selectedEpisode++ },
-                                                modifier = Modifier
-                                                    .size(28.dp)
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                                            ) {
-                                                Icon(imageVector = Icons.Default.Add, contentDescription = "Next Episode", modifier = Modifier.size(14.dp))
-                                            }
-                                        }
+                                        CompactStepperControl(
+                                            label = "Episode",
+                                            limitHint = maxEpisodesInSelectedSeason?.let { "of $it" },
+                                            value = selectedEpisode,
+                                            canDecrement = selectedEpisode > 1,
+                                            canIncrement = maxEpisodesInSelectedSeason == null || selectedEpisode < maxEpisodesInSelectedSeason,
+                                            onDecrement = {
+                                                if (selectedEpisode > 1) {
+                                                    hasCustomPlaybackTarget = true
+                                                    selectedEpisode--
+                                                }
+                                            },
+                                            onIncrement = {
+                                                val maxEp = maxEpisodesInSelectedSeason
+                                                if (maxEp == null || selectedEpisode < maxEp) {
+                                                    hasCustomPlaybackTarget = true
+                                                    selectedEpisode++
+                                                }
+                                            },
+                                            decrementDescription = "Previous episode",
+                                            incrementDescription = "Next episode",
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                             }
@@ -722,6 +792,9 @@ fun MediaDetailScreen(
 
                 // If TV Series: Episode Progression Card
                 if (media.getMediaTypeEnum() == MediaType.TV_SHOW && media.totalEpisodes > 0) {
+                    val isSeriesCompleted = media.watchedEpisodes >= media.totalEpisodes
+                    val progressPercent = (media.progressFraction * 100).toInt().coerceIn(0, 100)
+
                     Spacer(modifier = Modifier.height(16.dp))
                     Card(
                         shape = RoundedCornerShape(16.dp),
@@ -739,12 +812,29 @@ fun MediaDetailScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Text(
-                                    text = "${media.watchedEpisodes} of ${media.totalEpisodes} eps",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = CinemaCyan
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "${media.watchedEpisodes} / ${media.totalEpisodes} eps",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = CinemaCyan
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = (if (isSeriesCompleted) CinemaGreen else CinemaGold).copy(alpha = 0.16f)
+                                    ) {
+                                        Text(
+                                            text = "$progressPercent%",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSeriesCompleted) CinemaGreen else CinemaGold,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -753,87 +843,257 @@ fun MediaDetailScreen(
                                 progress = { media.progressFraction },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(8.dp)
+                                    .height(7.dp)
                                     .clip(CircleShape),
-                                color = CinemaGold,
+                                color = if (isSeriesCompleted) CinemaGreen else CinemaGold,
                                 trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
                             )
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Interactive Episode Controls
+                            // Compact, Clear Progress Actions
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                OutlinedButton(
-                                    onClick = {
-                                        if (media.watchedEpisodes > 0) {
-                                            viewModel.setWatchedEpisodes(media.id, media.watchedEpisodes - 1)
-                                        }
-                                    },
-                                    enabled = media.watchedEpisodes > 0,
-                                    shape = RoundedCornerShape(10.dp)
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
                                 ) {
-                                    Icon(imageVector = Icons.Default.Remove, contentDescription = "Minus Episode")
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("-1")
+                                    Text(
+                                        text = if (isSeriesCompleted) "Completed" else "Next up",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isSeriesCompleted) CinemaGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = if (isSeriesCompleted) {
+                                            "All watched"
+                                        } else if (maxSeasons > 1) {
+                                            "S$nextUpSeason · E$nextUpEpisode"
+                                        } else {
+                                            "Episode ${media.watchedEpisodes + 1}"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
 
-                                Button(
-                                    onClick = { viewModel.incrementEpisode(media.id) },
-                                    enabled = media.watchedEpisodes < media.totalEpisodes,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = CinemaGold,
-                                        contentColor = MaterialTheme.colorScheme.surface
-                                    ),
-                                    shape = RoundedCornerShape(10.dp)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(imageVector = Icons.Default.Add, contentDescription = "Plus Episode")
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Mark Next Episode", fontWeight = FontWeight.Bold)
+                                    val canUndo = media.watchedEpisodes > 0
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (canUndo) {
+                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                                        } else {
+                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.35f)
+                                        },
+                                        border = BorderStroke(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (canUndo) 0.7f else 0.3f)
+                                        ),
+                                        modifier = Modifier
+                                            .heightIn(min = 36.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable(enabled = canUndo) {
+                                                viewModel.setWatchedEpisodes(media.id, media.watchedEpisodes - 1)
+                                            }
+                                            .testTag("btn_undo_episode")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.Undo,
+                                                contentDescription = "Undo last watched episode",
+                                                tint = if (canUndo) {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                                },
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Text(
+                                                text = "Undo",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = if (canUndo) {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                                },
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isSeriesCompleted) {
+                                            CinemaGreen.copy(alpha = 0.18f)
+                                        } else {
+                                            CinemaGold
+                                        },
+                                        modifier = Modifier
+                                            .heightIn(min = 36.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable(enabled = !isSeriesCompleted) {
+                                                viewModel.incrementEpisode(media.id)
+                                            }
+                                            .testTag("btn_mark_next_episode")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = if (isSeriesCompleted) "All episodes watched" else "Mark next episode watched",
+                                                tint = if (isSeriesCompleted) CinemaGreen else MaterialTheme.colorScheme.surface,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Text(
+                                                text = if (isSeriesCompleted) {
+                                                    "Done"
+                                                } else {
+                                                    "Watched E$nextUpEpisode"
+                                                },
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSeriesCompleted) CinemaGreen else MaterialTheme.colorScheme.surface,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
                             if (streamAndFree.isNotEmpty()) {
                                 val topProvider = streamAndFree.first()
-                                Spacer(modifier = Modifier.height(12.dp))
-                                FilledTonalButton(
-                                    onClick = {
-                                        WatchProviderLauncher.launchProvider(
-                                            context = context,
-                                            providerName = topProvider.name,
-                                            title = media.title,
-                                            releaseYear = media.releaseYear,
-                                            isMovie = false,
-                                            seasonNumber = selectedSeason,
-                                            episodeNumber = selectedEpisode,
-                                            webLink = topProvider.webLink ?: providersInfo.justWatchLink,
-                                            directContentUrl = topProvider.directContentUrl
-                                        )
-                                    },
-                                    colors = ButtonDefaults.filledTonalButtonColors(
-                                        containerColor = CinemaGreen.copy(alpha = 0.2f),
-                                        contentColor = CinemaGreen
-                                    ),
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Surface(
                                     shape = RoundedCornerShape(10.dp),
+                                    color = CinemaGreen.copy(alpha = 0.14f),
+                                    border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.28f)),
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            WatchProviderLauncher.launchProvider(
+                                                context = context,
+                                                providerName = topProvider.name,
+                                                title = media.title,
+                                                releaseYear = media.releaseYear,
+                                                isMovie = false,
+                                                seasonNumber = selectedSeason,
+                                                episodeNumber = selectedEpisode,
+                                                webLink = topProvider.webLink ?: providersInfo.justWatchLink,
+                                                directContentUrl = topProvider.directContentUrl
+                                            )
+                                        }
                                         .testTag("btn_watch_episode_progress_direct")
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Watch S$selectedSeason:E$selectedEpisode on ${topProvider.name}",
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            tint = CinemaGreen,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Watch S$selectedSeason · E$selectedEpisode on ${topProvider.name}",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = CinemaGreen,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.OpenInNew,
+                                            contentDescription = null,
+                                            tint = CinemaGreen.copy(alpha = 0.8f),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
                                 }
                             }
+                        }
+                    }
+                }
+
+                // If TV Series: Seasons & Episodes Interactive Section
+                if (media.getMediaTypeEnum() == MediaType.TV_SHOW) {
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Tv,
+                                    contentDescription = null,
+                                    tint = CinemaCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Seasons & Episodes",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "Tap any season to view all episodes & details",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (isLoadingSeasons) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = CinemaGold,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        seasons.forEach { seasonItem ->
+                            SeasonOverviewCard(
+                                season = seasonItem,
+                                media = media,
+                                onStatusChange = { newStatus ->
+                                    viewModel.setSeasonWatchStatus(media, seasonItem.seasonNumber, newStatus)
+                                },
+                                onClick = {
+                                    viewModel.openSeasonDetail(media, seasonItem)
+                                }
+                            )
                         }
                     }
                 }
@@ -929,7 +1189,11 @@ fun MediaDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .padding(end = 12.dp)
+                        ) {
                             Text(
                                 text = "Collection / List",
                                 style = MaterialTheme.typography.titleSmall,
@@ -943,10 +1207,19 @@ fun MediaDetailScreen(
                             )
                         }
 
-                        FilledTonalButton(onClick = { showWatchlistDialog = true }) {
+                        FilledTonalButton(
+                            onClick = { showWatchlistDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier.widthIn(min = 104.dp)
+                        ) {
                             Icon(imageVector = Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Change")
+                            Text(
+                                text = "Change",
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
                     }
                 }
@@ -984,45 +1257,105 @@ fun MediaDetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Cast Chips
-                Text(
-                    text = "Starring Cast",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    media.getCastList().forEach { actor ->
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Text(
-                                text = actor,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            )
-                        }
+                // Starring Cast with Circular Images & Name Below
+                val displayCast = remember(currentMediaCast, media.cast) {
+                    if (currentMediaCast.isNotEmpty()) {
+                        currentMediaCast
+                    } else {
+                        media.getCastList().map { CastMemberItem(name = it) }
                     }
                 }
-
-                // Delete option for custom or tracked items
-                Spacer(modifier = Modifier.height(28.dp))
-                OutlinedButton(
-                    onClick = { showDeleteConfirmDialog = true },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = CinemaRed
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete")
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Delete Title from Database")
+                if (displayCast.isNotEmpty()) {
+                    Text(
+                        text = "Starring Cast",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        displayCast.forEach { member ->
+                            val initials = remember(member.name) {
+                                member.name
+                                    .split(" ")
+                                    .filter { it.isNotBlank() }
+                                    .take(2)
+                                    .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+                                    .joinToString("")
+                                    .ifBlank { "?" }
+                            }
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .width(80.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { viewModel.openCastMember(member) }
+                                    .padding(vertical = 4.dp, horizontal = 2.dp)
+                                    .testTag("cast_chip_${member.name}")
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    border = BorderStroke(1.5.dp, CinemaCyan.copy(alpha = 0.45f)),
+                                    modifier = Modifier.size(64.dp)
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Text(
+                                            text = initials,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = CinemaCyan
+                                        )
+                                        if (!member.profileUrl.isNullOrBlank()) {
+                                            AsyncImage(
+                                                model = ImageRequest.Builder(context)
+                                                    .data(member.profileUrl)
+                                                    .crossfade(true)
+                                                    .build(),
+                                                contentDescription = member.name,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clip(CircleShape)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = member.name,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp,
+                                    lineHeight = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (!member.character.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = member.character,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        lineHeight = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1053,29 +1386,324 @@ fun MediaDetailScreen(
             }
         )
     }
+}
 
-    if (showDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Delete Title") },
-            text = { Text("Are you sure you want to remove '${media.title}' from your database?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.deleteMedia(media.id)
-                        showDeleteConfirmDialog = false
-                        onBack()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = CinemaRed)
+@Composable
+fun SeasonOverviewCard(
+    season: SeasonItem,
+    media: MediaEntity,
+    onStatusChange: (TvWatchStatus) -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .testTag("season_card_${season.seasonNumber}")
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Season Poster
+                Box(
+                    modifier = Modifier
+                        .width(60.dp)
+                        .aspectRatio(2f / 3f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
-                    Text("Delete")
+                    AsyncImage(
+                        model = season.posterUrl.ifBlank { media.posterUrl },
+                        contentDescription = season.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = if (season.posterUrl.isNotBlank() || media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                        alignment = Alignment.Center
+                    )
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                    Text("Cancel")
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = season.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        // Rating badge
+                        if (season.rating > 0f) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Star, null, tint = CinemaGold, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = String.format("%.1f", season.rating),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CinemaGold
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = "${season.releaseYear} • ${season.episodeCount} Episodes",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Progress bar
+                    LinearProgressIndicator(
+                        progress = { season.progressFraction },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(5.dp)
+                            .clip(CircleShape),
+                        color = CinemaGold,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${season.watchedEpisodesCount}/${season.episodeCount} eps watched",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = CinemaCyan
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { onClick() }
+                        ) {
+                            Text(
+                                text = "Episodes",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CinemaGold
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "View episodes",
+                                tint = CinemaGold,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                    }
                 }
             }
-        )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Season Watch Status Selection Chips
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    TvWatchStatus.WATCHED to "Watched",
+                    TvWatchStatus.WATCHING to "Watching",
+                    TvWatchStatus.PLAN_TO_WATCH to "Plan",
+                    TvWatchStatus.UNWATCHED to "Clear"
+                ).forEach { (status, label) ->
+                    val isSelected = season.watchStatus == status
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isSelected) {
+                            when (status) {
+                                TvWatchStatus.WATCHED -> CinemaGreen
+                                TvWatchStatus.WATCHING -> CinemaCyan
+                                TvWatchStatus.PLAN_TO_WATCH -> CinemaGold
+                                TvWatchStatus.UNWATCHED -> MaterialTheme.colorScheme.surfaceContainerHigh
+                            }
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f)
+                        },
+                        modifier = Modifier
+                            .clickable { onStatusChange(status) }
+                            .testTag("chip_s_${season.seasonNumber}_${status.name.lowercase()}")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = when (status) {
+                                    TvWatchStatus.WATCHED -> Icons.Default.Check
+                                    TvWatchStatus.WATCHING -> Icons.Default.Visibility
+                                    TvWatchStatus.PLAN_TO_WATCH -> Icons.Default.Bookmark
+                                    TvWatchStatus.UNWATCHED -> Icons.Default.Close
+                                },
+                                contentDescription = null,
+                                tint = if (isSelected) {
+                                    if (status == TvWatchStatus.UNWATCHED) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) {
+                                    if (status == TvWatchStatus.UNWATCHED) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactStepperControl(
+    label: String,
+    limitHint: String?,
+    value: Int,
+    canDecrement: Boolean,
+    canIncrement: Boolean,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit,
+    decrementDescription: String,
+    incrementDescription: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (!limitHint.isNullOrBlank()) {
+                Text(
+                    text = limitHint,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(3.dp))
+
+        Surface(
+            shape = RoundedCornerShape(9.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(enabled = canDecrement, onClick = onDecrement)
+                        .testTag("stepper_${label.lowercase()}_minus")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Remove,
+                        contentDescription = decrementDescription,
+                        tint = if (canDecrement) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                        },
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+
+                VerticalDivider(
+                    thickness = 0.75.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .fillMaxHeight()
+                ) {
+                    Text(
+                        text = "$value",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                VerticalDivider(
+                    thickness = 0.75.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(enabled = canIncrement, onClick = onIncrement)
+                        .testTag("stepper_${label.lowercase()}_plus")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = incrementDescription,
+                        tint = if (canIncrement) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                        },
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
+        }
     }
 }

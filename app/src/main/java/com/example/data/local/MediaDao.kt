@@ -61,6 +61,15 @@ interface MediaDao {
     @Query("UPDATE media_items SET customWatchlist = :watchlist WHERE id = :id")
     suspend fun updateCustomWatchlist(id: String, watchlist: String?)
 
+    @Query("UPDATE media_items SET posterUrl = :posterUrl, backdropUrl = :backdropUrl WHERE id = :id")
+    suspend fun updateMediaImages(id: String, posterUrl: String, backdropUrl: String)
+
+    @Query("UPDATE media_items SET status = 'NONE', isFavorite = 0, userRating = 0.0, userReview = '', watchedEpisodes = 0, watchedSeasons = 0, customWatchlist = NULL, lastWatchedDate = NULL")
+    suspend fun resetAllTrackingData()
+
+    @Query("DELETE FROM media_items WHERE isCustom = 1")
+    suspend fun deleteCustomMedia()
+
     @Query("DELETE FROM media_items WHERE id = :id")
     suspend fun deleteById(id: String)
 }

@@ -1,6 +1,7 @@
 package com.example.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.data.model.MediaType
 import com.example.data.model.RegionalDefaults
@@ -9,7 +10,15 @@ import com.example.data.model.WatchProviderType
 import com.example.data.model.WatchProvidersInfo
 import com.example.data.model.WatchStatus
 
-@Entity(tableName = "media_items")
+@Entity(
+    tableName = "media_items",
+    indices = [
+        Index("status"),
+        Index("isFavorite"),
+        Index("customWatchlist"),
+        Index("lastWatchedDate")
+    ]
+)
 data class MediaEntity(
     @PrimaryKey val id: String,
     val title: String,

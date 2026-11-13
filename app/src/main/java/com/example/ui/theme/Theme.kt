@@ -53,7 +53,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun CineTrackTheme(
+fun MovieverseTheme(
     darkTheme: Boolean = true, // Default to sleek cinematic dark theme for immersion
     content: @Composable () -> Unit
 ) {
@@ -77,3 +77,9 @@ fun CineTrackTheme(
         content = content
     )
 }
+
+@Composable
+fun CineTrackTheme(
+    darkTheme: Boolean = true,
+    content: @Composable () -> Unit
+) = MovieverseTheme(darkTheme = darkTheme, content = content)

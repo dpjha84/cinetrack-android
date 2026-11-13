@@ -7,7 +7,7 @@ enum class MediaType(val label: String) {
 
 enum class WatchStatus(val label: String) {
     NONE("Not Tracked"),
-    PLAN_TO_WATCH("Plan to Watch"),
+    PLAN_TO_WATCH("Watchlist"),
     WATCHING("Watching"),
     COMPLETED("Completed"),
     ON_HOLD("On Hold"),

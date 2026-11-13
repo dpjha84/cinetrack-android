@@ -14,13 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Api
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -31,10 +26,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -55,13 +48,12 @@ import com.example.data.local.UserPreferencesEntity
 import com.example.data.model.RegionalDefaults
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
 
 @Composable
 fun LocalizationPreferencesDialog(
     currentPreferences: UserPreferencesEntity,
     effectiveRegionCode: String,
-    activeApiKey: String,
+    activeApiKey: String = "",
     onDismiss: () -> Unit,
     onSave: (regionCode: String, autoDetect: Boolean, languageCode: String, filterOnly: Boolean, tmdbKey: String) -> Unit
 ) {
@@ -69,10 +61,8 @@ fun LocalizationPreferencesDialog(
     var selectedRegion by remember { mutableStateOf(if (currentPreferences.autoDetect) "AUTO" else currentPreferences.regionCode) }
     var selectedLanguage by remember { mutableStateOf(currentPreferences.languageCode) }
     var filterOnlyLanguage by remember { mutableStateOf(currentPreferences.filterCatalogByLanguage) }
-    var tmdbKeyInput by remember { mutableStateOf(currentPreferences.customTmdbApiKey) }
 
     val detected = remember { RegionalDefaults.detectDeviceRegion() }
-    val isKeyActive = activeApiKey.isNotBlank() && activeApiKey != "YOUR_TMDB_API_KEY"
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -265,75 +255,6 @@ fun LocalizationPreferencesDialog(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Section 3: Live Catalog API Integration
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Api,
-                            contentDescription = null,
-                            tint = if (isKeyActive) CinemaGreen else CinemaGold,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Live Catalog API",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isKeyActive) CinemaGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Text(
-                            text = if (isKeyActive) "Active" else "Ready",
-                            color = if (isKeyActive) CinemaGreen else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = "Powers live global search across millions of movies & TV shows, trending sync, and streaming providers.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = tmdbKeyInput,
-                    onValueChange = { tmdbKeyInput = it },
-                    label = { Text("Custom Catalog API Key (Optional)") },
-                    placeholder = { Text("Enter or paste your custom API key") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        Icon(imageVector = Icons.Default.VpnKey, contentDescription = null, tint = CinemaGold)
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = "CineTrack includes an active live streaming catalog by default. Custom API key is completely optional.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = CinemaCyan
-                )
-
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Action Buttons
@@ -348,7 +269,7 @@ fun LocalizationPreferencesDialog(
                     Button(
                         onClick = {
                             val finalRegion = if (autoDetect) "AUTO" else selectedRegion
-                            onSave(finalRegion, autoDetect, selectedLanguage, filterOnlyLanguage, tmdbKeyInput.trim())
+                            onSave(finalRegion, autoDetect, selectedLanguage, filterOnlyLanguage, currentPreferences.customTmdbApiKey)
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = CinemaGold,

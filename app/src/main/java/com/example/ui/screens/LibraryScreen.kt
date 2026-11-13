@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,17 +20,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -37,14 +43,17 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.data.local.FavoritePersonEntity
 import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
 import com.example.data.model.WatchStatus
@@ -80,6 +90,27 @@ fun LibraryScreen(
     val selectedCollection by viewModel.selectedCollectionFilter.collectAsStateWithLifecycle()
     val customCollections by viewModel.customCollections.collectAsStateWithLifecycle()
     val libraryItems by viewModel.filteredLibrary.collectAsStateWithLifecycle()
+    val favoritePeople by viewModel.favoritePeople.collectAsStateWithLifecycle()
+
+    val visibleFavoritePeople = remember(selectedTab, selectedCollection, favoritePeople, sortOption) {
+        if (selectedTab == LibraryTab.FAVORITES && selectedCollection == null) {
+            when (sortOption) {
+                SortOption.TITLE -> favoritePeople.sortedBy { it.name.lowercase() }
+                else -> favoritePeople.sortedByDescending { it.createdAt }
+            }
+        } else {
+            emptyList()
+        }
+    }
+
+    val headerSubtitle = remember(selectedTab, libraryItems.size, visibleFavoritePeople.size) {
+        if (selectedTab == LibraryTab.FAVORITES && visibleFavoritePeople.isNotEmpty()) {
+            val total = libraryItems.size + visibleFavoritePeople.size
+            "$total favorites (${libraryItems.size} titles • ${visibleFavoritePeople.size} people)"
+        } else {
+            "${libraryItems.size} titles logged"
+        }
+    }
 
     Column(
         modifier = modifier
@@ -96,12 +127,12 @@ fun LibraryScreen(
         ) {
             Column {
                 Text(
-                    text = "My Watchlist",
+                    text = "My Library",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "${libraryItems.size} titles logged",
+                    text = headerSubtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -145,15 +176,35 @@ fun LibraryScreen(
                     targetValue = if (selected) CinemaGold else MaterialTheme.colorScheme.onSurfaceVariant,
                     label = "tabColor"
                 )
+                val tabIcon = when (tab) {
+                    LibraryTab.WATCHING -> Icons.Default.Visibility
+                    LibraryTab.PLAN_TO_WATCH -> Icons.Default.Bookmark
+                    LibraryTab.COMPLETED -> Icons.Default.CheckCircle
+                    LibraryTab.FAVORITES -> Icons.Default.Favorite
+                    LibraryTab.ALL_TRACKED -> Icons.Default.VideoLibrary
+                }
                 Tab(
                     selected = selected,
                     onClick = { viewModel.selectedLibraryTab.value = tab },
                     text = {
-                        Text(
-                            text = tab.label,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = color
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = tabIcon,
+                                contentDescription = null,
+                                tint = color,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = tab.label,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = color,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 )
             }
@@ -219,7 +270,8 @@ fun LibraryScreen(
         Spacer(modifier = Modifier.height(4.dp))
 
         // Library Items List
-        if (libraryItems.isEmpty()) {
+        val isTabEmpty = libraryItems.isEmpty() && visibleFavoritePeople.isEmpty()
+        if (isTabEmpty) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -230,20 +282,24 @@ fun LibraryScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Movie,
+                        imageVector = if (selectedTab == LibraryTab.FAVORITES) Icons.Default.Favorite else Icons.Default.Movie,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "No titles in ${selectedTab.label}",
+                        text = "No items in ${selectedTab.label}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Discover movies and TV series to start tracking your watch journey.",
+                        text = if (selectedTab == LibraryTab.FAVORITES) {
+                            "Favorite movies, TV series, or people to find them quickly here."
+                        } else {
+                            "Discover movies and TV series to start tracking your watch journey."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -267,6 +323,38 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (visibleFavoritePeople.isNotEmpty()) {
+                    item(key = "fav_people_header") {
+                        Text(
+                            text = "People (${visibleFavoritePeople.size})",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = CinemaGold,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                        )
+                    }
+
+                    items(visibleFavoritePeople, key = { "person_${it.id}" }) { person ->
+                        FavoritePersonLibraryCard(
+                            person = person,
+                            onClick = { viewModel.openFavoritePerson(person) },
+                            onToggleFavorite = { viewModel.removeFavoritePerson(person) }
+                        )
+                    }
+
+                    if (libraryItems.isNotEmpty()) {
+                        item(key = "fav_media_header") {
+                            Text(
+                                text = "Movies & Series (${libraryItems.size})",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = CinemaGold,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                            )
+                        }
+                    }
+                }
+
                 items(libraryItems, key = { it.id }) { item ->
                     LibraryItemCard(
                         media = item,
@@ -274,6 +362,124 @@ fun LibraryScreen(
                         onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun FavoritePersonLibraryCard(
+    person: FavoritePersonEntity,
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .testTag("library_person_card_${person.id}"),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(CinemaGold.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (person.profileUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = person.profileUrl,
+                        contentDescription = person.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = person.name,
+                        tint = CinemaGold,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = CinemaCyan.copy(alpha = 0.18f)
+                ) {
+                    Text(
+                        text = person.department.ifBlank { "Acting" }.uppercase(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CinemaCyan,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = person.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                val metaLine = buildString {
+                    if (person.birthday.isNotBlank()) {
+                        append("Born ${person.birthday}")
+                    }
+                    if (person.placeOfBirth.isNotBlank()) {
+                        if (isNotEmpty()) append(" • ")
+                        append(person.placeOfBirth)
+                    }
+                }
+                if (metaLine.isNotBlank()) {
+                    Text(
+                        text = metaLine,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else {
+                    Text(
+                        text = "Tap to view profile & filmography",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .testTag("library_person_unfav_${person.id}")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = "Remove ${person.name} from Favorites",
+                    tint = CinemaRed
+                )
             }
         }
     }
@@ -307,14 +513,16 @@ fun LibraryItemCard(
             Box(
                 modifier = Modifier
                     .width(70.dp)
-                    .height(100.dp)
+                    .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
                 AsyncImage(
-                    model = media.posterUrl,
+                    model = media.posterUrl.ifBlank { media.backdropUrl },
                     contentDescription = media.title,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                    alignment = Alignment.Center
                 )
             }
 

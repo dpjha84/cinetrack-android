@@ -6,14 +6,16 @@ import com.example.data.model.WatchStatus
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 object TmdbClient {
     private const val BASE_URL = "https://api.themoviedb.org/3/"
-    private const val IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
+    const val IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
     private const val BACKDROP_BASE_URL = "https://image.tmdb.org/t/p/w1280"
 
     private val moshi: Moshi = Moshi.Builder()
@@ -36,6 +38,49 @@ object TmdbClient {
         .addConverterFactory(MoshiConverterFactory.create(moshi))
         .build()
         .create(TmdbApiService::class.java)
+
+    private val videoCheckClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(4, TimeUnit.SECONDS)
+        .callTimeout(5, TimeUnit.SECONDS)
+        .build()
+
+    private val videoPlayabilityCache = ConcurrentHashMap<String, Boolean>()
+
+    fun isYouTubeVideoPlayable(videoKey: String): Boolean {
+        val cleanKey = videoKey.trim()
+        if (cleanKey.isBlank()) return false
+        videoPlayabilityCache[cleanKey]?.let { return it }
+
+        val playable = try {
+            val oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=$cleanKey&format=json"
+            val req = Request.Builder().url(oembedUrl).get().build()
+            videoCheckClient.newCall(req).execute().use { resp ->
+                when (resp.code) {
+                    in 200..299 -> true
+                    400, 404, 410 -> false
+                    401, 403 -> {
+                        // Embedding may be disabled by studio even though video plays in YouTube/Chrome.
+                        // Verify public existence via YouTube thumbnail endpoint.
+                        val thumbReq = Request.Builder()
+                            .url("https://img.youtube.com/vi/$cleanKey/hqdefault.jpg")
+                            .head()
+                            .build()
+                        videoCheckClient.newCall(thumbReq).execute().use { thumbResp ->
+                            thumbResp.isSuccessful
+                        }
+                    }
+                    else -> true
+                }
+            }
+        } catch (_: Exception) {
+            // Do not wipe live TMDB entries on transient network timeout
+            true
+        }
+
+        videoPlayabilityCache[cleanKey] = playable
+        return playable
+    }
 
     private val genreMap = mapOf(
         28 to "Action",
@@ -78,11 +123,16 @@ object TmdbClient {
         val rawDate = dto.releaseDate ?: dto.firstAirDate ?: "2024"
         val year = rawDate.take(4).toIntOrNull() ?: 2024
 
-        val poster = dto.posterPath?.let { "$IMAGE_BASE_URL$it" }
-            ?: "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg"
-        val backdrop = dto.backdropPath?.let { "$BACKDROP_BASE_URL$it" } ?: poster
+        val poster = dto.posterPath?.let { "$IMAGE_BASE_URL$it" } ?: ""
+        val backdrop = dto.backdropPath?.let { "$BACKDROP_BASE_URL$it" } ?: ""
 
-        val origin = dto.originCountry?.firstOrNull() ?: if (dto.originalLanguage == "en") "US" else "GLOBAL"
+        val origin = dto.originCountry?.firstOrNull() ?: when (dto.originalLanguage?.lowercase()) {
+            "hi", "ta", "te", "ml", "kn", "bn", "mr", "pa", "gu", "or", "as" -> "IN"
+            "ja" -> "JP"
+            "ko" -> "KR"
+            "en" -> "US"
+            else -> "GLOBAL"
+        }
 
         return MediaEntity(
             id = if (isMovie) "tmdb_m_${dto.id}" else "tmdb_tv_${dto.id}",
@@ -117,9 +167,8 @@ object TmdbClient {
         val rawDate = dto.releaseDate ?: dto.firstAirDate ?: "2024"
         val year = rawDate.take(4).toIntOrNull() ?: 2024
 
-        val poster = dto.posterPath?.let { "$IMAGE_BASE_URL$it" }
-            ?: "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg"
-        val backdrop = dto.backdropPath?.let { "$BACKDROP_BASE_URL$it" } ?: poster
+        val poster = dto.posterPath?.let { "$IMAGE_BASE_URL$it" } ?: ""
+        val backdrop = dto.backdropPath?.let { "$BACKDROP_BASE_URL$it" } ?: ""
         val origin = dto.originCountry?.firstOrNull() ?: if (dto.originalLanguage == "en") "US" else "GLOBAL"
 
         return MediaEntity(
@@ -150,10 +199,8 @@ object TmdbClient {
     }
 
     fun movieDetailToEntity(detail: TmdbMovieDetailDto, existing: MediaEntity? = null): MediaEntity {
-        val poster = detail.posterPath?.let { "$IMAGE_BASE_URL$it" }
-            ?: existing?.posterUrl
-            ?: "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg"
-        val backdrop = detail.backdropPath?.let { "$BACKDROP_BASE_URL$it" } ?: poster
+        val poster = detail.posterPath?.let { "$IMAGE_BASE_URL$it" } ?: existing?.posterUrl.orEmpty()
+        val backdrop = detail.backdropPath?.let { "$BACKDROP_BASE_URL$it" } ?: existing?.backdropUrl.orEmpty()
 
         val director = detail.credits?.crew?.find { it.job.equals("Director", ignoreCase = true) }?.name ?: "Unknown Director"
         val cast = detail.credits?.cast?.take(5)?.joinToString(", ") { it.name }.orEmpty()
@@ -197,10 +244,8 @@ object TmdbClient {
     }
 
     fun tvDetailToEntity(detail: TmdbTvDetailDto, existing: MediaEntity? = null): MediaEntity {
-        val poster = detail.posterPath?.let { "$IMAGE_BASE_URL$it" }
-            ?: existing?.posterUrl
-            ?: "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg"
-        val backdrop = detail.backdropPath?.let { "$BACKDROP_BASE_URL$it" } ?: poster
+        val poster = detail.posterPath?.let { "$IMAGE_BASE_URL$it" } ?: existing?.posterUrl.orEmpty()
+        val backdrop = detail.backdropPath?.let { "$BACKDROP_BASE_URL$it" } ?: existing?.backdropUrl.orEmpty()
 
         val creator = detail.credits?.crew?.find { it.job.equals("Executive Producer", ignoreCase = true) || it.job.equals("Creator", ignoreCase = true) }?.name
             ?: "Unknown Creator"

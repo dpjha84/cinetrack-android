@@ -1,0 +1,154 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Root user document isolating per-user Movieverse cloud sync subcollections.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the owner." },
+        "email": { "type": "string", "description": "Optional user email address." },
+        "displayName": { "type": "string", "description": "Optional display name." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId"]
+    },
+    "TrackedMedia": {
+      "title": "TrackedMedia",
+      "description": "Movie or TV series tracked by a user with watch status, rating, review, favorite flag, episode count, and watchlist tag.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["MOVIE", "TV_SHOW"] },
+        "releaseYear": { "type": "integer" },
+        "genres": { "type": "string" },
+        "posterUrl": { "type": "string" },
+        "backdropUrl": { "type": "string" },
+        "overview": { "type": "string" },
+        "directorOrCreator": { "type": "string" },
+        "cast": { "type": "string" },
+        "communityRating": { "type": "number" },
+        "runtimeMinutes": { "type": "integer" },
+        "totalSeasons": { "type": "integer" },
+        "totalEpisodes": { "type": "integer" },
+        "status": { "type": "string", "enum": ["NONE", "PLAN_TO_WATCH", "WATCHING", "COMPLETED", "ON_HOLD", "DROPPED"] },
+        "userRating": { "type": "number" },
+        "userReview": { "type": "string" },
+        "isFavorite": { "type": "boolean" },
+        "lastWatchedDate": { "type": "integer" },
+        "watchedEpisodes": { "type": "integer" },
+        "watchedSeasons": { "type": "integer" },
+        "customWatchlist": { "type": "string" },
+        "isCustom": { "type": "boolean" },
+        "originalLanguage": { "type": "string" },
+        "originCountry": { "type": "string" },
+        "streamingProviders": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["id", "title", "mediaType", "status", "isFavorite", "userId", "updatedAt"]
+    },
+    "CustomCollection": {
+      "title": "CustomCollection",
+      "description": "User-created custom list or collection name.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "createdAt", "userId"]
+    },
+    "UserPreferences": {
+      "title": "UserPreferences",
+      "description": "User regional and catalog display preferences synced across devices.",
+      "type": "object",
+      "properties": {
+        "regionCode": { "type": "string" },
+        "languageCode": { "type": "string" },
+        "autoDetect": { "type": "boolean" },
+        "filterCatalogByLanguage": { "type": "boolean" },
+        "showStreamingProviders": { "type": "boolean" },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["regionCode", "languageCode", "autoDetect", "filterCatalogByLanguage", "showStreamingProviders", "userId", "updatedAt"]
+    },
+    "SearchHistoryEntry": {
+      "title": "SearchHistoryEntry",
+      "description": "User search query history entry.",
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "timestamp": { "type": "integer" },
+        "userId": { "type": "string" }
+      },
+      "required": ["query", "timestamp", "userId"]
+    },
+    "FavoritePerson": {
+      "title": "FavoritePerson",
+      "description": "Actor, director, or crew member favorited by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "personId": { "type": "integer" },
+        "name": { "type": "string" },
+        "profileUrl": { "type": "string" },
+        "department": { "type": "string" },
+        "birthday": { "type": "string" },
+        "placeOfBirth": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["id", "personId", "name", "createdAt", "userId", "updatedAt"]
+    },
+    "TvProgress": {
+      "title": "TvProgress",
+      "description": "Per-season and per-episode watch status entry for TV shows.",
+      "type": "object",
+      "properties": {
+        "mediaId": { "type": "string" },
+        "seasonNumber": { "type": "integer" },
+        "episodeNumber": { "type": "integer" },
+        "status": { "type": "string", "enum": ["UNWATCHED", "WATCHING", "WATCHED", "PLAN_TO_WATCH"] },
+        "updatedAt": { "type": "integer" },
+        "userId": { "type": "string" },
+        "serverUpdatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["mediaId", "seasonNumber", "episodeNumber", "status", "updatedAt", "userId", "serverUpdatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User root container isolating personal library subcollections."
+    },
+    "/users/{userId}/tracked_media/{mediaId}": {
+      "schema": { "$ref": "#/entities/TrackedMedia" },
+      "description": "Movies and TV shows tracked by the user."
+    },
+    "/users/{userId}/custom_collections/{collectionId}": {
+      "schema": { "$ref": "#/entities/CustomCollection" },
+      "description": "User-created custom watchlists and collections."
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": { "$ref": "#/entities/UserPreferences" },
+      "description": "Synced regional and catalog preferences."
+    },
+    "/users/{userId}/search_history/{historyId}": {
+      "schema": { "$ref": "#/entities/SearchHistoryEntry" },
+      "description": "Synced recent search queries."
+    },
+    "/users/{userId}/favorite_people/{personId}": {
+      "schema": { "$ref": "#/entities/FavoritePerson" },
+      "description": "Favorited actors and crew members."
+    },
+    "/users/{userId}/tv_progress/{progressId}": {
+      "schema": { "$ref": "#/entities/TvProgress" },
+      "description": "Season and episode-level watch checkmarks for TV shows."
+    }
+  }
+}

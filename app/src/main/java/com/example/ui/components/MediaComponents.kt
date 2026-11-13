@@ -2,8 +2,13 @@ package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import coil.request.ImageRequest
+import com.example.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,15 +84,32 @@ fun MediaPosterCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(0.68f)
+                    .aspectRatio(2f / 3f)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
-                AsyncImage(
-                    model = media.posterUrl,
-                    contentDescription = media.title,
+                Image(
+                    painter = painterResource(id = R.drawable.banner_cinema),
+                    contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
+                val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
+                if (posterSource.isNotBlank()) {
+                    val context = LocalContext.current
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(posterSource)
+                            .crossfade(true)
+                            .placeholder(R.drawable.banner_cinema)
+                            .error(R.drawable.banner_cinema)
+                            .build(),
+                        contentDescription = media.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                        alignment = Alignment.Center
+                    )
+                }
 
                 // Gradient scrim overlay
                 Box(
@@ -267,16 +289,33 @@ fun ContinueWatchingCard(
             Box(
                 modifier = Modifier
                     .width(64.dp)
-                    .height(90.dp)
+                    .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
-                AsyncImage(
-                    model = media.posterUrl,
-                    contentDescription = media.title,
+                Image(
+                    painter = painterResource(id = R.drawable.banner_cinema),
+                    contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
+                val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
+                if (posterSource.isNotBlank()) {
+                    val context = LocalContext.current
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(posterSource)
+                            .crossfade(true)
+                            .placeholder(R.drawable.banner_cinema)
+                            .error(R.drawable.banner_cinema)
+                            .build(),
+                        contentDescription = media.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                        alignment = Alignment.Center
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(12.dp))

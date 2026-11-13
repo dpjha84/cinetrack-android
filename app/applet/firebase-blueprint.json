@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MovieverseFirestoreSchema",
+  "description": "Firestore database blueprint for Movieverse cloud sync and multi-user data storage.",
+  "collections": {
+    "users": {
+      "path": "users/{userId}",
+      "description": "User profile and root collection for multi-user isolation.",
+      "fields": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "updatedAt": { "type": "timestamp" }
+      },
+      "subcollections": {
+        "tracked_media": {
+          "path": "users/{userId}/tracked_media/{mediaId}",
+          "description": "Movies and TV shows tracked by user with watch status, episode progress, ratings, and custom list tags.",
+          "fields": {
+            "id": { "type": "string" },
+            "title": { "type": "string" },
+            "mediaType": { "type": "string" },
+            "releaseYear": { "type": "number" },
+            "genres": { "type": "string" },
+            "posterUrl": { "type": "string" },
+            "backdropUrl": { "type": "string" },
+            "overview": { "type": "string" },
+            "directorOrCreator": { "type": "string" },
+            "cast": { "type": "string" },
+            "communityRating": { "type": "number" },
+            "runtimeMinutes": { "type": "number" },
+            "totalSeasons": { "type": "number" },
+            "totalEpisodes": { "type": "number" },
+            "status": { "type": "string" },
+            "userRating": { "type": "number" },
+            "userReview": { "type": "string" },
+            "isFavorite": { "type": "boolean" },
+            "lastWatchedDate": { "type": "number", "optional": true },
+            "watchedEpisodes": { "type": "number" },
+            "customWatchlist": { "type": "string", "optional": true },
+            "streamingProviders": { "type": "string", "optional": true },
+            "userId": { "type": "string" },
+            "updatedAt": { "type": "timestamp" }
+          }
+        },
+        "custom_collections": {
+          "path": "users/{userId}/custom_collections/{collectionName}",
+          "description": "User custom lists and watchlists.",
+          "fields": {
+            "name": { "type": "string" },
+            "description": { "type": "string", "optional": true },
+            "userId": { "type": "string" },
+            "createdAt": { "type": "number" }
+          }
+        },
+        "preferences": {
+          "path": "users/{userId}/preferences/{prefId}",
+          "description": "User preferences including regional and language options.",
+          "fields": {
+            "regionCode": { "type": "string" },
+            "languageCode": { "type": "string" },
+            "autoDetect": { "type": "boolean" },
+            "filterCatalogByLanguage": { "type": "boolean" },
+            "showStreamingProviders": { "type": "boolean" },
+            "userId": { "type": "string" },
+            "updatedAt": { "type": "timestamp" }
+          }
+        },
+        "search_history": {
+          "path": "users/{userId}/search_history/{historyId}",
+          "description": "User search queries.",
+          "fields": {
+            "query": { "type": "string" },
+            "timestamp": { "type": "number" },
+            "userId": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

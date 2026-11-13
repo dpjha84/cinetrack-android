@@ -1,6 +1,6 @@
 {
-  "name": "CineTrack",
-  "description": "Track movies and TV shows, manage your watchlist, log watch progress, ratings, and view viewing statistics.",
+  "name": "Movieverse",
+  "description": "Discover movies and TV shows, track your watchlist, log progress and ratings, and sync with your account.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

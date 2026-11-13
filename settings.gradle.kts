@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "CineTrack"
+rootProject.name = "Movieverse"
 
 include(":app")

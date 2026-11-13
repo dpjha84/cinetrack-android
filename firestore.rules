@@ -1,0 +1,244 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: default deny everything unless explicitly allowed
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidDocId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128;
+    }
+
+    function isValidStrictId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidServerTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function optionalString(data, field, maxLen) {
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function optionalInt(data, field) {
+      return !(field in data) || data[field] == null || data[field] is int;
+    }
+
+    // --- ENTITY VALIDATION HELPERS ---
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['userId']) &&
+             data.keys().hasOnly(['userId', 'email', 'displayName', 'updatedAt']) &&
+             data.userId is string && data.userId == userId &&
+             optionalString(data, 'email', 254) &&
+             optionalString(data, 'displayName', 120) &&
+             (!('updatedAt' in data) || isValidServerTimestamp(data.updatedAt));
+    }
+
+    function isValidTrackedMedia(data, userId) {
+      return data.keys().hasAll(['id', 'title', 'mediaType', 'status', 'isFavorite', 'userId', 'updatedAt']) &&
+             data.keys().hasOnly([
+               'id', 'title', 'mediaType', 'releaseYear', 'genres', 'posterUrl', 'backdropUrl',
+               'overview', 'directorOrCreator', 'cast', 'communityRating', 'runtimeMinutes',
+               'totalSeasons', 'totalEpisodes', 'status', 'userRating', 'userReview',
+               'isFavorite', 'lastWatchedDate', 'watchedEpisodes', 'watchedSeasons',
+               'customWatchlist', 'isCustom', 'originalLanguage', 'originCountry',
+               'streamingProviders', 'createdAt', 'userId', 'updatedAt'
+             ]) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 500 &&
+             data.mediaType in ['MOVIE', 'TV_SHOW'] &&
+             data.status in ['NONE', 'PLAN_TO_WATCH', 'WATCHING', 'COMPLETED', 'ON_HOLD', 'DROPPED'] &&
+             data.isFavorite is bool &&
+             data.userId is string && data.userId == userId &&
+             isValidServerTimestamp(data.updatedAt) &&
+             optionalInt(data, 'releaseYear') &&
+             optionalString(data, 'genres', 500) &&
+             optionalString(data, 'posterUrl', 1000) &&
+             optionalString(data, 'backdropUrl', 1000) &&
+             optionalString(data, 'overview', 10000) &&
+             optionalString(data, 'directorOrCreator', 500) &&
+             optionalString(data, 'cast', 2500) &&
+             (!('communityRating' in data) || data.communityRating is number) &&
+             optionalInt(data, 'runtimeMinutes') &&
+             optionalInt(data, 'totalSeasons') &&
+             optionalInt(data, 'totalEpisodes') &&
+             (!('userRating' in data) || (data.userRating is number && data.userRating >= 0 && data.userRating <= 10)) &&
+             optionalString(data, 'userReview', 5000) &&
+             optionalInt(data, 'lastWatchedDate') &&
+             optionalInt(data, 'watchedEpisodes') &&
+             optionalInt(data, 'watchedSeasons') &&
+             optionalString(data, 'customWatchlist', 200) &&
+             (!('isCustom' in data) || data.isCustom is bool) &&
+             optionalString(data, 'originalLanguage', 32) &&
+             optionalString(data, 'originCountry', 32) &&
+             optionalString(data, 'streamingProviders', 2000) &&
+             optionalInt(data, 'createdAt');
+    }
+
+    function isValidCustomCollection(data, userId) {
+      return data.keys().hasAll(['name', 'createdAt', 'userId']) &&
+             data.keys().hasOnly(['name', 'description', 'createdAt', 'userId']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 128 &&
+             optionalString(data, 'description', 1000) &&
+             data.createdAt is int &&
+             data.userId is string && data.userId == userId;
+    }
+
+    function isValidPreferences(data, userId) {
+      return data.keys().hasAll([
+               'regionCode', 'languageCode', 'autoDetect',
+               'filterCatalogByLanguage', 'showStreamingProviders',
+               'userId', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'regionCode', 'languageCode', 'autoDetect',
+               'filterCatalogByLanguage', 'showStreamingProviders',
+               'userId', 'updatedAt'
+             ]) &&
+             data.regionCode is string && data.regionCode.size() >= 1 && data.regionCode.size() <= 32 &&
+             data.languageCode is string && data.languageCode.size() >= 1 && data.languageCode.size() <= 32 &&
+             data.autoDetect is bool &&
+             data.filterCatalogByLanguage is bool &&
+             data.showStreamingProviders is bool &&
+             data.userId is string && data.userId == userId &&
+             isValidServerTimestamp(data.updatedAt);
+    }
+
+    function isValidSearchHistory(data, userId) {
+      return data.keys().hasAll(['query', 'timestamp', 'userId']) &&
+             data.keys().hasOnly(['query', 'timestamp', 'userId']) &&
+             data.query is string && data.query.size() >= 1 && data.query.size() <= 200 &&
+             data.timestamp is int &&
+             data.userId is string && data.userId == userId;
+    }
+
+    function isValidFavoritePerson(data, userId) {
+      return data.keys().hasAll(['id', 'personId', 'name', 'createdAt', 'userId', 'updatedAt']) &&
+             data.keys().hasOnly([
+               'id', 'personId', 'name', 'profileUrl', 'department',
+               'birthday', 'placeOfBirth', 'createdAt', 'userId', 'updatedAt'
+             ]) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+             data.personId is int &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+             optionalString(data, 'profileUrl', 1000) &&
+             optionalString(data, 'department', 100) &&
+             optionalString(data, 'birthday', 64) &&
+             optionalString(data, 'placeOfBirth', 200) &&
+             data.createdAt is int &&
+             data.userId is string && data.userId == userId &&
+             isValidServerTimestamp(data.updatedAt);
+    }
+
+    function isValidTvProgress(data, userId) {
+      return data.keys().hasAll([
+               'mediaId', 'seasonNumber', 'episodeNumber',
+               'status', 'updatedAt', 'userId', 'serverUpdatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'mediaId', 'seasonNumber', 'episodeNumber',
+               'status', 'updatedAt', 'userId', 'serverUpdatedAt'
+             ]) &&
+             data.mediaId is string && data.mediaId.size() >= 1 && data.mediaId.size() <= 128 &&
+             data.seasonNumber is int && data.seasonNumber >= 0 &&
+             data.episodeNumber is int && data.episodeNumber >= 0 &&
+             data.status in ['UNWATCHED', 'WATCHING', 'WATCHED', 'PLAN_TO_WATCH'] &&
+             data.updatedAt is int &&
+             data.userId is string && data.userId == userId &&
+             isValidServerTimestamp(data.serverUpdatedAt);
+    }
+
+    // --- COLLECTION RULES ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidDocId(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidDocId(userId) && isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidDocId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId;
+      allow delete: if isOwner(userId) && isValidDocId(userId);
+
+      match /tracked_media/{mediaId} {
+        allow get: if isOwner(userId) && isValidStrictId(mediaId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidStrictId(mediaId) && isValidTrackedMedia(incoming(), userId);
+        allow update: if isOwner(userId) && isValidStrictId(mediaId) &&
+                         isValidTrackedMedia(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id;
+        allow delete: if isOwner(userId) && isValidStrictId(mediaId);
+      }
+
+      match /custom_collections/{collectionId} {
+        allow get: if isOwner(userId) && isValidDocId(collectionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidDocId(collectionId) && isValidCustomCollection(incoming(), userId);
+        allow update: if isOwner(userId) && isValidDocId(collectionId) &&
+                         isValidCustomCollection(incoming(), userId) &&
+                         incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidDocId(collectionId);
+      }
+
+      match /preferences/{prefId} {
+        allow get: if isOwner(userId) && isValidStrictId(prefId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidStrictId(prefId) && isValidPreferences(incoming(), userId);
+        allow update: if isOwner(userId) && isValidStrictId(prefId) &&
+                         isValidPreferences(incoming(), userId) &&
+                         incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidStrictId(prefId);
+      }
+
+      match /search_history/{historyId} {
+        allow get: if isOwner(userId) && isValidDocId(historyId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidDocId(historyId) && isValidSearchHistory(incoming(), userId);
+        allow update: if isOwner(userId) && isValidDocId(historyId) &&
+                         isValidSearchHistory(incoming(), userId) &&
+                         incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidDocId(historyId);
+      }
+
+      match /favorite_people/{personId} {
+        allow get: if isOwner(userId) && isValidDocId(personId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidDocId(personId) && isValidFavoritePerson(incoming(), userId);
+        allow update: if isOwner(userId) && isValidDocId(personId) &&
+                         isValidFavoritePerson(incoming(), userId) &&
+                         incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidDocId(personId);
+      }
+
+      match /tv_progress/{progressId} {
+        allow get: if isOwner(userId) && isValidStrictId(progressId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidStrictId(progressId) && isValidTvProgress(incoming(), userId);
+        allow update: if isOwner(userId) && isValidStrictId(progressId) &&
+                         isValidTvProgress(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().mediaId == existing().mediaId;
+        allow delete: if isOwner(userId) && isValidStrictId(progressId);
+      }
+    }
+  }
+}

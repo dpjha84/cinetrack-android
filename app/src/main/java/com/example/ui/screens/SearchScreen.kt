@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,11 +23,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -72,8 +77,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -90,6 +97,7 @@ import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.viewmodel.MediaViewModel
+import com.example.ui.viewmodel.TopRatedTab
 
 @Composable
 fun SearchScreen(
@@ -98,6 +106,7 @@ fun SearchScreen(
     modifier: Modifier = Modifier
 ) {
     val searchQuery by viewModel.multiSearchQuery.collectAsStateWithLifecycle()
+    val selectedSearchGenre by viewModel.selectedSearchGenre.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedSearchCategory.collectAsStateWithLifecycle()
     val searchResults by viewModel.filteredMultiSearchResults.collectAsStateWithLifecycle()
     val searchCounts by viewModel.searchCounts.collectAsStateWithLifecycle()
@@ -107,12 +116,18 @@ fun SearchScreen(
     val userPreferences by viewModel.userPreferences.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
     val allTrackedMedia by viewModel.allMedia.collectAsStateWithLifecycle()
-
-    val selectedPerson by viewModel.selectedPersonForDetail.collectAsStateWithLifecycle()
-    val personDetail by viewModel.personDetailData.collectAsStateWithLifecycle()
-    val isLoadingPersonDetail by viewModel.isLoadingPersonDetail.collectAsStateWithLifecycle()
+    val selectedTopRatedTab by viewModel.selectedTopRatedTab.collectAsStateWithLifecycle()
+    val topRatedList by viewModel.currentTopRatedList.collectAsStateWithLifecycle()
+    val isTopRatedLoading by viewModel.isTopRatedLoading.collectAsStateWithLifecycle()
 
     var showLocalizationDialog by remember { mutableStateOf(false) }
+    var isSearchFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+
+    BackHandler(enabled = selectedSearchGenre != null || searchQuery.isNotBlank()) {
+        viewModel.clearSearchGenre()
+        viewModel.setMultiSearchQuery("")
+    }
 
     Column(
         modifier = modifier
@@ -131,9 +146,10 @@ fun SearchScreen(
                 onValueChange = { viewModel.setMultiSearchQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .onFocusChanged { isSearchFocused = it.isFocused }
                     .testTag("multi_search_input"),
                 placeholder = {
-                    Text("Search CineTrack...")
+                    Text("Search Movieverse...")
                 },
                 leadingIcon = {
                     Icon(
@@ -149,9 +165,12 @@ fun SearchScreen(
                             color = CinemaGold,
                             strokeWidth = 2.dp
                         )
-                    } else if (searchQuery.isNotEmpty()) {
+                    } else if (searchQuery.isNotEmpty() || selectedSearchGenre != null) {
                         IconButton(
-                            onClick = { viewModel.setMultiSearchQuery("") },
+                            onClick = {
+                                viewModel.clearSearchGenre()
+                                viewModel.setMultiSearchQuery("")
+                            },
                             modifier = Modifier.testTag("btn_clear_search")
                         ) {
                             Icon(
@@ -163,11 +182,11 @@ fun SearchScreen(
                     } else {
                         IconButton(
                             onClick = { showLocalizationDialog = true },
-                            modifier = Modifier.testTag("btn_search_tmdb_settings")
+                            modifier = Modifier.testTag("btn_search_settings")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Tune,
-                                contentDescription = "API & Region Settings",
+                                contentDescription = "Catalog & Region Settings",
                                 tint = if (isTmdbConfigured) CinemaGreen else CinemaGold,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -176,6 +195,13 @@ fun SearchScreen(
                 },
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        viewModel.submitMultiSearch(searchQuery)
+                        focusManager.clearFocus()
+                    }
+                ),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CinemaGold,
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
@@ -215,7 +241,7 @@ fun SearchScreen(
                                 }
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(category.label)
-                                if (searchQuery.isNotBlank()) {
+                                if (searchQuery.isNotBlank() || selectedSearchGenre != null) {
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "($count)",
@@ -235,6 +261,69 @@ fun SearchScreen(
                     )
                 }
             }
+
+            AnimatedVisibility(visible = selectedSearchGenre != null) {
+                selectedSearchGenre?.let { activeGenre ->
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = CinemaCyan.copy(alpha = 0.14f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Movie,
+                                    contentDescription = null,
+                                    tint = CinemaCyan,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Genre: $activeGenre",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CinemaCyan
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier
+                                    .clickable { viewModel.clearSearchGenre() }
+                                    .testTag("btn_clear_genre")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Clear genre filter",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Clear",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Main Content Area
@@ -244,16 +333,33 @@ fun SearchScreen(
                 .weight(1f)
         ) {
             when {
-                searchQuery.isBlank() -> {
-                    // Empty Query Screen with Trending/Suggested Searches
+                searchQuery.isBlank() && selectedSearchGenre == null -> {
+                    // Empty Query Screen with Trending/Suggested Searches & TMDB Top 10
                     EmptyQueryView(
+                        isSearchFocused = isSearchFocused,
                         recentHistory = recentHistory,
-                        onSuggestionClick = { viewModel.setMultiSearchQuery(it) },
+                        allTrackedMedia = allTrackedMedia,
+                        onSuggestionClick = {
+                            viewModel.submitMultiSearch(it)
+                            focusManager.clearFocus()
+                        },
+                        onGenreClick = { viewModel.selectSearchGenre(it) },
                         onDeleteRecentClick = { viewModel.deleteRecentSearch(it) },
                         onClearAllHistory = { viewModel.clearAllSearchHistory() },
                         onOpenSettings = { showLocalizationDialog = true },
                         isTmdbLive = isTmdbConfigured,
-                        regionCode = effectiveRegion
+                        regionCode = effectiveRegion,
+                        selectedTopRatedTab = selectedTopRatedTab,
+                        topRatedList = topRatedList,
+                        isTopRatedLoading = isTopRatedLoading,
+                        onSelectTopRatedTab = { viewModel.setTopRatedTab(it) },
+                        onMediaClick = { entity ->
+                            viewModel.openMediaFromSearch(entity)
+                            onMediaClick(entity.id)
+                        },
+                        onToggleWatchlist = { entity ->
+                            viewModel.toggleWatchlistQuick(entity)
+                        }
                     )
                 }
 
@@ -274,7 +380,11 @@ fun SearchScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "Searching live catalog...",
+                                text = if (selectedSearchGenre != null) {
+                                    "Discovering $selectedSearchGenre titles..."
+                                } else {
+                                    "Searching live catalog..."
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -300,24 +410,35 @@ fun SearchScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "No results found for \"$searchQuery\"",
+                                text = if (selectedSearchGenre != null) {
+                                    "No $selectedSearchGenre titles found"
+                                } else {
+                                    "No results found for \"$searchQuery\""
+                                },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Try searching by exact actor or director name, title in English or original language, or check your API key.",
+                                text = if (selectedSearchGenre != null) {
+                                    "Try switching the Movies/TV filter or choose another genre."
+                                } else {
+                                    "Try searching by exact actor or director name, title in English or original language, or check your API key."
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             OutlinedButton(
-                                onClick = { viewModel.setMultiSearchQuery("") },
+                                onClick = {
+                                    viewModel.clearSearchGenre()
+                                    viewModel.setMultiSearchQuery("")
+                                },
                                 modifier = Modifier.testTag("btn_reset_search")
                             ) {
-                                Text("Clear Search")
+                                Text(if (selectedSearchGenre != null) "Clear Genre Filter" else "Clear Search")
                             }
                         }
                     }
@@ -348,11 +469,17 @@ fun SearchScreen(
                                         isMovie = item.isMovie,
                                         isInWatchlist = isInWatchlist,
                                         onCardClick = {
-                                            viewModel.openMediaFromSearch(item.entity)
-                                            onMediaClick(item.entity.id)
+                                            if (searchQuery.isNotBlank()) {
+                                                viewModel.recordCompletedSearch(searchQuery)
+                                            }
+                                            viewModel.openMediaFromSearch(currentEntity)
+                                            onMediaClick(currentEntity.id)
                                         },
                                         onToggleWatchlist = {
-                                            viewModel.toggleWatchlistQuick(item.entity.id)
+                                            if (searchQuery.isNotBlank()) {
+                                                viewModel.recordCompletedSearch(searchQuery)
+                                            }
+                                            viewModel.toggleWatchlistQuick(currentEntity)
                                         }
                                     )
                                 }
@@ -361,9 +488,15 @@ fun SearchScreen(
                                     SearchResultPersonCard(
                                         person = item,
                                         onPersonClick = {
+                                            if (searchQuery.isNotBlank()) {
+                                                viewModel.recordCompletedSearch(searchQuery)
+                                            }
                                             viewModel.selectPersonForDetail(item)
                                         },
                                         onMediaClick = { media ->
+                                            if (searchQuery.isNotBlank()) {
+                                                viewModel.recordCompletedSearch(searchQuery)
+                                            }
                                             viewModel.openMediaFromSearch(media)
                                             onMediaClick(media.id)
                                         }
@@ -375,21 +508,6 @@ fun SearchScreen(
                 }
             }
         }
-    }
-
-    // Person Detail Dialog
-    selectedPerson?.let { person ->
-        PersonDetailDialog(
-            person = person,
-            detailDto = personDetail,
-            isLoading = isLoadingPersonDetail,
-            onDismiss = { viewModel.selectPersonForDetail(null) },
-            onMediaClick = { media ->
-                viewModel.selectPersonForDetail(null)
-                viewModel.openMediaFromSearch(media)
-                onMediaClick(media.id)
-            }
-        )
     }
 
     // Localization & TMDB settings dialog
@@ -442,10 +560,11 @@ fun SearchResultMediaCard(
                     .background(Color.DarkGray)
             ) {
                 AsyncImage(
-                    model = media.posterUrl,
+                    model = media.posterUrl.ifBlank { media.backdropUrl },
                     contentDescription = media.title,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                    alignment = Alignment.Center
                 )
             }
 
@@ -727,13 +846,22 @@ fun SearchResultPersonCard(
 
 @Composable
 fun EmptyQueryView(
+    isSearchFocused: Boolean,
     recentHistory: List<String>,
+    allTrackedMedia: List<MediaEntity> = emptyList(),
     onSuggestionClick: (String) -> Unit,
+    onGenreClick: (String) -> Unit = {},
     onDeleteRecentClick: (String) -> Unit = {},
     onClearAllHistory: () -> Unit = {},
     onOpenSettings: () -> Unit,
     isTmdbLive: Boolean,
     regionCode: String,
+    selectedTopRatedTab: TopRatedTab = TopRatedTab.MOVIES,
+    topRatedList: List<MediaEntity> = emptyList(),
+    isTopRatedLoading: Boolean = false,
+    onSelectTopRatedTab: (TopRatedTab) -> Unit = {},
+    onMediaClick: (MediaEntity) -> Unit = {},
+    onToggleWatchlist: (MediaEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val trendingSuggestions = listOf(
@@ -751,65 +879,18 @@ fun EmptyQueryView(
         "Interstellar"
     )
 
+    val popularGenres = listOf(
+        "Action", "Sci-Fi", "Thriller", "Comedy", "Drama", "Horror", "Animation", "Crime"
+    )
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        // Suggested Searches Section
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                contentDescription = null,
-                tint = CinemaGold,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Popular & Trending Searches",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Grid of tags
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            trendingSuggestions.take(6).forEach { tag ->
-                SuggestionChip(
-                    text = tag,
-                    onClick = { onSuggestionClick(tag) }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            trendingSuggestions.drop(6).forEach { tag ->
-                SuggestionChip(
-                    text = tag,
-                    onClick = { onSuggestionClick(tag) }
-                )
-            }
-        }
-
-        // Recent Search History (Stored in Room Database)
-        if (recentHistory.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(24.dp))
+        // Recent Search History (ONLY shown when user clicks / focuses on the search text box)
+        if (isSearchFocused && recentHistory.isNotEmpty()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -916,41 +997,336 @@ fun EmptyQueryView(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
         }
 
-        // Info Banner
-        Spacer(modifier = Modifier.height(24.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            shape = RoundedCornerShape(14.dp)
+        // Suggested Searches Section
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                contentDescription = null,
+                tint = CinemaGold,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Popular & Trending Searches",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Single scrollable row of trending suggestions
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        tint = CinemaGold,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+            trendingSuggestions.forEach { tag ->
+                SuggestionChip(
+                    text = tag,
+                    onClick = { onSuggestionClick(tag) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Browse by Genre Section
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.Movie,
+                contentDescription = null,
+                tint = CinemaCyan,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Explore by Popular Genres",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            popularGenres.forEach { genre ->
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .clickable { onGenreClick(genre) }
+                        .testTag("genre_chip_$genre")
+                ) {
                     Text(
-                        text = "Universal Search Capabilities",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = genre,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "• Search by actor name (e.g. \"Zendaya\", \"Cillian Murphy\")\n" +
-                            "• Search by director name (e.g. \"Christopher Nolan\", \"Denis Villeneuve\")\n" +
-                            "• Search movies & TV series across global databases\n" +
-                            "• View person filmography and add any title to your Watchlist with 1 tap.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp
+            }
+        }
+
+        // Top 10 Rated on TMDB
+        Spacer(modifier = Modifier.height(24.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = CinemaGold,
+                    modifier = Modifier.size(20.dp)
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "TMDB Top 10 Rated",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Switcher between Movies and TV Series
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = selectedTopRatedTab == TopRatedTab.MOVIES,
+                onClick = { onSelectTopRatedTab(TopRatedTab.MOVIES) },
+                label = { Text("Top 10 Movies", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(16.dp))
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = CinemaGold,
+                    selectedLabelColor = Color.Black,
+                    selectedLeadingIconColor = Color.Black
+                ),
+                modifier = Modifier.testTag("tab_top_rated_movies")
+            )
+
+            FilterChip(
+                selected = selectedTopRatedTab == TopRatedTab.TV_SERIES,
+                onClick = { onSelectTopRatedTab(TopRatedTab.TV_SERIES) },
+                label = { Text("Top 10 TV Series", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(16.dp))
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = CinemaCyan,
+                    selectedLabelColor = Color.Black,
+                    selectedLeadingIconColor = Color.Black
+                ),
+                modifier = Modifier.testTag("tab_top_rated_tv")
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (isTopRatedLoading && topRatedList.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = CinemaGold,
+                    strokeWidth = 2.5.dp,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        } else if (topRatedList.isEmpty()) {
+            Text(
+                text = "No top rated titles found.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                topRatedList.take(10).forEachIndexed { index, item ->
+                    val currentEntity = allTrackedMedia.find { it.id == item.id } ?: item
+                    val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
+
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onMediaClick(currentEntity) }
+                            .testTag("top_rated_item_${currentEntity.id}")
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Rank badge (#1..#10)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (index < 3) CinemaGold else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "#${index + 1}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (index < 3) Color.Black else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            // 2:3 aspect ratio poster thumbnail
+                            AsyncImage(
+                                model = currentEntity.posterUrl.ifBlank { currentEntity.backdropUrl },
+                                contentDescription = currentEntity.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .width(58.dp)
+                                    .aspectRatio(2f / 3f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                            )
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            // Details & + Watchlist action
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = currentEntity.title,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = CinemaGold.copy(alpha = 0.18f),
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = CinemaGold,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = String.format("%.1f", currentEntity.communityRating),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = CinemaGold
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = "${currentEntity.releaseYear}" + if (currentEntity.runtimeMinutes > 0) " • ${currentEntity.runtimeMinutes}m" else "",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 12.sp
+                                    )
+                                }
+
+                                if (currentEntity.genres.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = currentEntity.genres,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = CinemaCyan.copy(alpha = 0.9f),
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                if (currentEntity.overview.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = currentEntity.overview,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 11.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        lineHeight = 15.sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = if (isInWatchlist) CinemaGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface,
+                                        modifier = Modifier
+                                            .clickable { onToggleWatchlist(currentEntity) }
+                                            .testTag("btn_top_rated_watchlist_${currentEntity.id}")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isInWatchlist) Icons.Default.Check else Icons.Default.BookmarkBorder,
+                                                contentDescription = if (isInWatchlist) "In Watchlist" else "Add to Watchlist",
+                                                tint = if (isInWatchlist) CinemaGreen else CinemaGold,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = if (isInWatchlist) "In Watchlist" else "+ Watchlist",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isInWatchlist) CinemaGreen else CinemaGold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -988,199 +1364,4 @@ fun SuggestionChip(
             )
         }
     }
-}
-
-@Composable
-fun PersonDetailDialog(
-    person: TmdbSearchResultItem.Person,
-    detailDto: com.example.data.remote.tmdb.TmdbPersonDetailDto?,
-    isLoading: Boolean,
-    onDismiss: () -> Unit,
-    onMediaClick: (MediaEntity) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black),
-                modifier = Modifier.testTag("btn_close_person_dialog")
-            ) {
-                Text("Close", fontWeight = FontWeight.Bold)
-            }
-        },
-        title = null,
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-            ) {
-                // Header with photo and name
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .clip(CircleShape)
-                            .background(CinemaGold.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val img = detailDto?.profilePath?.let { "https://image.tmdb.org/t/p/w500$it" } ?: person.profileUrl
-                        if (!img.isNullOrBlank()) {
-                            AsyncImage(
-                                model = img,
-                                contentDescription = person.name,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = CinemaGold,
-                                modifier = Modifier.size(40.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(14.dp))
-
-                    Column {
-                        Text(
-                            text = person.name,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = CinemaGold.copy(alpha = 0.25f)
-                        ) {
-                            Text(
-                                text = (detailDto?.knownForDepartment ?: person.department).uppercase(),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = CinemaGold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                        if (detailDto?.birthday != null) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Born: ${detailDto.birthday}${if (detailDto.placeOfBirth != null) " in ${detailDto.placeOfBirth}" else ""}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                if (isLoading) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = CinemaGold, strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Loading biography & credits...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-
-                // Biography
-                val bio = detailDto?.biography?.takeIf { it.isNotBlank() }
-                if (bio != null) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = "Biography",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = bio,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 18.sp,
-                        maxLines = 6,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Filmography / Known for
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Key Filmography & Credits",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (person.knownFor.isNotEmpty()) {
-                    person.knownFor.forEach { media ->
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable { onMediaClick(media) }
-                                .testTag("person_filmography_${media.id}")
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (media.posterUrl.isNotBlank()) {
-                                    AsyncImage(
-                                        model = media.posterUrl,
-                                        contentDescription = media.title,
-                                        modifier = Modifier
-                                            .size(36.dp, 54.dp)
-                                            .clip(RoundedCornerShape(6.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = media.title,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "${media.mediaType} • ${media.releaseYear} • ★ ${String.format("%.1f", media.communityRating)}",
-                                        fontSize = 11.sp,
-                                        color = CinemaGold
-                                    )
-                                }
-                                Text(
-                                    text = "View",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = CinemaCyan
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Text(
-                        text = "No additional credits listed.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    )
 }
