@@ -3,6 +3,17 @@ package com.example.ui.screens
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -25,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -39,6 +51,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -52,6 +66,9 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
@@ -83,14 +100,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -107,9 +127,25 @@ import com.example.data.model.WatchStatus
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
+import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.DarkBackground
 import com.example.ui.viewmodel.MediaViewModel
 import com.google.firebase.auth.FirebaseUser
+
+private val ONBOARDING_GENRES = listOf(
+    "Sci-Fi",
+    "Action",
+    "Thriller",
+    "Drama",
+    "Comedy",
+    "Crime",
+    "Mystery",
+    "Romance",
+    "Fantasy",
+    "Horror",
+    "Animation",
+    "Documentary"
+)
 
 @Composable
 fun OnboardingScreen(
@@ -123,7 +159,9 @@ fun OnboardingScreen(
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val authLoading by viewModel.onboardingAuthLoading.collectAsStateWithLifecycle()
     val authError by viewModel.onboardingAuthError.collectAsStateWithLifecycle()
+    val syncNotice by viewModel.onboardingSyncNotice.collectAsStateWithLifecycle()
 
+    val selectedGenres by viewModel.onboardingSelectedGenres.collectAsStateWithLifecycle()
     val favoritePeople by viewModel.favoritePeople.collectAsStateWithLifecycle()
     val popularPeople by viewModel.onboardingPopularPeople.collectAsStateWithLifecycle()
     val personQuery by viewModel.onboardingPersonQuery.collectAsStateWithLifecycle()
@@ -135,6 +173,14 @@ fun OnboardingScreen(
     val titleSearchResults by viewModel.onboardingTitleSearchResults.collectAsStateWithLifecycle()
     val isLoadingTitles by viewModel.isLoadingOnboardingTitles.collectAsStateWithLifecycle()
     val allMedia by viewModel.allMedia.collectAsStateWithLifecycle()
+    val trackedMedia by viewModel.trackedMedia.collectAsStateWithLifecycle()
+
+    val hasAnyPersonalizationSignal = remember(selectedGenres, favoritePeople, trackedMedia, allMedia) {
+        selectedGenres.isNotEmpty() ||
+            favoritePeople.isNotEmpty() ||
+            trackedMedia.isNotEmpty() ||
+            allMedia.any { it.isFavorite || it.getWatchStatusEnum() != WatchStatus.NONE }
+    }
 
     if (step > 0) {
         BackHandler {
@@ -155,6 +201,7 @@ fun OnboardingScreen(
                 )
             )
             .statusBarsPadding()
+            .imePadding()
             .testTag("onboarding_root")
     ) {
         Column(
@@ -163,21 +210,20 @@ fun OnboardingScreen(
                 .widthIn(max = 640.dp)
                 .align(Alignment.TopCenter)
         ) {
-            // Segmented 3-Step Indicator
             OnboardingProgressBar(
                 currentStep = step,
                 totalSteps = 3,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
             )
 
             AnimatedContent(
                 targetState = step,
                 transitionSpec = {
                     val forward = targetState > initialState
-                    (slideInHorizontally { width -> if (forward) width / 4 else -width / 4 } + fadeIn()) togetherWith
-                        (slideOutHorizontally { width -> if (forward) -width / 4 else width / 4 } + fadeOut())
+                    (slideInHorizontally { width -> if (forward) width / 4 else -width / 4 } + fadeIn(tween(240))) togetherWith
+                        (slideOutHorizontally { width -> if (forward) -width / 4 else width / 4 } + fadeOut(tween(180)))
                 },
                 label = "onboardingStepTransition",
                 modifier = Modifier.weight(1f)
@@ -197,6 +243,10 @@ fun OnboardingScreen(
                     )
 
                     1 -> OnboardingFavoritePeopleStep(
+                        syncNotice = syncNotice,
+                        onDismissSyncNotice = { viewModel.dismissOnboardingSyncNotice() },
+                        selectedGenres = selectedGenres,
+                        onToggleGenre = { genre -> viewModel.toggleOnboardingGenre(genre) },
                         query = personQuery,
                         onQueryChange = { viewModel.updateOnboardingPersonQuery(it) },
                         people = if (personQuery.isNotBlank()) personSearchResults else popularPeople,
@@ -210,11 +260,15 @@ fun OnboardingScreen(
                     )
 
                     else -> OnboardingWatchedTitlesStep(
+                        syncNotice = syncNotice,
+                        onDismissSyncNotice = { viewModel.dismissOnboardingSyncNotice() },
                         query = titleQuery,
                         onQueryChange = { viewModel.updateOnboardingTitleQuery(it) },
                         titles = if (titleQuery.isNotBlank()) titleSearchResults else popularTitles,
                         allMedia = allMedia,
+                        hasAnyTasteSignal = hasAnyPersonalizationSignal,
                         isLoading = isLoadingTitles,
+                        onToggleFavorite = { media -> viewModel.toggleOnboardingTitleFavorite(media) },
                         onToggleStatus = { media, status ->
                             viewModel.toggleOnboardingTitleStatus(media, status)
                         },
@@ -244,19 +298,21 @@ private fun OnboardingProgressBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Step ${currentStep + 1} of $totalSteps",
+                text = "STEP ${currentStep + 1} OF $totalSteps",
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.8.sp,
                 color = CinemaGold
             )
             Text(
                 text = when (currentStep) {
                     0 -> "Welcome & Sync"
-                    1 -> "Actors & Directors"
-                    else -> "Watched & Watchlist"
+                    1 -> "Stars & Genres"
+                    else -> "Favorites & Watched"
                 },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
             )
         }
 
@@ -265,16 +321,23 @@ private fun OnboardingProgressBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             for (index in 0 until totalSteps) {
-                val isCompletedOrActive = index <= currentStep
+                val isCompleted = index < currentStep
+                val isActive = index == currentStep
+                val barColor by animateColorAsState(
+                    targetValue = when {
+                        isActive -> CinemaGold
+                        isCompleted -> CinemaCyan
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    animationSpec = tween(260),
+                    label = "stepBarColor_$index"
+                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(4.dp)
+                        .height(5.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(
-                            if (isCompletedOrActive) CinemaGold
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
+                        .background(barColor)
                 )
             }
         }
@@ -290,11 +353,22 @@ private fun OnboardingWelcomeStep(
     onContinueSignedIn: () -> Unit,
     onContinueAsGuest: () -> Unit
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "welcomeGlow")
+    val glowPulse by infiniteTransition.animateFloat(
+        initialValue = 0.92f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "welcomeGlowPulse"
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 12.dp)
+            .padding(horizontal = 20.dp, vertical = 6.dp)
             .navigationBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
@@ -303,45 +377,101 @@ private fun OnboardingWelcomeStep(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Titanium Aperture Emblem with soft CinemaGold/CinemaCyan spotlight
-            Box(contentAlignment = Alignment.Center) {
+            // Cinematic Hero Card with Backdrop Artwork & Animated Titanium Aperture Spotlight
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(
+                    1.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            CinemaGold.copy(alpha = 0.55f),
+                            CinemaCyan.copy(alpha = 0.45f)
+                        )
+                    )
+                ),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1119)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(164.dp)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    CinemaGold.copy(alpha = 0.20f),
-                                    CinemaCyan.copy(alpha = 0.08f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-                Surface(
-                    shape = CircleShape,
-                    color = Color(0xFF0A1119),
-                    border = BorderStroke(
-                        1.5.dp,
-                        Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
-                    ),
-                    shadowElevation = 14.dp,
-                    modifier = Modifier.size(104.dp)
+                        .fillMaxWidth()
+                        .height(176.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.watchpilot_aperture_icon),
-                        contentDescription = "WatchPilot",
+                        painter = painterResource(id = R.drawable.banner_cinema),
+                        contentDescription = null,
                         contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(CircleShape)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0xAA0A1119),
+                                        Color(0xDD0B0D13)
+                                    )
+                                )
+                            )
                     )
+
+                    // Breathing radial spotlight behind brand emblem
+                    Box(
+                        modifier = Modifier
+                            .size(164.dp)
+                            .scale(glowPulse)
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(
+                                        CinemaGold.copy(alpha = 0.28f),
+                                        CinemaCyan.copy(alpha = 0.14f),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
+                    )
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF0A1119),
+                            border = BorderStroke(
+                                2.dp,
+                                Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
+                            ),
+                            shadowElevation = 14.dp,
+                            modifier = Modifier.size(88.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.watchpilot_aperture_icon),
+                                contentDescription = "WatchPilot",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "YOUR PERSONAL CINEMA PILOT",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.6.sp,
+                            color = CinemaGold
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             Text(
                 text = "Welcome to WatchPilot",
@@ -354,26 +484,52 @@ private fun OnboardingWelcomeStep(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Track movies & series, check where to stream, and get instant picks tuned to your taste.",
+                text = "Sign in to sync your watchlist, tell us who & what you love, and unlock tailored Top Picks in under 30 seconds.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Concise Highlight Pills
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+            ) {
+                WelcomeFeaturePill(
+                    icon = Icons.Filled.AutoAwesome,
+                    label = "Tailored Top Picks",
+                    accent = CinemaGold
+                )
+                WelcomeFeaturePill(
+                    icon = Icons.Filled.LiveTv,
+                    label = "Where to Stream",
+                    accent = CinemaCyan
+                )
+                WelcomeFeaturePill(
+                    icon = Icons.Filled.CloudSync,
+                    label = "Cloud Sync",
+                    accent = CinemaGreen
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Cloud Sync Benefit Card
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
                 ),
-                border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.35f)),
+                border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.28f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -393,19 +549,19 @@ private fun OnboardingWelcomeStep(
                         icon = Icons.Filled.CloudSync,
                         accent = CinemaGold,
                         title = "Automatic Cloud Backup",
-                        subtitle = "Your watchlist, watched episodes, and Cinema DNA stay backed up safely."
+                        subtitle = "Watched episodes, favorites & Cinema DNA follow you everywhere."
                     )
                     OnboardingBenefitRow(
                         icon = Icons.Filled.Devices,
                         accent = CinemaCyan,
-                        title = "Seamless Multi-Device Access",
-                        subtitle = "Sign in on any phone or tablet and restore your full library instantly."
+                        title = "Instant Multi-Device Restore",
+                        subtitle = "Switch phones cleanly without losing a single movie or rating."
                     )
                     OnboardingBenefitRow(
                         icon = Icons.Filled.AutoAwesome,
                         accent = CinemaGreen,
-                        title = "Smarter Home Recommendations",
-                        subtitle = "Your favorite stars and watched picks follow your account everywhere."
+                        title = "Precision Taste Engine",
+                        subtitle = "Your next two steps tune Home Top Picks around your favorite stars & classics."
                     )
                 }
             }
@@ -414,7 +570,7 @@ private fun OnboardingWelcomeStep(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 20.dp, bottom = 8.dp),
+                .padding(top = 18.dp, bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -447,7 +603,7 @@ private fun OnboardingWelcomeStep(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.CheckCircle,
-                            contentDescription = null,
+                            contentDescription = "Signed in",
                             tint = CinemaGreen
                         )
                         Column(modifier = Modifier.weight(1f)) {
@@ -481,7 +637,7 @@ private fun OnboardingWelcomeStep(
                         .testTag("onboarding_btn_continue_signed_in")
                 ) {
                     Text(
-                        text = "Personalize Your Feed",
+                        text = "Personalize Your Taste",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 15.sp
                     )
@@ -550,12 +706,46 @@ private fun OnboardingWelcomeStep(
                 }
 
                 Text(
-                    text = "Guest data stays on this device only. You can sign in anytime in Profile.",
+                    text = "Next up: pick your favorite stars, genres & watched movies.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun WelcomeFeaturePill(
+    icon: ImageVector,
+    label: String,
+    accent: Color
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = accent.copy(alpha = 0.14f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.35f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                softWrap = false
+            )
         }
     }
 }
@@ -602,7 +792,59 @@ private fun OnboardingBenefitRow(
 }
 
 @Composable
+private fun OnboardingSyncBanner(
+    message: String?,
+    onDismiss: () -> Unit
+) {
+    AnimatedVisibility(visible = !message.isNullOrBlank()) {
+        if (!message.isNullOrBlank()) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = CinemaGreen.copy(alpha = 0.14f),
+                border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.CloudSync,
+                        contentDescription = null,
+                        tint = CinemaGreen,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss sync notice",
+                            tint = CinemaGreen,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun OnboardingFavoritePeopleStep(
+    syncNotice: String?,
+    onDismissSyncNotice: () -> Unit,
+    selectedGenres: Set<String>,
+    onToggleGenre: (String) -> Unit,
     query: String,
     onQueryChange: (String) -> Unit,
     people: List<TmdbSearchResultItem.Person>,
@@ -614,6 +856,9 @@ private fun OnboardingFavoritePeopleStep(
     onSkip: () -> Unit,
     onNext: () -> Unit
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val totalSelected = selectedGenres.size + favoritePeople.size
+
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -621,6 +866,8 @@ private fun OnboardingFavoritePeopleStep(
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            OnboardingSyncBanner(message = syncNotice, onDismiss = onDismissSyncNotice)
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -628,31 +875,78 @@ private fun OnboardingFavoritePeopleStep(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Favorite actors & directors",
+                        text = "Genres, actors & directors",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Pick stars & creators you love to tune your recommendations.",
+                        text = "Pick vibes & stars you love to shape your Top Picks.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (favoritePeople.isNotEmpty()) {
+                if (totalSelected > 0) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = CinemaGold.copy(alpha = 0.18f),
                         border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f))
                     ) {
                         Text(
-                            text = "${favoritePeople.size} picked",
+                            text = "${selectedGenres.size} genres • ${favoritePeople.size} stars",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = CinemaGold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
+                }
+            }
+
+            // Favorite Genres / Vibes Quick Strip
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(ONBOARDING_GENRES, key = { it }) { genre ->
+                    val isSelected = selectedGenres.contains(genre)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onToggleGenre(genre) },
+                        leadingIcon = if (isSelected) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        } else null,
+                        label = {
+                            Text(
+                                text = genre,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = CinemaCyan.copy(alpha = 0.22f),
+                            selectedLabelColor = CinemaCyan,
+                            selectedLeadingIconColor = CinemaCyan
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                            selectedBorderColor = CinemaCyan.copy(alpha = 0.7f)
+                        ),
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .testTag("onboarding_genre_$genre")
+                    )
                 }
             }
 
@@ -664,11 +958,16 @@ private fun OnboardingFavoritePeopleStep(
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }) {
+                        IconButton(
+                            onClick = { onQueryChange("") },
+                            modifier = Modifier.size(48.dp)
+                        ) {
                             Icon(Icons.Default.Clear, contentDescription = "Clear search")
                         }
                     }
                 },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CinemaGold,
@@ -708,14 +1007,15 @@ private fun OnboardingFavoritePeopleStep(
                                 selectedContainerColor = CinemaGold.copy(alpha = 0.22f),
                                 selectedLabelColor = CinemaGold,
                                 selectedTrailingIconColor = CinemaGold
-                            )
+                            ),
+                            modifier = Modifier.heightIn(min = 48.dp)
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         Box(
             modifier = Modifier
@@ -742,7 +1042,7 @@ private fun OnboardingFavoritePeopleStep(
                     columns = GridCells.Adaptive(minSize = 104.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(
@@ -767,7 +1067,7 @@ private fun OnboardingFavoritePeopleStep(
             backTag = "onboarding_btn_back_people",
             skipTag = "onboarding_btn_skip_people",
             nextTag = "onboarding_btn_next_people",
-            nextLabel = if (favoritePeople.isNotEmpty()) "Next (${favoritePeople.size})" else "Next",
+            nextLabel = if (totalSelected > 0) "Next ($totalSelected picked)" else "Continue to Titles",
             onBack = onBack,
             onSkip = onSkip,
             onNext = onNext
@@ -782,10 +1082,17 @@ private fun OnboardingPersonCard(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val cardScale by animateFloatAsState(
+        targetValue = if (isSelected) 0.97f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "personScale_${person.id}"
+    )
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
+            .scale(cardScale)
             .clip(RoundedCornerShape(14.dp))
             .background(
                 if (isSelected) CinemaGold.copy(alpha = 0.14f)
@@ -805,7 +1112,7 @@ private fun OnboardingPersonCard(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 border = BorderStroke(
-                    width = if (isSelected) 2.dp else 1.dp,
+                    width = if (isSelected) 2.5.dp else 1.dp,
                     color = if (isSelected) CinemaGold else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
                 ),
                 modifier = Modifier.size(72.dp)
@@ -879,21 +1186,30 @@ private fun OnboardingPersonCard(
 
 @Composable
 private fun OnboardingWatchedTitlesStep(
+    syncNotice: String?,
+    onDismissSyncNotice: () -> Unit,
     query: String,
     onQueryChange: (String) -> Unit,
     titles: List<MediaEntity>,
     allMedia: List<MediaEntity>,
+    hasAnyTasteSignal: Boolean,
     isLoading: Boolean,
+    onToggleFavorite: (MediaEntity) -> Unit,
     onToggleStatus: (MediaEntity, WatchStatus) -> Unit,
     onBack: () -> Unit,
     onSkip: () -> Unit,
     onFinish: () -> Unit
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
     var selectedType by remember { mutableStateOf<MediaType?>(null) }
 
     val statusById = remember(allMedia) {
         allMedia.associate { it.id to it.getWatchStatusEnum() }
     }
+    val favoriteIds = remember(allMedia) {
+        allMedia.filter { it.isFavorite }.map { it.id }.toHashSet()
+    }
+    val favoriteCount = remember(allMedia) { allMedia.count { it.isFavorite } }
     val watchedCount = remember(allMedia) {
         allMedia.count { it.getWatchStatusEnum() == WatchStatus.COMPLETED }
     }
@@ -913,14 +1229,16 @@ private fun OnboardingWatchedTitlesStep(
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            OnboardingSyncBanner(message = syncNotice, onDismiss = onDismissSyncNotice)
+
             Text(
-                text = "Movies & series you know",
+                text = "Favorite & watched titles",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = "Mark titles you've watched or add them to your watchlist to personalize Home & Cinema DNA.",
+                text = "Heart your favorites, mark what you've already watched, or save titles for later so we tailor Top Picks For You.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -929,15 +1247,20 @@ private fun OnboardingWatchedTitlesStep(
                 value = query,
                 onValueChange = onQueryChange,
                 singleLine = true,
-                placeholder = { Text("Search movies or series...") },
+                placeholder = { Text("Search movies or series (e.g. Inception, Severance)...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }) {
+                        IconButton(
+                            onClick = { onQueryChange("") },
+                            modifier = Modifier.size(48.dp)
+                        ) {
                             Icon(Icons.Default.Clear, contentDescription = "Clear search")
                         }
                     }
                 },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CinemaGold,
@@ -960,7 +1283,8 @@ private fun OnboardingWatchedTitlesStep(
                 FilterChip(
                     selected = selectedType == null,
                     onClick = { selectedType = null },
-                    label = { Text("All Mix") }
+                    label = { Text("All Mix", maxLines = 1, softWrap = false) },
+                    modifier = Modifier.heightIn(min = 48.dp)
                 )
                 FilterChip(
                     selected = selectedType == MediaType.MOVIE,
@@ -974,7 +1298,8 @@ private fun OnboardingWatchedTitlesStep(
                             modifier = Modifier.size(15.dp)
                         )
                     },
-                    label = { Text("Movies") }
+                    label = { Text("Movies", maxLines = 1, softWrap = false) },
+                    modifier = Modifier.heightIn(min = 48.dp)
                 )
                 FilterChip(
                     selected = selectedType == MediaType.TV_SHOW,
@@ -988,19 +1313,27 @@ private fun OnboardingWatchedTitlesStep(
                             modifier = Modifier.size(15.dp)
                         )
                     },
-                    label = { Text("Series") }
+                    label = { Text("Series", maxLines = 1, softWrap = false) },
+                    modifier = Modifier.heightIn(min = 48.dp)
                 )
 
-                if (watchedCount > 0 || watchlistCount > 0) {
+                if (favoriteCount > 0 || watchedCount > 0 || watchlistCount > 0) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = CinemaGreen.copy(alpha = 0.16f)
+                        color = CinemaGreen.copy(alpha = 0.16f),
+                        border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.35f))
                     ) {
                         Text(
-                            text = "$watchedCount watched • $watchlistCount saved",
+                            text = buildList {
+                                if (favoriteCount > 0) add("$favoriteCount ♥")
+                                if (watchedCount > 0) add("$watchedCount watched")
+                                if (watchlistCount > 0) add("$watchlistCount saved")
+                            }.joinToString(" • "),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = CinemaGreen,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
@@ -1043,9 +1376,12 @@ private fun OnboardingWatchedTitlesStep(
                         key = { it.id }
                     ) { media ->
                         val status = statusById[media.id] ?: WatchStatus.NONE
+                        val isFav = favoriteIds.contains(media.id)
                         OnboardingTitlePickerCard(
                             media = media,
                             currentStatus = status,
+                            isFavorite = isFav,
+                            onToggleFavorite = { onToggleFavorite(media) },
                             onMarkWatched = { onToggleStatus(media, WatchStatus.COMPLETED) },
                             onMarkWatchlist = { onToggleStatus(media, WatchStatus.PLAN_TO_WATCH) }
                         )
@@ -1058,7 +1394,7 @@ private fun OnboardingWatchedTitlesStep(
             backTag = "onboarding_btn_back_titles",
             skipTag = "onboarding_btn_skip_titles",
             nextTag = "onboarding_btn_finish",
-            nextLabel = "Finish & Personalize",
+            nextLabel = if (hasAnyTasteSignal) "Build My Top Picks" else "Explore WatchPilot",
             onBack = onBack,
             onSkip = onSkip,
             onNext = onFinish
@@ -1070,17 +1406,25 @@ private fun OnboardingWatchedTitlesStep(
 private fun OnboardingTitlePickerCard(
     media: MediaEntity,
     currentStatus: WatchStatus,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
     onMarkWatched: () -> Unit,
     onMarkWatchlist: () -> Unit
 ) {
     val context = LocalContext.current
     val isWatched = currentStatus == WatchStatus.COMPLETED
     val isWatchlist = currentStatus == WatchStatus.PLAN_TO_WATCH
+    val heartScale by animateFloatAsState(
+        targetValue = if (isFavorite) 1.12f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "heartScale_${media.id}"
+    )
 
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         border = when {
+            isFavorite -> BorderStroke(1.5.dp, CinemaRed)
             isWatched -> BorderStroke(1.5.dp, CinemaGreen)
             isWatchlist -> BorderStroke(1.5.dp, CinemaCyan)
             else -> BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -1095,6 +1439,7 @@ private fun OnboardingTitlePickerCard(
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .clickable(onClick = onToggleFavorite)
             ) {
                 val poster = media.posterUrl.ifBlank { media.backdropUrl }
                 if (poster.isNotBlank()) {
@@ -1127,53 +1472,90 @@ private fun OnboardingTitlePickerCard(
                         .background(
                             Brush.verticalGradient(
                                 listOf(
+                                    Color.Black.copy(alpha = 0.25f),
                                     Color.Transparent,
-                                    Color.Black.copy(alpha = 0.78f)
+                                    Color.Black.copy(alpha = 0.85f)
                                 )
                             )
                         )
                 )
 
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color.Black.copy(alpha = 0.7f),
+                // Top-Start Type + Rating pill
+                Row(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(6.dp)
+                        .padding(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (media.getMediaTypeEnum() == MediaType.MOVIE) "Film" else "TV",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (media.getMediaTypeEnum() == MediaType.MOVIE) CinemaGold else CinemaCyan,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color.Black.copy(alpha = 0.7f),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color.Black.copy(alpha = 0.72f)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = null,
-                            tint = CinemaGold,
-                            modifier = Modifier.size(11.dp)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
                         Text(
-                            text = String.format("%.1f", media.communityRating),
+                            text = if (media.getMediaTypeEnum() == MediaType.MOVIE) "Film" else "TV",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = if (media.getMediaTypeEnum() == MediaType.MOVIE) CinemaGold else CinemaCyan,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color.Black.copy(alpha = 0.72f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = CinemaGold,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = String.format("%.1f", media.communityRating),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+
+                // Top-End 48dp Favorite Heart Button
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(48.dp)
+                        .testTag("onboarding_title_fav_${media.id}")
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isFavorite) CinemaRed.copy(alpha = 0.92f) else Color.Black.copy(alpha = 0.65f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isFavorite) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.28f)
+                        ),
+                        modifier = Modifier
+                            .size(32.dp)
+                            .scale(heartScale)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                contentDescription = if (isFavorite) {
+                                    "Remove ${media.title} from favorites"
+                                } else {
+                                    "Favorite ${media.title}"
+                                },
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
 
@@ -1193,7 +1575,7 @@ private fun OnboardingTitlePickerCard(
                     Text(
                         text = "${media.releaseYear} • ${media.genres.substringBefore(",").trim()}",
                         fontSize = 10.sp,
-                        color = Color.White.copy(alpha = 0.78f),
+                        color = Color.White.copy(alpha = 0.8f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

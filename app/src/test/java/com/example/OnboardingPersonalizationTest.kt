@@ -54,6 +54,17 @@ class OnboardingPersonalizationTest {
         val top = PersonalizationEngine.extractTopGenres(tracked, limit = 2)
         assertEquals("Sci-Fi", top.first())
         assertTrue(top.contains("Adventure") || top.contains("Drama"))
+
+        val withExplicitPreferred = PersonalizationEngine.extractTopGenres(
+            trackedMedia = listOf(
+                buildMedia("m4", "Hearted Only", genres = "Thriller, Mystery", status = WatchStatus.NONE, isFavorite = true)
+            ),
+            preferredGenres = setOf("Crime", "Mystery"),
+            limit = 3
+        )
+        assertEquals("Mystery", withExplicitPreferred.first())
+        assertTrue(withExplicitPreferred.contains("Crime"))
+        assertTrue(withExplicitPreferred.contains("Thriller"))
     }
 
     @Test
@@ -66,6 +77,14 @@ class OnboardingPersonalizationTest {
             cast = "Timothée Chalamet, Zendaya",
             status = WatchStatus.COMPLETED
         )
+        val favoritedOnly = buildMedia(
+            id = "tmdb_m_27205",
+            title = "Inception",
+            genres = "Sci-Fi, Action",
+            director = "Christopher Nolan",
+            status = WatchStatus.NONE,
+            isFavorite = true
+        )
         val favPeople = listOf(
             FavoritePersonEntity(id = "tmdb_p_505710", personId = 505710L, name = "Zendaya"),
             FavoritePersonEntity(id = "tmdb_p_525", personId = 525L, name = "Christopher Nolan")
@@ -74,27 +93,85 @@ class OnboardingPersonalizationTest {
         val candidates = listOf(
             // Duplicate of already watched item — must be excluded
             buildMedia(id = "local_dune", title = "Dune: Part Two", genres = "Sci-Fi", cast = "Zendaya"),
+            // Duplicate of favorited-only item — must be excluded
+            buildMedia(id = "local_inception", title = "Inception", genres = "Sci-Fi", director = "Christopher Nolan"),
             // Unrelated comedy
             buildMedia(id = "tmdb_m_200", title = "Generic Comedy", genres = "Comedy", cast = "Someone Else", communityRating = 8.0f),
-            // Zendaya + Sci-Fi match — should rank first
+            // Zendaya match — should rank top
             buildMedia(id = "tmdb_m_101", title = "Challengers", genres = "Drama, Romance", cast = "Zendaya", communityRating = 7.9f),
-            // Nolan + Sci-Fi match — should also rank high
+            // Nolan + Sci-Fi match — should rank top
             buildMedia(id = "tmdb_m_102", title = "Tenet", genres = "Sci-Fi, Action", director = "Christopher Nolan", communityRating = 7.4f)
         )
 
         val ranked = PersonalizationEngine.rankAndDeduplicateRecommendations(
             candidates = candidates,
-            trackedMedia = listOf(watchedDune),
+            trackedMedia = listOf(watchedDune, favoritedOnly),
             favoritePeople = favPeople,
+            preferredGenres = setOf("Sci-Fi"),
             regionCode = "US",
             maxItems = 10
         )
 
         assertFalse(ranked.any { it.title == "Dune: Part Two" })
+        assertFalse(ranked.any { it.title == "Inception" })
         assertEquals(3, ranked.size)
         val topTwoIds = ranked.take(2).map { it.id }.toSet()
         assertTrue(topTwoIds.contains("tmdb_m_101"))
         assertTrue(topTwoIds.contains("tmdb_m_102"))
+    }
+
+    @Test
+    fun rankAndDeduplicateRecommendations_worksWithPreferredGenresOnly() {
+        val candidates = listOf(
+            buildMedia(id = "tmdb_m_10", title = "Blade Runner 2049", genres = "Sci-Fi, Drama", communityRating = 8.0f),
+            buildMedia(id = "tmdb_m_11", title = "Slapstick Comedy", genres = "Comedy", communityRating = 8.2f)
+        )
+        val ranked = PersonalizationEngine.rankAndDeduplicateRecommendations(
+            candidates = candidates,
+            trackedMedia = emptyList(),
+            favoritePeople = emptyList(),
+            preferredGenres = setOf("Sci-Fi"),
+            regionCode = "US"
+        )
+        assertEquals("tmdb_m_10", ranked.first().id)
+    }
+
+    @Test
+    fun buildRecommendationReason_explainsStarOrGenreMatch() {
+        val favPeople = listOf(
+            FavoritePersonEntity(id = "tmdb_p_505710", personId = 505710L, name = "Zendaya")
+        )
+        val starCandidate = buildMedia(
+            id = "tmdb_m_101",
+            title = "Challengers",
+            genres = "Drama",
+            cast = "Zendaya, Mike Faist"
+        )
+        val genreCandidate = buildMedia(
+            id = "tmdb_m_102",
+            title = "Arrival",
+            genres = "Sci-Fi, Drama",
+            cast = "Amy Adams"
+        )
+
+        assertEquals(
+            "★ Zendaya",
+            PersonalizationEngine.buildRecommendationReason(
+                candidate = starCandidate,
+                trackedMedia = emptyList(),
+                favoritePeople = favPeople,
+                preferredGenres = setOf("Sci-Fi")
+            )
+        )
+        assertEquals(
+            "Sci-Fi Pick",
+            PersonalizationEngine.buildRecommendationReason(
+                candidate = genreCandidate,
+                trackedMedia = emptyList(),
+                favoritePeople = favPeople,
+                preferredGenres = setOf("Sci-Fi")
+            )
+        )
     }
 
     @Test
@@ -106,6 +183,7 @@ class OnboardingPersonalizationTest {
             candidates = candidates,
             trackedMedia = emptyList(),
             favoritePeople = emptyList(),
+            preferredGenres = emptySet(),
             regionCode = "US"
         )
         assertTrue(ranked.isEmpty())
