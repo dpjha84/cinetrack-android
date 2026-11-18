@@ -141,12 +141,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (reqPath === '/WatchPilot-v5.0.0.apk' && !fs.existsSync(filePath)) {
+  if (reqPath === '/WatchPilot-v5.0.0.apk') {
     const gradleDebugApk = path.join(__dirname, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
     if (fs.existsSync(gradleDebugApk)) {
       filePath = gradleDebugApk;
     }
-  } else if (reqPath === '/WatchPilot-v5.0.0-debug.aab' && !fs.existsSync(filePath)) {
+  } else if (reqPath === '/WatchPilot-v5.0.0-debug.aab') {
     const gradleDebugAab = path.join(__dirname, 'app', 'build', 'outputs', 'bundle', 'debug', 'app-debug.aab');
     if (fs.existsSync(gradleDebugAab)) {
       filePath = gradleDebugAab;

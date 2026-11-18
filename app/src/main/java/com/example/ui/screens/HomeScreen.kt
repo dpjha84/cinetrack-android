@@ -89,10 +89,12 @@ import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.DarkBackground
 import com.example.ui.viewmodel.MediaViewModel
+import com.example.util.PersonalizationEngine
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -110,6 +112,10 @@ fun HomeScreen(
     val discoverItems by viewModel.filteredDiscover.collectAsStateWithLifecycle()
     val trendingList by viewModel.trendingItems.collectAsStateWithLifecycle()
     val pickedForYouItems by viewModel.pickedForYouItems.collectAsStateWithLifecycle()
+    val isLoadingPickedForYou by viewModel.isLoadingPickedForYou.collectAsStateWithLifecycle()
+    val onboardingSelectedGenres by viewModel.onboardingSelectedGenres.collectAsStateWithLifecycle()
+    val trackedMediaList by viewModel.trackedMedia.collectAsStateWithLifecycle()
+    val favoritePeopleList by viewModel.favoritePeople.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
     val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
 
@@ -258,8 +264,8 @@ fun HomeScreen(
                 }
             }
 
-            // Personalized "Picked For You" Carousel (populated from onboarding & library taste)
-            if (pickedForYouItems.isNotEmpty()) {
+            // Personalized "Top Picks For You" Carousel (populated from onboarding & library taste)
+            if (pickedForYouItems.isNotEmpty() || isLoadingPickedForYou) {
                 item(span = { GridItemSpan(2) }) {
                     Column(
                         modifier = Modifier
@@ -287,7 +293,7 @@ fun HomeScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Picked For You",
+                                    text = "Top Picks For You",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onBackground,
@@ -297,38 +303,94 @@ fun HomeScreen(
                             }
 
                             Surface(
+                                onClick = { viewModel.reopenTastePersonalization() },
                                 shape = RoundedCornerShape(12.dp),
-                                color = CinemaCyan.copy(alpha = 0.15f)
+                                color = CinemaCyan.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.35f)),
+                                modifier = Modifier.testTag("home_tune_top_picks_button")
                             ) {
-                                Text(
-                                    text = "FOR YOU",
-                                    color = CinemaCyan,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Tune,
+                                        contentDescription = "Tune Top Picks",
+                                        tint = CinemaCyan,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = "TUNE",
+                                        color = CinemaCyan,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("home_picked_for_you_carousel")
-                        ) {
-                            items(
-                                items = pickedForYouItems,
-                                key = { item -> "picked_for_you_${item.id}" }
-                            ) { item ->
-                                PickedForYouCard(
-                                    media = item,
-                                    onClick = { viewModel.openMediaFromSearch(item) }
-                                )
+                        if (pickedForYouItems.isEmpty() && isLoadingPickedForYou) {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("home_picked_for_you_loading")
+                            ) {
+                                items(4) {
+                                    Surface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                        modifier = Modifier
+                                            .width(136.dp)
+                                            .height(236.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            CircularProgressIndicator(
+                                                color = CinemaCyan,
+                                                strokeWidth = 2.dp,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("home_picked_for_you_carousel")
+                            ) {
+                                items(
+                                    items = pickedForYouItems,
+                                    key = { item -> "picked_for_you_${item.id}" }
+                                ) { item ->
+                                    val reasonLabel = remember(
+                                        item.id,
+                                        trackedMediaList,
+                                        favoritePeopleList,
+                                        onboardingSelectedGenres
+                                    ) {
+                                        PersonalizationEngine.buildRecommendationReason(
+                                            candidate = item,
+                                            trackedMedia = trackedMediaList,
+                                            favoritePeople = favoritePeopleList,
+                                            preferredGenres = onboardingSelectedGenres
+                                        )
+                                    }
+                                    PickedForYouCard(
+                                        media = item,
+                                        reasonLabel = reasonLabel,
+                                        onClick = { viewModel.openMediaFromSearch(item) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -830,11 +892,13 @@ private fun HomeQuickFeatureChip(
 @Composable
 private fun PickedForYouCard(
     media: MediaEntity,
+    reasonLabel: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
+    val isStarReason = reasonLabel.startsWith("★")
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -937,7 +1001,8 @@ private fun PickedForYouCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
                     text = media.title,
@@ -953,6 +1018,20 @@ private fun PickedForYouCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isStarReason) CinemaGold.copy(alpha = 0.16f) else CinemaCyan.copy(alpha = 0.14f)
+                ) {
+                    Text(
+                        text = reasonLabel,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isStarReason) CinemaGold else CinemaCyan,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
         }
     }

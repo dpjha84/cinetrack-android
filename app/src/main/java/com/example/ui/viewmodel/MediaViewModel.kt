@@ -177,7 +177,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val showOttMoneySaverSheet = MutableStateFlow(false)
     val showLegalComplianceDialog = MutableStateFlow(false)
 
-    // New-User Onboarding & Home Personalization ("Picked For You")
+    // New-User Onboarding & Home Personalization ("Top Picks For You")
     private val _hasCompletedOnboarding = MutableStateFlow(
         OnboardingPreferences.hasCompletedOnboarding(application)
     )
@@ -185,6 +185,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val onboardingStep = MutableStateFlow(0)
     val onboardingAuthLoading = MutableStateFlow(false)
     val onboardingAuthError = MutableStateFlow<String?>(null)
+    val onboardingSyncNotice = MutableStateFlow<String?>(null)
+
+    private val _onboardingSelectedGenres = MutableStateFlow(
+        OnboardingPreferences.getSelectedGenres(application)
+    )
+    val onboardingSelectedGenres: StateFlow<Set<String>> = _onboardingSelectedGenres.asStateFlow()
 
     val onboardingPopularPeople = MutableStateFlow<List<TmdbSearchResultItem.Person>>(emptyList())
     val onboardingPersonQuery = MutableStateFlow("")
@@ -208,7 +214,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     val trackedMedia: StateFlow<List<MediaEntity>> = repository.trackedMedia.stateIn(
         viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
+        SharingStarted.Eagerly,
         emptyList()
     )
 
@@ -226,7 +232,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     val favoritePeople: StateFlow<List<FavoritePersonEntity>> = repository.favoritePeople.stateIn(
         viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
+        SharingStarted.Eagerly,
         emptyList()
     )
 
@@ -699,7 +705,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             repository.seedIfEmpty()
-            if (!_hasCompletedOnboarding.value && onboardingStep.value == 0 && repository.hasAnyUserTrackedData()) {
+            // Only auto-complete for legacy pre-onboarding local upgrades when signed out
+            if (!_hasCompletedOnboarding.value &&
+                onboardingStep.value == 0 &&
+                Firebase.auth.currentUser == null &&
+                repository.hasAnyUserTrackedData()
+            ) {
                 completeOnboarding()
             }
             currentUser
@@ -737,19 +748,31 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 }
         }
 
-        // Keep "Picked For You" on Home synchronized with tracked taste & favorite people
+        // Keep "Top Picks For You" on Home synchronized with taste genres, tracked titles & favorite people
         viewModelScope.launch {
             combine(
                 hasCompletedOnboarding,
                 trackedMedia,
                 favoritePeople,
+                onboardingSelectedGenres,
                 effectiveRegionCode
-            ) { completed, tracked, people, region ->
-                Triple(completed, tracked.size + people.size, region)
+            ) { completed, tracked, people, genres, region ->
+                val tasteFingerprint = buildString {
+                    append(completed)
+                    append('|')
+                    append(region)
+                    append('|')
+                    append(genres.sorted().joinToString(","))
+                    append('|')
+                    append(people.joinToString(",") { it.id })
+                    append('|')
+                    append(tracked.take(15).joinToString(",") { "${it.id}:${it.status}:${it.isFavorite}:${it.userRating}" })
+                }
+                completed to tasteFingerprint
             }
                 .distinctUntilChanged()
-                .debounce(500)
-                .collect { (completed, _, _) ->
+                .debounce(350)
+                .collect { (completed, _) ->
                     if (completed) {
                         refreshPickedForYou()
                     }
@@ -1154,8 +1177,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 firestoreSyncManager.uploadMonetizationEntitlement(uid, monetizationState.value)
                 syncStatusMessage.value = "Synced with cloud successfully"
-                if (!_hasCompletedOnboarding.value && onboardingStep.value == 0 && repository.hasAnyUserTrackedData()) {
-                    completeOnboarding()
+                if (!_hasCompletedOnboarding.value && repository.hasAnyUserTrackedData()) {
+                    onboardingSyncNotice.value =
+                        "Cloud library synced! Review your favorite stars & watched titles or add more."
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -1223,6 +1247,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         if (onboardingAuthLoading.value) return
         onboardingAuthLoading.value = true
         onboardingAuthError.value = null
+        onboardingSyncNotice.value = null
+        if (onboardingPopularPeople.value.isEmpty() || onboardingPopularTitles.value.isEmpty()) {
+            loadOnboardingCatalog()
+        }
         FirebaseAuthHelper.signInWithGoogle(
             activity = activity,
             scope = viewModelScope,
@@ -1240,11 +1268,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                             )
                         }
                         firestoreSyncManager.uploadMonetizationEntitlement(user.uid, monetizationState.value)
-                        if (repository.hasAnyUserTrackedData()) {
-                            completeOnboarding()
+                        val hasExistingData = repository.hasAnyUserTrackedData()
+                        onboardingSyncNotice.value = if (hasExistingData) {
+                            "Cloud library restored! Confirm or add your favorite actors, movies & watched titles."
                         } else {
-                            onboardingStep.value = 1
+                            "Google Cloud Sync active! Tell us your favorite stars & titles to build Top Picks."
                         }
+                        onboardingStep.value = 1
                     } catch (e: Exception) {
                         onboardingAuthError.value = e.localizedMessage ?: "Cloud sync warning — continuing setup."
                         onboardingStep.value = 1
@@ -1266,22 +1296,36 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun continueAsGuestDuringOnboarding() {
         continueAsGuest()
         onboardingAuthError.value = null
+        onboardingSyncNotice.value = null
+        if (onboardingPopularPeople.value.isEmpty() || onboardingPopularTitles.value.isEmpty()) {
+            loadOnboardingCatalog()
+        }
         onboardingStep.value = 1
     }
 
     fun advanceFromOnboardingWelcome() {
         onboardingAuthError.value = null
-        viewModelScope.launch {
-            if (currentUser.value != null && repository.hasAnyUserTrackedData()) {
-                completeOnboarding()
-            } else {
-                onboardingStep.value = 1
-            }
+        if (onboardingPopularPeople.value.isEmpty() || onboardingPopularTitles.value.isEmpty()) {
+            loadOnboardingCatalog()
         }
+        onboardingStep.value = 1
     }
 
     fun setOnboardingStep(step: Int) {
         onboardingStep.value = step.coerceIn(0, 2)
+    }
+
+    fun dismissOnboardingSyncNotice() {
+        onboardingSyncNotice.value = null
+    }
+
+    fun toggleOnboardingGenre(genre: String) {
+        val current = _onboardingSelectedGenres.value.toMutableSet()
+        if (!current.add(genre)) {
+            current.remove(genre)
+        }
+        _onboardingSelectedGenres.value = current
+        OnboardingPreferences.setSelectedGenres(getApplication(), current)
     }
 
     fun updateOnboardingPersonQuery(query: String) {
@@ -1350,10 +1394,52 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun toggleOnboardingTitleFavorite(media: MediaEntity) {
+        viewModelScope.launch {
+            repository.ensureMediaCached(media)
+            val currentFav = repository.getMediaByIdDirect(media.id)?.isFavorite ?: false
+            repository.toggleFavorite(media.id, currentFav)
+        }
+    }
+
+    fun reopenTastePersonalization() {
+        onboardingAuthError.value = null
+        onboardingSyncNotice.value = null
+        onboardingStep.value = if (currentUser.value != null) 1 else 0
+        OnboardingPreferences.setCompletedOnboarding(getApplication(), false)
+        _hasCompletedOnboarding.value = false
+        if (onboardingPopularPeople.value.isEmpty() || onboardingPopularTitles.value.isEmpty()) {
+            loadOnboardingCatalog()
+        }
+    }
+
     fun completeOnboarding() {
         OnboardingPreferences.setCompletedOnboarding(getApplication(), true)
         _hasCompletedOnboarding.value = true
-        refreshPickedForYou()
+        val currentTracked = trackedMedia.value.ifEmpty {
+            allMedia.value.filter {
+                it.getWatchStatusEnum() != WatchStatus.NONE || it.isFavorite || it.userRating > 0f
+            }
+        }
+        val currentPeople = favoritePeople.value
+        val currentGenres = _onboardingSelectedGenres.value
+        val region = effectiveRegionCode.value
+        if (currentTracked.isNotEmpty() || currentPeople.isNotEmpty() || currentGenres.isNotEmpty()) {
+            viewModelScope.launch {
+                val instant = repository.computeInstantRecommendations(
+                    favoritePeople = currentPeople,
+                    trackedMedia = currentTracked,
+                    region = region,
+                    preferredGenres = currentGenres
+                )
+                if (instant.isNotEmpty()) {
+                    pickedForYouItems.value = instant
+                }
+                refreshPickedForYou()
+            }
+        } else {
+            pickedForYouItems.value = emptyList()
+        }
     }
 
     fun skipOnboarding() {
@@ -1363,7 +1449,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshPickedForYou() {
         val currentTracked = trackedMedia.value
         val currentPeople = favoritePeople.value
-        if (currentTracked.isEmpty() && currentPeople.isEmpty()) {
+        val currentGenres = _onboardingSelectedGenres.value
+        if (currentTracked.isEmpty() && currentPeople.isEmpty() && currentGenres.isEmpty()) {
             pickedForYouItems.value = emptyList()
             return
         }
@@ -1371,12 +1458,24 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         pickedForYouJob = viewModelScope.launch {
             isLoadingPickedForYou.value = true
             try {
+                if (pickedForYouItems.value.isEmpty()) {
+                    val instant = repository.computeInstantRecommendations(
+                        favoritePeople = currentPeople,
+                        trackedMedia = currentTracked,
+                        region = effectiveRegionCode.value,
+                        preferredGenres = currentGenres
+                    )
+                    if (instant.isNotEmpty()) {
+                        pickedForYouItems.value = instant
+                    }
+                }
                 val items = repository.fetchPersonalizedRecommendations(
                     favoritePeople = currentPeople,
                     trackedMedia = currentTracked,
                     apiKey = getActiveTmdbApiKey(),
                     region = effectiveRegionCode.value,
-                    language = userPreferences.value.languageCode
+                    language = userPreferences.value.languageCode,
+                    preferredGenres = currentGenres
                 )
                 pickedForYouItems.value = items
             } finally {
@@ -1429,6 +1528,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             ?: trendingItems.value.find { it.id == id }
             ?: currentTopRatedList.value.find { it.id == id }
             ?: pickedForYouItems.value.find { it.id == id }
+            ?: onboardingPopularTitles.value.find { it.id == id }
+            ?: onboardingTitleSearchResults.value.find { it.id == id }
     }
 
     private suspend fun ensureMediaInDb(id: String) {

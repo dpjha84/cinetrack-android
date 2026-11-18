@@ -2783,14 +2783,41 @@ class MediaRepository(
         fallbackPool.take(30)
     }
 
+    suspend fun computeInstantRecommendations(
+        favoritePeople: List<FavoritePersonEntity>,
+        trackedMedia: List<MediaEntity>,
+        region: String?,
+        preferredGenres: Set<String> = emptySet()
+    ): List<MediaEntity> = withContext(Dispatchers.IO) {
+        if (favoritePeople.isEmpty() && trackedMedia.isEmpty() && preferredGenres.isEmpty()) {
+            return@withContext emptyList()
+        }
+        val resolvedRegion = region?.takeIf { !it.equals("AUTO", ignoreCase = true) && !it.equals("GLOBAL", ignoreCase = true) }?.uppercase() ?: "US"
+        val candidatePool = mutableListOf<MediaEntity>()
+        runCatching { candidatePool.addAll(mediaDao.getAllMediaList()) }
+        candidatePool.addAll(SampleMediaData.getInitialCatalog())
+        candidatePool.addAll(getCuratedTopRatedMovies())
+        candidatePool.addAll(getCuratedTopRatedTv())
+
+        PersonalizationEngine.rankAndDeduplicateRecommendations(
+            candidates = candidatePool,
+            trackedMedia = trackedMedia,
+            favoritePeople = favoritePeople,
+            regionCode = resolvedRegion,
+            preferredGenres = preferredGenres,
+            maxItems = 18
+        )
+    }
+
     suspend fun fetchPersonalizedRecommendations(
         favoritePeople: List<FavoritePersonEntity>,
         trackedMedia: List<MediaEntity>,
         apiKey: String,
         region: String?,
-        language: String?
+        language: String?,
+        preferredGenres: Set<String> = emptySet()
     ): List<MediaEntity> = withContext(Dispatchers.IO) {
-        if (favoritePeople.isEmpty() && trackedMedia.isEmpty()) {
+        if (favoritePeople.isEmpty() && trackedMedia.isEmpty() && preferredGenres.isEmpty()) {
             return@withContext emptyList()
         }
 
@@ -2810,7 +2837,11 @@ class MediaRepository(
 
         if (apiKey.isNotBlank() && apiKey != "YOUR_TMDB_API_KEY") {
             try {
-                val topGenres = PersonalizationEngine.extractTopGenres(trackedMedia, limit = 2)
+                val topGenres = PersonalizationEngine.extractTopGenres(
+                    trackedMedia = trackedMedia,
+                    preferredGenres = preferredGenres,
+                    limit = 3
+                )
                 val seedTitles = trackedMedia
                     .filter { it.id.startsWith("tmdb_m_") || it.id.startsWith("tmdb_tv_") }
                     .sortedWith(
@@ -2819,7 +2850,7 @@ class MediaRepository(
                             .thenByDescending { it.userRating }
                             .thenByDescending { it.lastWatchedDate ?: 0L }
                     )
-                    .take(3)
+                    .take(4)
                 val seedPeople = favoritePeople.filter { it.personId > 0L }.take(3)
 
                 val fetchedFromTmdb = coroutineScope {
@@ -2847,11 +2878,25 @@ class MediaRepository(
                                     .filter { !it.posterPath.isNullOrBlank() }
                                     .sortedByDescending { it.voteAverage ?: 0.0 }
                                     .take(8)
-                                combinedCredits.map { dto ->
+                                val creditEntities = combinedCredits.map { dto ->
                                     TmdbClient.knownForToEntity(dto).let { entity ->
                                         if (entity.cast.isBlank()) entity.copy(cast = person.name) else entity
                                     }
                                 }
+                                val discoveredByPerson = runCatching {
+                                    TmdbClient.api.discoverMovies(
+                                        apiKey = apiKey,
+                                        language = safeLanguage,
+                                        region = safeRegion,
+                                        withPeople = person.personId.toString(),
+                                        sortBy = "popularity.desc"
+                                    ).results.take(6).map {
+                                        TmdbClient.toMediaEntity(it.copy(mediaType = "movie")).let { entity ->
+                                            if (entity.cast.isBlank()) entity.copy(cast = person.name) else entity
+                                        }
+                                    }
+                                }.getOrDefault(emptyList())
+                                (creditEntities + discoveredByPerson).distinctBy { it.id }
                             }.getOrDefault(emptyList())
                         }
                     }
@@ -2904,6 +2949,7 @@ class MediaRepository(
             trackedMedia = trackedMedia,
             favoritePeople = favoritePeople,
             regionCode = resolvedRegion,
+            preferredGenres = preferredGenres,
             maxItems = 18
         )
     }
