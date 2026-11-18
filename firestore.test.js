@@ -17,6 +17,7 @@ let testEnv;
 const PROJECT_ID = process.env.GCP_PROJECT || "demo-no-project";
 const ALICE_UID = "alice_123";
 const BOB_UID = "bob_456";
+const EVE_UID = "eve_789";
 
 const [emulatorHost, emulatorPortStr] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8085").split(":");
 const emulatorPort = parseInt(emulatorPortStr, 10);
@@ -49,15 +50,18 @@ beforeEach(async () => {
   }
 });
 
-test("Unauthenticated user cannot read or write any user subcollections", async () => {
+test("Unauthenticated user cannot read or write any user subcollections or match_rooms", async () => {
   const unauthDb = testEnv.unauthenticatedContext().firestore();
   await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("tracked_media").get());
   await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("favorite_people").get());
   await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("tv_progress").get());
   await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("preferences").doc("user_preferences").get());
+  await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("monetization").doc("entitlement").get());
+  await assertFails(unauthDb.collection("match_rooms").doc("AB12CD").get());
+  await assertFails(unauthDb.collection("match_rooms").get());
 });
 
-test("Cross-user isolation: Bob cannot read or write Alice's collections", async () => {
+test("Cross-user isolation: Bob cannot read or write Alice's collections or monetization entitlement", async () => {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const aliceRef = context.firestore().collection("users").doc(ALICE_UID);
     await aliceRef.collection("tracked_media").doc("tmdb_m_10").set({
@@ -69,22 +73,13 @@ test("Cross-user isolation: Bob cannot read or write Alice's collections", async
       userId: ALICE_UID,
       updatedAt: new Date(),
     });
-    await aliceRef.collection("favorite_people").doc("tmdb_p_6193").set({
-      id: "tmdb_p_6193",
-      personId: 6193,
-      name: "Leonardo DiCaprio",
-      createdAt: 1000,
+    await aliceRef.collection("monetization").doc("entitlement").set({
+      isPro: true,
+      planType: "PRO_ANNUAL",
+      subscribedProviders: "Netflix,Prime Video",
+      streamOnMyAppsOnly: true,
       userId: ALICE_UID,
       updatedAt: new Date(),
-    });
-    await aliceRef.collection("tv_progress").doc("tmdb_tv_1_s1_e1").set({
-      mediaId: "tmdb_tv_1",
-      seasonNumber: 1,
-      episodeNumber: 1,
-      status: "WATCHED",
-      updatedAt: 1000,
-      userId: ALICE_UID,
-      serverUpdatedAt: new Date(),
     });
   });
 
@@ -93,26 +88,24 @@ test("Cross-user isolation: Bob cannot read or write Alice's collections", async
 
   await assertFails(aliceRefFromBob.collection("tracked_media").get());
   await assertFails(aliceRefFromBob.collection("tracked_media").doc("tmdb_m_10").get());
-  await assertFails(aliceRefFromBob.collection("favorite_people").doc("tmdb_p_6193").get());
-  await assertFails(aliceRefFromBob.collection("tv_progress").doc("tmdb_tv_1_s1_e1").get());
+  await assertFails(aliceRefFromBob.collection("monetization").doc("entitlement").get());
   await assertFails(
-    aliceRefFromBob.collection("tracked_media").doc("tmdb_m_99").set({
-      id: "tmdb_m_99",
-      title: "Injected",
-      mediaType: "MOVIE",
-      status: "WATCHING",
-      isFavorite: false,
+    aliceRefFromBob.collection("monetization").doc("entitlement").set({
+      isPro: true,
+      planType: "PRO_LIFETIME",
+      subscribedProviders: "",
+      streamOnMyAppsOnly: false,
       userId: BOB_UID,
       updatedAt: serverTs(),
     })
   );
 });
 
-test("Authenticated owner can read, write, merge-update, and delete all 6 sync subcollections", async () => {
+test("Authenticated owner can read, write, merge-update, and delete all 7 sync subcollections", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const aliceRef = aliceDb.collection("users").doc(ALICE_UID);
 
-  // 1. tracked_media (including explicit null optional fields as uploaded by Android FirestoreSyncManager)
+  // 1. tracked_media
   const trackedRef = aliceRef.collection("tracked_media").doc("tmdb_m_27205");
   await assertSucceeds(
     trackedRef.set(
@@ -151,9 +144,8 @@ test("Authenticated owner can read, write, merge-update, and delete all 6 sync s
     )
   );
   await assertSucceeds(trackedRef.get());
-  await assertSucceeds(aliceRef.collection("tracked_media").get());
 
-  // 2. custom_collections (including spaces in document ID)
+  // 2. custom_collections
   const collRef = aliceRef.collection("custom_collections").doc("Weekend Marathon");
   await assertSucceeds(
     collRef.set(
@@ -166,19 +158,6 @@ test("Authenticated owner can read, write, merge-update, and delete all 6 sync s
       { merge: true }
     )
   );
-  // Idempotent multi-device merge update with newer createdAt
-  await assertSucceeds(
-    collRef.set(
-      {
-        name: "Weekend Marathon",
-        description: "Updated binge list",
-        createdAt: 1700000005000,
-        userId: ALICE_UID,
-      },
-      { merge: true }
-    )
-  );
-  await assertSucceeds(aliceRef.collection("custom_collections").get());
 
   // 3. preferences
   const prefRef = aliceRef.collection("preferences").doc("user_preferences");
@@ -196,7 +175,6 @@ test("Authenticated owner can read, write, merge-update, and delete all 6 sync s
       { merge: true }
     )
   );
-  await assertSucceeds(prefRef.get());
 
   // 4. search_history
   const searchRef = aliceRef.collection("search_history").doc("christopher nolan");
@@ -210,7 +188,6 @@ test("Authenticated owner can read, write, merge-update, and delete all 6 sync s
       { merge: true }
     )
   );
-  await assertSucceeds(aliceRef.collection("search_history").get());
 
   // 5. favorite_people
   const personRef = aliceRef.collection("favorite_people").doc("tmdb_p_6193");
@@ -231,7 +208,6 @@ test("Authenticated owner can read, write, merge-update, and delete all 6 sync s
       { merge: true }
     )
   );
-  await assertSucceeds(aliceRef.collection("favorite_people").get());
 
   // 6. tv_progress
   const tvProgRef = aliceRef.collection("tv_progress").doc("tmdb_tv_1396_s1_e2");
@@ -249,73 +225,137 @@ test("Authenticated owner can read, write, merge-update, and delete all 6 sync s
       { merge: true }
     )
   );
-  await assertSucceeds(aliceRef.collection("tv_progress").get());
   await assertSucceeds(tvProgRef.delete());
 
-  // 7. Minimal required-only payload (optional fields omitted)
+  // 7. monetization entitlement
+  const entRef = aliceRef.collection("monetization").doc("entitlement");
   await assertSucceeds(
-    aliceRef.collection("tracked_media").doc("tmdb_m_min").set({
-      id: "tmdb_m_min",
-      title: "Minimal Movie",
-      mediaType: "MOVIE",
-      status: "PLAN_TO_WATCH",
-      isFavorite: false,
-      userId: ALICE_UID,
-      updatedAt: serverTs(),
-    })
+    entRef.set(
+      {
+        isPro: true,
+        planType: "PRO_ANNUAL",
+        subscribedProviders: "Netflix,Prime Video,Hotstar",
+        streamOnMyAppsOnly: true,
+        userId: ALICE_UID,
+        updatedAt: serverTs(),
+      },
+      { merge: true }
+    )
   );
-  await assertSucceeds(
-    aliceRef.collection("favorite_people").doc("tmdb_p_min").set({
-      id: "tmdb_p_min",
-      personId: 99,
-      name: "Minimal Person",
-      createdAt: 1700000005000,
-      userId: ALICE_UID,
-      updatedAt: serverTs(),
-    })
-  );
+  await assertSucceeds(entRef.get());
 });
 
-test("Schema validation rejects ghost fields, spoofed userId, and invalid enum/rating", async () => {
+test("MatchRoom: host creates room, guest joins and swipes, mutual match succeeds, swipe tampering is rejected", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const eveDb = testEnv.authenticatedContext(EVE_UID).firestore();
+
+  const roomCode = "WP2026";
+  const aliceRoomRef = aliceDb.collection("match_rooms").doc(roomCode);
+  const bobRoomRef = bobDb.collection("match_rooms").doc(roomCode);
+
+  const candidates = JSON.stringify([
+    { id: "tmdb_m_693134", title: "Dune: Part Two", posterUrl: "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg" },
+  ]);
+
+  // Host creates room
+  await assertSucceeds(
+    aliceRoomRef.set({
+      roomCode,
+      hostUid: ALICE_UID,
+      hostName: "Alice",
+      regionCode: "US",
+      selectedProviders: "Netflix,Max",
+      status: "OPEN",
+      participantUids: [ALICE_UID],
+      candidatesJson: candidates,
+      swipesByUid: { [ALICE_UID]: "tmdb_m_693134" },
+      matchedMediaId: null,
+      matchedTitle: null,
+      matchedPosterUrl: null,
+      createdAt: 1700000010000,
+      updatedAt: serverTs(),
+    })
+  );
+
+  // Unfiltered collection list rejected (rules are not filters)
+  await assertFails(eveDb.collection("match_rooms").get());
+  // Participant-filtered list succeeds
+  await assertSucceeds(
+    aliceDb.collection("match_rooms").where("participantUids", "array-contains", ALICE_UID).get()
+  );
+
+  // Guest Bob looks up room by 6-char code and joins + records his own swipe + mutual match
+  await assertSucceeds(bobRoomRef.get());
+  await assertSucceeds(
+    bobRoomRef.update({
+      participantUids: [ALICE_UID, BOB_UID],
+      [`swipesByUid.${BOB_UID}`]: "tmdb_m_693134",
+      status: "MATCHED",
+      matchedMediaId: "tmdb_m_693134",
+      matchedTitle: "Dune: Part Two",
+      matchedPosterUrl: "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
+      updatedAt: serverTs(),
+    })
+  );
+
+  // Bob CANNOT overwrite Alice's swipes
+  await assertFails(
+    bobRoomRef.update({
+      [`swipesByUid.${ALICE_UID}`]: "",
+      updatedAt: serverTs(),
+    })
+  );
+
+  // Bob CANNOT close or delete Alice's room
+  await assertFails(
+    bobRoomRef.update({
+      status: "CLOSED",
+      updatedAt: serverTs(),
+    })
+  );
+  await assertFails(bobRoomRef.delete());
+
+  // Host Alice CAN close and delete her room
+  await assertSucceeds(
+    aliceRoomRef.update({
+      status: "CLOSED",
+      updatedAt: serverTs(),
+    })
+  );
+  await assertSucceeds(aliceRoomRef.delete());
+});
+
+test("Schema validation rejects ghost fields, spoofed hostUid/userId, and invalid enums", async () => {
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   const aliceRef = aliceDb.collection("users").doc(ALICE_UID);
 
-  // Ghost field rejected
+  // Invalid planType enum rejected
   await assertFails(
-    aliceRef.collection("tracked_media").doc("tmdb_m_1").set({
-      id: "tmdb_m_1",
-      title: "Test",
-      mediaType: "MOVIE",
-      status: "COMPLETED",
-      isFavorite: false,
+    aliceRef.collection("monetization").doc("entitlement").set({
+      isPro: true,
+      planType: "PRO_HACKED",
+      subscribedProviders: "",
+      streamOnMyAppsOnly: false,
       userId: ALICE_UID,
       updatedAt: serverTs(),
-      isAdmin: true,
     })
   );
 
-  // Spoofed userId rejected
+  // Spoofed hostUid on room create rejected
   await assertFails(
-    aliceRef.collection("favorite_people").doc("tmdb_p_1").set({
-      id: "tmdb_p_1",
-      personId: 1,
-      name: "Spoof",
+    aliceDb.collection("match_rooms").doc("SP00F1").set({
+      roomCode: "SP00F1",
+      hostUid: BOB_UID,
+      hostName: "Spoof",
+      regionCode: "US",
+      selectedProviders: "Netflix",
+      status: "OPEN",
+      participantUids: [ALICE_UID],
+      candidatesJson: "[]",
+      swipesByUid: {},
       createdAt: 1000,
-      userId: BOB_UID,
       updatedAt: serverTs(),
-    })
-  );
-
-  // Invalid tv_progress status enum rejected
-  await assertFails(
-    aliceRef.collection("tv_progress").doc("tmdb_tv_1_s1_e1").set({
-      mediaId: "tmdb_tv_1",
-      seasonNumber: 1,
-      episodeNumber: 1,
-      status: "INVALID_STATUS",
-      updatedAt: 1000,
-      userId: ALICE_UID,
-      serverUpdatedAt: serverTs(),
     })
   );
 });

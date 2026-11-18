@@ -1,3 +1,12 @@
 <resources>
-    <string name="app_name">Movieverse</string>
+    <string name="app_name">WatchPilot</string>
+    <string name="app_version_display">WatchPilot</string>
+    <!-- Official Google Mobile Ads Android Test IDs for safe debug testing.
+         Release builds automatically override these via app/src/release/res/values/strings.xml. -->
+    <string name="admob_app_id" translatable="false">ca-app-pub-3940256099942544~3347511713</string>
+    <string name="admob_banner_unit_id" translatable="false">ca-app-pub-3940256099942544/6300978111</string>
+    <string name="admob_interstitial_unit_id" translatable="false">ca-app-pub-3940256099942544/1033173712</string>
+    <string name="tmdb_attribution">This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability data is powered by JustWatch.</string>
+    <string name="pro_title">WatchPilot Pro</string>
+    <string name="pro_tagline">Stop wasting money on idle streaming apps, scan Reels &amp; screenshots in 1 tap, and match tonight\'s movie live.</string>
 </resources>

@@ -1,6 +1,15 @@
 name: Android build
 on:
   workflow_dispatch:
+    inputs:
+      edition:
+        description: 'WatchPilot edition to build (v1 = Ad-supported public launch, v2 = Pro/AI/Rooms)'
+        required: true
+        default: 'v1'
+        type: choice
+        options:
+          - v1
+          - v2
   push:
     tags: ['v*']
 permissions:
@@ -14,6 +23,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: 21 }
+
+      - name: Resolve edition (v1 vs v2)
+        id: edition
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ED="${{ github.event.inputs.edition }}"
+          elif [[ "${{ github.ref_name }}" == v1* ]]; then
+            ED="v1"
+          elif [[ "${{ github.ref_name }}" == v2* ]]; then
+            ED="v2"
+          else
+            ED="v1"
+          fi
+          echo "edition=$ED" >> "$GITHUB_OUTPUT"
+          echo "Building WatchPilot edition: $ED"
+
       # app/build.gradle.kts signs the debug build with ${rootDir}/debug.keystore, which is
       # gitignored, so generate one (or restore it from debug.keystore.base64 if committed).
       - name: Prepare debug keystore
@@ -26,11 +51,15 @@ jobs:
               -storepass android -keypass android \
               -dname "CN=Android Debug,O=Android,C=US"
           fi
+
       # Test APK (debug-signed, installable on any phone)
-      - run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+      - run: chmod +x gradlew && ./gradlew assembleDebug -PWATCHPILOT_EDITION=${{ steps.edition.outputs.edition }} --stacktrace
       - uses: actions/upload-artifact@v4
-        with: { name: cinetrack-debug-apk, path: app/build/outputs/apk/debug/*.apk }
-      # Signed AAB for Play Store (only if the signing secrets are set).
+        with:
+          name: watchpilot-${{ steps.edition.outputs.edition }}-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+
+      # Signed AAB for Play Store (requires UPLOAD_KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_PASSWORD secrets).
       # The key alias must be "upload" (hardcoded in app/build.gradle.kts).
       - name: Signed release AAB
         if: ${{ env.KS_B64 != '' }}
@@ -40,7 +69,9 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           echo "$KS_B64" | base64 -d > "$KEYSTORE_PATH"
-          ./gradlew bundleRelease --stacktrace
+          ./gradlew bundleRelease -PWATCHPILOT_EDITION=${{ steps.edition.outputs.edition }} --stacktrace
       - uses: actions/upload-artifact@v4
         if: ${{ hashFiles('app/build/outputs/bundle/release/*.aab') != '' }}
-        with: { name: cinetrack-release-aab, path: app/build/outputs/bundle/release/*.aab }
+        with:
+          name: watchpilot-${{ steps.edition.outputs.edition }}-release-aab
+          path: app/build/outputs/bundle/release/*.aab

@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/ic_app_logo_1793373656529"
+        android:drawable="@drawable/watchpilot_aperture_icon"
         android:gravity="center" />
 </layer-list>

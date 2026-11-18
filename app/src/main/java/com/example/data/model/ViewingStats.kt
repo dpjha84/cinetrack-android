@@ -5,10 +5,14 @@ data class ViewingStats(
     val completedMoviesCount: Int = 0,
     val completedShowsCount: Int = 0,
     val activeShowsCount: Int = 0,
+    val watchlistCount: Int = 0,
     val totalEpisodesLogged: Int = 0,
     val averageUserRating: Float = 0f,
     val ratedItemsCount: Int = 0,
     val topGenres: List<GenreStat> = emptyList(),
+    val decadeBreakdown: List<DecadeStat> = emptyList(),
+    val completionRatePercent: Int = 0,
+    val topOriginLanguage: String = "Global",
     val cinephileRank: String = "Film Novice",
     val cinephileBadge: String = "🎬"
 ) {
@@ -33,6 +37,12 @@ data class ViewingStats(
 
 data class GenreStat(
     val genre: String,
+    val count: Int,
+    val percentage: Float
+)
+
+data class DecadeStat(
+    val decadeLabel: String,
     val count: Int,
     val percentage: Float
 )

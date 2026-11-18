@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -111,7 +112,10 @@ fun AddCustomMediaDialog(
                         text = "Add Custom Title",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
                     )
                     IconButton(onClick = onDismiss) {
                         Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
@@ -129,7 +133,7 @@ fun AddCustomMediaDialog(
                         FilterChip(
                             selected = mediaType == type,
                             onClick = { mediaType = type },
-                            label = { Text(type.label) },
+                            label = { Text(type.label, maxLines = 1, softWrap = false) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CinemaGold,
                                 selectedLabelColor = MaterialTheme.colorScheme.surface
@@ -281,14 +285,16 @@ fun AddCustomMediaDialog(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf(WatchStatus.PLAN_TO_WATCH, WatchStatus.WATCHING, WatchStatus.COMPLETED).forEach { st ->
                         FilterChip(
                             selected = status == st,
                             onClick = { status = st },
-                            label = { Text(st.label, fontSize = 11.sp) },
+                            label = { Text(st.label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CinemaCyan,
                                 selectedLabelColor = MaterialTheme.colorScheme.surface

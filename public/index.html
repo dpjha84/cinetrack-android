@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download Movieverse APK</title>
+    <title>Download WatchPilot v5.0.0 APK &amp; AAB</title>
     <style>
         * {
             margin: 0;
@@ -25,7 +25,7 @@
             backdrop-filter: blur(16px);
             border: 1px solid rgba(229, 169, 60, 0.25);
             border-radius: 24px;
-            max-width: 460px;
+            max-width: 480px;
             width: 100%;
             padding: 36px 28px;
             text-align: center;
@@ -60,6 +60,7 @@
             justify-content: center;
             gap: 10px;
             margin-bottom: 24px;
+            flex-wrap: wrap;
         }
         .badge {
             background: rgba(255, 255, 255, 0.08);
@@ -80,13 +81,26 @@
             text-decoration: none;
             padding: 18px;
             border-radius: 14px;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             transition: all 0.2s ease;
             box-shadow: 0 8px 20px rgba(229, 169, 60, 0.3);
         }
         .download-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 12px 28px rgba(229, 169, 60, 0.45);
+        }
+        .secondary-btn {
+            display: block;
+            width: 100%;
+            background: rgba(0, 229, 255, 0.1);
+            color: #00e5ff;
+            border: 1px solid rgba(0, 229, 255, 0.35);
+            font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
+            padding: 13px;
+            border-radius: 12px;
+            margin-bottom: 16px;
         }
         .instructions {
             background: rgba(0, 0, 0, 0.25);
@@ -119,10 +133,11 @@
         }
         .feature-item {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             font-size: 13px;
             color: #b0b8c6;
             margin-bottom: 8px;
+            line-height: 1.45;
         }
         .feature-item span {
             color: #4ade80;
@@ -134,38 +149,46 @@
 <body>
     <div class="card">
         <div class="icon">🎬</div>
-        <h1>Movieverse</h1>
-        <p class="subtitle">Official Android App • Now Playing & Upcoming Trailers, Episode Log & Cloud Sync</p>
+        <h1>WatchPilot v5.0.0</h1>
+        <p class="subtitle">Free Ad-Supported Public Edition (<code>com.dpjha.moviebuddy</code>) — Track Movies &amp; TV Series, Watch Trailers &amp; Cloud Sync (v2 Pro features safely separated)</p>
 
         <div class="badge-row">
-            <div class="badge">v1.5.0</div>
-            <div class="badge">~30 MB</div>
-            <div class="badge">Android 7.0+</div>
+            <div class="badge">v5.0.0 (Build 500)</div>
+            <div class="badge">com.dpjha.moviebuddy</div>
+            <div class="badge">Banner + 3-Min Trailer Ads</div>
         </div>
 
-        <a href="/Movieverse.apk" class="download-btn" id="dlBtn" download="Movieverse.apk">
-            ⬇ Download Movieverse APK (v1.5.0)
+        <a href="/WatchPilot-v5.0.0.apk" class="download-btn" id="dlBtn" download="WatchPilot-v5.0.0.apk">
+            ⬇ Download WatchPilot v5.0.0 APK
         </a>
 
-        <a href="/app-debug.apk" style="display:block; color:#e5a93c; text-decoration:none; font-size:13px; font-weight:600; margin-bottom:18px;" download="app-debug.apk">
-            Alternative direct link: app-debug.apk (30 MB)
+        <a href="/WatchPilot-v5.0.0-debug.aab" class="secondary-btn" download="WatchPilot-v5.0.0-debug.aab">
+            📦 Download v5.0.0 Test AAB (Debug-Signed)
         </a>
+
+        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:18px;">
+            <a href="/playstore-app-icon-512x512.png" download="watchpilot-app-icon-512x512.png" style="color:#00e5ff; font-size:12px; font-weight:600; text-decoration:none; padding:6px 10px; border:1px solid rgba(0,229,255,0.3); border-radius:10px;">
+                🖼 App Icon • Aperture (512×512 PNG)
+            </a>
+            <a href="/playstore-feature-graphic-1024x500.png" download="watchpilot-feature-graphic-1024x500.png" style="color:#00e5ff; font-size:12px; font-weight:600; text-decoration:none; padding:6px 10px; border:1px solid rgba(0,229,255,0.3); border-radius:10px;">
+                🎬 Feature Graphic (1024×500 PNG)
+            </a>
+        </div>
 
         <div class="instructions">
-            <h3>📱 How to Install:</h3>
+            <h3>📱 How to Install &amp; Publish:</h3>
             <ol>
-                <li>Tap <strong>Download Movieverse APK</strong> above.</li>
-                <li>When the file finishes downloading, tap <strong>Open</strong>.</li>
-                <li>If prompted <em>"Install unknown apps"</em>, tap <strong>Settings</strong> &rarr; enable <strong>Allow from this source</strong>.</li>
-                <li>Tap <strong>Install</strong> to launch Movieverse!</li>
+                <li>Tap <strong>Download WatchPilot v5.0.0 APK</strong> above to test on your Android phone (debug-signed).</li>
+                <li>For <strong>Google Play Console</strong>, build the signed release <code>.aab</code> via your GitHub Actions workflow (<code>edition: v1</code>) using your existing <code>com.dpjha.moviebuddy</code> upload keystore secrets.</li>
+                <li>When you are ready to resume <strong>WatchPilot v2</strong>, set <code>WATCHPILOT_EDITION=v2</code> in <code>gradle.properties</code> (or choose <code>v2</code> in GitHub Actions).</li>
             </ol>
         </div>
 
         <div class="features">
-            <div class="feature-item"><span>✓</span> <strong>Real Popular & Theatrical Titles</strong>: Live TMDB Popular & Discover (Ramayana, Gladiator II, Wicked, Deadpool &amp; Wolverine, Singham Again, Bhool Bhulaiyaa 3, Pushpa 2)</div>
-            <div class="feature-item"><span>✓</span> <strong>Optimal Poster Scaling</strong>: Standard 2:3 aspect ratio cards with zero cropping of official TMDB poster artwork</div>
-            <div class="feature-item"><span>✓</span> <strong>Cinematic Backdrop Headers</strong>: Full 16:9 widescreen backdrop stills on all title detail pages</div>
-            <div class="feature-item"><span>✓</span> <strong>Purged Old Classics</strong>: Inception, Fight Club, Parasite, RRR, and older catalog titles completely replaced with 2024–2026 releases</div>
+            <div class="feature-item"><span>✓</span> <strong>AdMob Banner + 3-Min Trailer Interstitial</strong>: Clean inline banners &amp; 180s cooldown interstitial on trailer playback</div>
+            <div class="feature-item"><span>✓</span> <strong>Full Movie &amp; TV Tracking</strong>: Episode progress, Up Next, Regional Streaming Providers &amp; Watchlist Search</div>
+            <div class="feature-item"><span>✓</span> <strong>100% Free Cloud Sync</strong>: Google Sign-In Firestore backup &amp; sync across your Android devices</div>
+            <div class="feature-item"><span>✓</span> <strong>v2 Code Preserved</strong>: All WatchPilot Pro, AI Concierge, Snap Scan &amp; Live Room code remains untouched for later</div>
         </div>
     </div>
 </body>

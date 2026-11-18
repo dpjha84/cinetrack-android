@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TvProgressEntity::class,
         FavoritePersonEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -51,6 +51,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // WatchPilot v2.0.0 non-destructive in-place schema upgrade preserving all v1 user libraries
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_media_items_releaseYear` ON `media_items` (`releaseYear`)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -58,7 +65,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "cinetrack_database"
                 )
-                    .addMigrations(MIGRATION_10_11)
+                    .addMigrations(MIGRATION_10_11, MIGRATION_11_12)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

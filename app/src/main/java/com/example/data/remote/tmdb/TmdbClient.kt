@@ -1,5 +1,6 @@
 package com.example.data.remote.tmdb
 
+import com.example.BuildConfig
 import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
 import com.example.data.model.WatchStatus
@@ -27,7 +28,7 @@ object TmdbClient {
         .readTimeout(15, TimeUnit.SECONDS)
         .addInterceptor(
             HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BASIC
+                level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
             }
         )
         .build()

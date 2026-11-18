@@ -1,21 +1,30 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# WatchPilot v2.0.0 R8 / ProGuard Commercial Release Rules
+-keepattributes SourceFile,LineNumberTable
+-keepattributes Signature,InnerClasses,EnclosingMethod
+-keepattributes *Annotation*
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Retrofit & OkHttp
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Moshi DTOs & Generated Adapters
+-keep class com.squareup.moshi.** { *; }
+-keep @com.squareup.moshi.JsonClass class * { *; }
+-keep class **JsonAdapter { *; }
+-keep class com.example.data.remote.tmdb.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Room Entities
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class * { *; }
+
+# Firebase Firestore & AI Logic Models
+-keep class com.example.data.remote.firebase.** { *; }
+-keep class com.example.data.model.** { *; }
+-keep class com.google.firebase.** { *; }
+
+# Google Play Billing & AdMob
+-keep class com.android.vending.billing.** { *; }
+-keep class com.google.android.gms.ads.** { *; }

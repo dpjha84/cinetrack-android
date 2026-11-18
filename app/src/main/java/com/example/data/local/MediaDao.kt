@@ -64,6 +64,9 @@ interface MediaDao {
     @Query("UPDATE media_items SET posterUrl = :posterUrl, backdropUrl = :backdropUrl WHERE id = :id")
     suspend fun updateMediaImages(id: String, posterUrl: String, backdropUrl: String)
 
+    @Query("UPDATE media_items SET streamingProviders = :streamingProviders WHERE id = :id")
+    suspend fun updateStreamingProviders(id: String, streamingProviders: String)
+
     @Query("UPDATE media_items SET status = 'NONE', isFavorite = 0, userRating = 0.0, userReview = '', watchedEpisodes = 0, watchedSeasons = 0, customWatchlist = NULL, lastWatchedDate = NULL")
     suspend fun resetAllTrackingData()
 

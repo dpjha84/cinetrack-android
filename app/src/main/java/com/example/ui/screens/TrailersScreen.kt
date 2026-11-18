@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -51,6 +52,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -69,12 +71,14 @@ import coil.compose.AsyncImage
 import com.example.data.model.MediaType
 import com.example.data.model.TrailerItem
 import com.example.data.model.WatchStatus
+import com.example.ui.components.SponsoredBannerCard
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.ui.viewmodel.TrailerCategory
+import com.example.util.TrailerInterstitialAdManager
 
 @Composable
 fun TrailersScreen(
@@ -83,12 +87,20 @@ fun TrailersScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
     val trailers by viewModel.filteredTrailers.collectAsStateWithLifecycle()
     val allTrailers by viewModel.trailers.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.trailerCategoryFilter.collectAsStateWithLifecycle()
     val isLoading by viewModel.isTrailersLoading.collectAsStateWithLifecycle()
     val allTrackedMedia by viewModel.allMedia.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
+    val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(monetizationState.isPro) {
+        if (!monetizationState.isPro) {
+            TrailerInterstitialAdManager.preload(context, isPro = false)
+        }
+    }
 
     val regionOption = remember(effectiveRegion) {
         com.example.data.model.RegionalDefaults.supportedRegions.find { it.code.equals(effectiveRegion, ignoreCase = true) }
@@ -127,7 +139,12 @@ fun TrailersScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = CinemaGold.copy(alpha = 0.2f),
@@ -148,7 +165,9 @@ fun TrailersScreen(
                                 Text(
                                     text = "Trailers",
                                     style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Surface(
@@ -160,6 +179,8 @@ fun TrailersScreen(
                                         color = CinemaGold,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -167,7 +188,9 @@ fun TrailersScreen(
                             Text(
                                 text = "Now Playing & Upcoming • ${regionOption.name}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -192,7 +215,7 @@ fun TrailersScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(TrailerCategory.entries) { category ->
+                    items(TrailerCategory.entries, key = { it.name }) { category ->
                         val selected = selectedCategory == category
                         val labelWithCount = when (category) {
                             TrailerCategory.ALL -> "All (${relevantTrailers.size})"
@@ -323,7 +346,12 @@ fun TrailersScreen(
                             isMovie = isMovie,
                             isInWatchlist = isInWatchlist,
                             onPlayClick = {
-                                playYouTubeVideo(context, trailer.videoKey)
+                                TrailerInterstitialAdManager.maybeShowBeforeTrailer(
+                                    activity = activity,
+                                    isPro = monetizationState.isPro
+                                ) {
+                                    playYouTubeVideo(context, trailer.videoKey)
+                                }
                             },
                             onToggleWatchlist = {
                                 if (tracked != null) {
@@ -341,6 +369,18 @@ fun TrailersScreen(
                                 onMediaClick(targetId)
                             }
                         )
+                    }
+
+                    if (!monetizationState.isPro) {
+                        item(key = "trailers_sponsored_slot") {
+                            SponsoredBannerCard(
+                                isPro = monetizationState.isPro,
+                                onRemoveAdsClick = {
+                                    viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
+                                },
+                                tagSuffix = "trailers"
+                            )
+                        }
                     }
                 }
             }

@@ -442,14 +442,21 @@ fun PersonDetailScreen(
                         text = "Filmography & Credits",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
                     )
                     if (allCredits.isNotEmpty()) {
                         Text(
                             text = "${filteredCredits.size} titles",
                             style = MaterialTheme.typography.labelMedium,
                             color = CinemaGold,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }

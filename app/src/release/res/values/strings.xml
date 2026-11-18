@@ -1,0 +1,6 @@
+<resources>
+    <!-- Live Production Google AdMob IDs for WatchPilot Release Builds (bundleRelease / assembleRelease) -->
+    <string name="admob_app_id" translatable="false">ca-app-pub-9351754143985661~7563396418</string>
+    <string name="admob_banner_unit_id" translatable="false">ca-app-pub-9351754143985661/7910003742</string>
+    <string name="admob_interstitial_unit_id" translatable="false">ca-app-pub-9351754143985661/8006168632</string>
+</resources>

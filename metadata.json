@@ -1,6 +1,6 @@
 {
-  "name": "Movieverse",
-  "description": "Discover movies and TV shows, track your watchlist, log progress and ratings, and sync with your account.",
+  "name": "WatchPilot",
+  "description": "Smart movie & TV show tracker with OTT Money-Saver insights, AI screenshot-to-watchlist scanner, live Swipe-to-Match rooms, and Google Cloud Sync.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

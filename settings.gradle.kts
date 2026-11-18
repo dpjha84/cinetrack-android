@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Movieverse"
+rootProject.name = "WatchPilot"
 
 include(":app")

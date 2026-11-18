@@ -32,6 +32,10 @@ service cloud.firestore {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidRoomCode(code) {
+      return code is string && code.size() == 6 && code.matches('^[A-Z0-9]{6}$');
+    }
+
     function isValidServerTimestamp(ts) {
       return ts is timestamp && ts <= request.time;
     }
@@ -168,6 +172,67 @@ service cloud.firestore {
              isValidServerTimestamp(data.serverUpdatedAt);
     }
 
+    function isValidProEntitlement(data, userId) {
+      return data.keys().hasAll([
+               'isPro', 'planType', 'subscribedProviders',
+               'streamOnMyAppsOnly', 'userId', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'isPro', 'planType', 'subscribedProviders',
+               'streamOnMyAppsOnly', 'userId', 'updatedAt'
+             ]) &&
+             data.isPro is bool &&
+             data.planType in ['FREE', 'PRO_MONTHLY', 'PRO_ANNUAL', 'PRO_LIFETIME', 'PRO_SANDBOX'] &&
+             data.subscribedProviders is string && data.subscribedProviders.size() <= 1000 &&
+             data.streamOnMyAppsOnly is bool &&
+             data.userId is string && data.userId == userId &&
+             isValidServerTimestamp(data.updatedAt);
+    }
+
+    function isValidMatchRoom(data, roomCode) {
+      return data.keys().hasAll([
+               'roomCode', 'hostUid', 'hostName', 'regionCode',
+               'selectedProviders', 'status', 'participantUids',
+               'candidatesJson', 'swipesByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'roomCode', 'hostUid', 'hostName', 'regionCode',
+               'selectedProviders', 'status', 'participantUids',
+               'candidatesJson', 'swipesByUid', 'matchedMediaId',
+               'matchedTitle', 'matchedPosterUrl', 'createdAt', 'updatedAt'
+             ]) &&
+             data.roomCode is string && data.roomCode == roomCode &&
+             data.hostUid is string && data.hostUid.size() >= 1 && data.hostUid.size() <= 128 &&
+             data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 80 &&
+             data.regionCode is string && data.regionCode.size() >= 1 && data.regionCode.size() <= 16 &&
+             data.selectedProviders is string && data.selectedProviders.size() <= 500 &&
+             data.status in ['OPEN', 'MATCHED', 'CLOSED'] &&
+             data.participantUids is list && data.participantUids.size() >= 1 && data.participantUids.size() <= 10 &&
+             data.candidatesJson is string && data.candidatesJson.size() >= 2 && data.candidatesJson.size() <= 30000 &&
+             data.swipesByUid is map && data.swipesByUid.size() <= 10 &&
+             optionalString(data, 'matchedMediaId', 128) &&
+             optionalString(data, 'matchedTitle', 300) &&
+             optionalString(data, 'matchedPosterUrl', 1000) &&
+             data.createdAt is int &&
+             isValidServerTimestamp(data.updatedAt);
+    }
+
+    function isAuthorizedMatchRoomUpdate(roomCode) {
+      return isValidMatchRoom(incoming(), roomCode) &&
+             incoming().roomCode == existing().roomCode &&
+             incoming().hostUid == existing().hostUid &&
+             incoming().createdAt == existing().createdAt &&
+             incoming().candidatesJson == existing().candidatesJson &&
+             incoming().participantUids.hasAll(existing().participantUids) &&
+             request.auth.uid in incoming().participantUids &&
+             (
+               request.auth.uid in existing().participantUids ||
+               (existing().status == 'OPEN' && incoming().participantUids.size() == existing().participantUids.size() + 1)
+             ) &&
+             incoming().swipesByUid.diff(existing().swipesByUid).affectedKeys().hasOnly([request.auth.uid]) &&
+             (incoming().status != 'CLOSED' || request.auth.uid == existing().hostUid);
+    }
+
     // --- COLLECTION RULES ---
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidDocId(userId);
@@ -239,6 +304,32 @@ service cloud.firestore {
                          incoming().mediaId == existing().mediaId;
         allow delete: if isOwner(userId) && isValidStrictId(progressId);
       }
+
+      match /monetization/{docId} {
+        allow get: if isOwner(userId) && isValidStrictId(docId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidStrictId(docId) && isValidProEntitlement(incoming(), userId);
+        allow update: if isOwner(userId) && isValidStrictId(docId) &&
+                         isValidProEntitlement(incoming(), userId) &&
+                         incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidStrictId(docId);
+      }
+    }
+
+    match /match_rooms/{roomCode} {
+      allow get: if isSignedIn() && isValidRoomCode(roomCode);
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participantUids;
+      allow create: if isSignedIn() &&
+                       isValidRoomCode(roomCode) &&
+                       isValidMatchRoom(incoming(), roomCode) &&
+                       incoming().hostUid == request.auth.uid &&
+                       request.auth.uid in incoming().participantUids;
+      allow update: if isSignedIn() &&
+                       isValidRoomCode(roomCode) &&
+                       isAuthorizedMatchRoomUpdate(roomCode);
+      allow delete: if isSignedIn() &&
+                       isValidRoomCode(roomCode) &&
+                       resource.data.hostUid == request.auth.uid;
     }
   }
 }

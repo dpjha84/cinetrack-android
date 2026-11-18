@@ -1,7 +1,11 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,26 +26,37 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +65,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,11 +80,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.BuildConfig
 import com.example.data.model.RegionalDefaults
-import com.example.data.model.ViewingStats
 import com.example.ui.components.LocalizationPreferencesDialog
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
@@ -84,20 +101,32 @@ fun ProfileScreen(
     val context = LocalContext.current
     val activity = context as? Activity
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
-    val isGuest by viewModel.isGuest.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncingCloud.collectAsStateWithLifecycle()
     val syncMessage by viewModel.syncStatusMessage.collectAsStateWithLifecycle()
     val userPrefs by viewModel.userPreferences.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
     val stats by viewModel.stats.collectAsStateWithLifecycle()
+    val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
+    val ottSummary by viewModel.ottMoneySaverSummary.collectAsStateWithLifecycle()
+    val isImportingCsv by viewModel.isImportingCsv.collectAsStateWithLifecycle()
+    val csvImportMessage by viewModel.csvImportMessage.collectAsStateWithLifecycle()
 
     var showRegionDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountConfirm by remember { mutableStateOf(false) }
+
+    val csvPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.importLibraryFromUri(context, uri)
+        }
+    }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .testTag("profile_screen"),
-        contentPadding = PaddingValues(bottom = 90.dp)
+        contentPadding = PaddingValues(bottom = 96.dp)
     ) {
         // Top Header
         item {
@@ -121,7 +150,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Profile & Account",
                                 style = MaterialTheme.typography.headlineMedium,
@@ -129,7 +158,11 @@ fun ProfileScreen(
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Text(
-                                text = "Movieverse Cloud Sync & Viewing Analytics",
+                                text = if (BuildConfig.IS_V1_EDITION) {
+                                    "WatchPilot Cloud Sync & Cinema DNA"
+                                } else {
+                                    "WatchPilot Cloud Sync, Pro & Cinema DNA"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -154,6 +187,182 @@ fun ProfileScreen(
             }
         }
 
+        // WatchPilot Pro Membership Card (v2+ only)
+        if (!BuildConfig.IS_V1_EDITION) {
+            item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    if (monetizationState.isPro) CinemaGold.copy(alpha = 0.65f) else CinemaGold.copy(alpha = 0.28f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .testTag("card_watchpilot_pro")
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = CinemaGold.copy(alpha = 0.2f),
+                                modifier = Modifier.size(42.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WorkspacePremium,
+                                    contentDescription = null,
+                                    tint = CinemaGold,
+                                    modifier = Modifier
+                                        .padding(9.dp)
+                                        .fillMaxSize()
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = if (monetizationState.isPro) monetizationState.planType.displayLabel else "WatchPilot Pro",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = CinemaGold
+                                )
+                                Text(
+                                    text = if (monetizationState.isPro) {
+                                        "Ad-Free • Unlimited AI Vision, Concierge & Live Rooms"
+                                    } else {
+                                        "Zero ads, OTT Money-Saver, AI Vision & Live Swipe Rooms"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (monetizationState.isPro) CinemaGreen.copy(alpha = 0.2f) else CinemaGold.copy(alpha = 0.16f)
+                        ) {
+                            Text(
+                                text = if (monetizationState.isPro) "ACTIVE" else "FREE TIER",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                softWrap = false,
+                                color = if (monetizationState.isPro) CinemaGreen else CinemaGold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    if (!monetizationState.isPro) {
+                        Button(
+                            onClick = { viewModel.openPaywall() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CinemaGold,
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_upgrade_pro_profile")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Upgrade to WatchPilot Pro",
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { viewModel.restorePurchases() },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("btn_restore_purchases_profile")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Restore,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Restore Purchases",
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        if (BuildConfig.DEBUG) {
+                            FilledTonalButton(
+                                onClick = {
+                                    if (monetizationState.isPro) {
+                                        viewModel.deactivateSandboxPro()
+                                    } else {
+                                        viewModel.activateSandboxPro()
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    contentColor = CinemaCyan
+                                ),
+                                modifier = Modifier.testTag("btn_toggle_sandbox_pro")
+                            ) {
+                                Text(
+                                    text = if (monetizationState.isPro) "Exit Sandbox" else "Sandbox Preview",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+
+                    if (!monetizationState.billingStatusMessage.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = monetizationState.billingStatusMessage.orEmpty(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CinemaCyan
+                        )
+                    }
+                }
+            }
+        }
+        }
+
         // Account Status Card
         item {
             Card(
@@ -161,12 +370,11 @@ fun ProfileScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
                     .testTag("card_account_status")
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     if (currentUser != null) {
-                        // Signed-in State
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -192,7 +400,7 @@ fun ProfileScreen(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = currentUser?.displayName ?: "Movieverse Member",
+                                    text = currentUser?.displayName ?: "WatchPilot Member",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -253,13 +461,12 @@ fun ProfileScreen(
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                 modifier = Modifier.testTag("btn_sign_out")
                             ) {
-                                Icon(imageVector = Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("Sign Out", maxLines = 1, softWrap = false, fontSize = 13.sp)
                             }
                         }
                     } else {
-                        // Guest Mode State
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -299,7 +506,11 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "Log in with your Google account to automatically backup your watchlists, episode tracking, and ratings to the cloud and access them from any device.",
+                            text = if (BuildConfig.IS_V1_EDITION) {
+                                "Sign in with Google for 1-tap free cloud backup across your devices."
+                            } else {
+                                "Sign in with Google for 1-tap free cloud backup across devices and live Swipe-to-Match rooms."
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -345,6 +556,248 @@ fun ProfileScreen(
             }
         }
 
+        // OTT Subscription Money-Saver Radar & Library Portability Card (v2+ only)
+        if (!BuildConfig.IS_V1_EDITION) {
+            item {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Smart OTT & Library Portability",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                )
+
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp)
+                    .testTag("card_ott_money_saver")
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = CinemaGreen.copy(alpha = 0.16f),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Savings,
+                                    contentDescription = null,
+                                    tint = CinemaGreen,
+                                    modifier = Modifier.padding(9.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "OTT Money-Saver Radar",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (ottSummary.subscribedCount > 0) {
+                                        "${ottSummary.subscribedCount} paid apps (~$${String.format("%.2f", ottSummary.estimatedMonthlySpendUsd)}/mo)"
+                                    } else {
+                                        "Select your paid apps to spot unused subscriptions"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        if (ottSummary.potentialMonthlySavingsUsd > 0f) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = CinemaGreen.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    text = "Save $${String.format("%.0f", ottSummary.potentialMonthlySavingsUsd)}/mo",
+                                    color = CinemaGreen,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    FilledTonalButton(
+                        onClick = { viewModel.openOttMoneySaver() },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = CinemaGreen.copy(alpha = 0.18f),
+                            contentColor = CinemaGreen
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("btn_open_ott_audit")
+                    ) {
+                        Text(
+                            text = if (ottSummary.subscribedCount > 0) "View OTT Audit & Savings" else "Select My Streaming Apps",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Import & Export Library Card
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp)
+                    .testTag("card_library_portability")
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "1-Tap Migration & Portable Backups",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (BuildConfig.IS_V1_EDITION) {
+                            "Import CSVs from Moviebase, IMDb, Letterboxd, or Trakt, or export full CSV/JSON backups for free."
+                        } else {
+                            "Import CSVs from Moviebase, IMDb, Letterboxd, or Trakt for free. Export full CSV/JSON backups with WatchPilot Pro."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            csvPickerLauncher.launch(
+                                arrayOf(
+                                    "text/*",
+                                    "text/comma-separated-values",
+                                    "application/csv",
+                                    "application/octet-stream"
+                                )
+                            )
+                        },
+                        enabled = !isImportingCsv,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CinemaGold,
+                            contentColor = Color.Black
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("btn_profile_import_csv")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileUpload,
+                            contentDescription = null,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = when {
+                                isImportingCsv -> "Importing CSV..."
+                                BuildConfig.IS_V1_EDITION -> "Import Watchlist CSV"
+                                else -> "Import Watchlist CSV (Free)"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.exportLibrary(context, asJson = false) { intent ->
+                                    context.startActivity(Intent.createChooser(intent, "Export WatchPilot CSV"))
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("btn_export_csv")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FileDownload,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "Export CSV",
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.exportLibrary(context, asJson = true) { intent ->
+                                    context.startActivity(Intent.createChooser(intent, "Export WatchPilot JSON"))
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("btn_export_json")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FileDownload,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "Export JSON",
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    if (!csvImportMessage.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = csvImportMessage.orEmpty(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CinemaCyan
+                        )
+                    }
+                }
+            }
+        }
+        }
+
         // Preferences & Region Section
         item {
             Spacer(modifier = Modifier.height(10.dp))
@@ -363,7 +816,6 @@ fun ProfileScreen(
                     .padding(horizontal = 20.dp, vertical = 4.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // Region Selector Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -372,7 +824,12 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
                             Icon(imageVector = Icons.Default.Public, contentDescription = null, tint = CinemaGold)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
@@ -387,7 +844,6 @@ fun ProfileScreen(
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
 
-                    // Content Language Selector Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -398,13 +854,22 @@ fun ProfileScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
                         ) {
                             Icon(imageVector = Icons.Default.Language, contentDescription = null, tint = CinemaCyan)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Catalog Language", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text(
+                                        text = "Catalog Language",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
@@ -415,6 +880,8 @@ fun ProfileScreen(
                                             color = CinemaCyan,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
@@ -431,7 +898,6 @@ fun ProfileScreen(
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
 
-                    // Show streaming providers toggle
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -439,7 +905,11 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
                             Text("Show Where to Watch Providers", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text("Display Netflix, Prime, Hotstar & direct app links", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -453,17 +923,16 @@ fun ProfileScreen(
             }
         }
 
-        // Viewing Analytics & Stats (Integrated from Stats)
+        // Viewing Analytics, Wrapped Share & Cinema DNA
         item {
             Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "Viewing Statistics & Cinephile Level",
+                text = "Cinema DNA & WatchPilot Wrapped",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
 
-            // Cinephile Rank Badge Card
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -490,7 +959,11 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.width(14.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
                         Text(
                             text = stats.cinephileRank,
                             style = MaterialTheme.typography.titleMedium,
@@ -501,6 +974,35 @@ fun ProfileScreen(
                             text = "${stats.completedMoviesCount} Movies • ${stats.totalEpisodesLogged} TV Episodes",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    FilledTonalButton(
+                        onClick = {
+                            viewModel.shareWrappedCard(context) { intent ->
+                                context.startActivity(Intent.createChooser(intent, "Share WatchPilot Wrapped"))
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = CinemaGold.copy(alpha = 0.2f),
+                            contentColor = CinemaGold
+                        ),
+                        modifier = Modifier.testTag("btn_share_wrapped")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share WatchPilot Wrapped",
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Wrapped",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -560,6 +1062,105 @@ fun ProfileScreen(
             }
         }
 
+        // Cinema DNA (Completion Rate, Favorite Era / Decades & Top Language)
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp)
+                    .testTag("card_cinema_dna")
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Timeline,
+                            contentDescription = null,
+                            tint = CinemaCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Cinema DNA Breakdown",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = CinemaCyan.copy(alpha = 0.14f)
+                    ) {
+                        Text(
+                            text = "${stats.completionRatePercent}% Completion • ${stats.topOriginLanguage}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CinemaCyan,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    if (stats.decadeBreakdown.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        stats.decadeBreakdown.take(4).forEach { decadeStat ->
+                            val countText = if (decadeStat.count == 1) "1 title" else "${decadeStat.count} titles"
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = decadeStat.decadeLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 8.dp)
+                                    )
+                                    Text(
+                                        text = countText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = CinemaCyan,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                LinearProgressIndicator(
+                                    progress = { decadeStat.percentage },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(CircleShape),
+                                    color = CinemaCyan,
+                                    trackColor = MaterialTheme.colorScheme.surface
+                                )
+                            }
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Complete or log movies & series to unlock your decade & language Cinema DNA.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
         // Top Genres Section
         if (stats.topGenres.isNotEmpty()) {
             item {
@@ -580,13 +1181,30 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         stats.topGenres.take(4).forEach { genreStat ->
+                            val countText = if (genreStat.count == 1) "1 title" else "${genreStat.count} titles"
                             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(text = genreStat.genre, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                                    Text(text = "${genreStat.count} titles", style = MaterialTheme.typography.bodySmall, color = CinemaGold)
+                                    Text(
+                                        text = genreStat.genre,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 8.dp)
+                                    )
+                                    Text(
+                                        text = countText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = CinemaGold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
                                 }
                                 Spacer(modifier = Modifier.height(3.dp))
                                 LinearProgressIndicator(
@@ -605,7 +1223,7 @@ fun ProfileScreen(
             }
         }
 
-        // About Movieverse, TMDB Legal Attribution & Play Store Compliance Section
+        // About WatchPilot, TMDB & JustWatch Attribution & Play Store Data Safety Section
         item {
             Spacer(modifier = Modifier.height(14.dp))
             Text(
@@ -629,7 +1247,12 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
@@ -638,9 +1261,11 @@ fun ProfileScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Movieverse",
+                                text = "WatchPilot",
                                 style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         Surface(
@@ -648,9 +1273,12 @@ fun ProfileScreen(
                             color = MaterialTheme.colorScheme.surface
                         ) {
                             Text(
-                                text = "v1.0 (Build 1)",
+                                text = BuildConfig.VERSION_NAME,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = CinemaGold,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
@@ -659,15 +1287,106 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability data is referenced for entertainment discovery.",
+                        text = "This product uses the TMDB API but is not endorsed or certified by TMDB. Regional streaming availability data is powered by JustWatch via TMDB.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         lineHeight = 16.sp
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surface)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { viewModel.openLegalCompliance() }
+                            .padding(vertical = 8.dp)
+                            .testTag("btn_open_legal_compliance"),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Gavel,
+                                contentDescription = null,
+                                tint = CinemaCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Privacy Policy, Terms & Attribution",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    if (currentUser != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutlinedButton(
+                            onClick = { showDeleteAccountConfirm = true },
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, CinemaRed.copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = CinemaRed),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_delete_account")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteForever,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Delete Account & Cloud Data", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
+    }
+
+    if (showDeleteAccountConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountConfirm = false },
+            title = { Text("Delete Account & Cloud Data?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("This permanently deletes your WatchPilot cloud library, ratings, and account data. This action cannot be undone.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteAccountConfirm = false
+                        viewModel.deleteAccountAndCloudData(context) { _, _ -> }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CinemaRed, contentColor = Color.White),
+                    modifier = Modifier.testTag("btn_confirm_delete_account")
+                ) {
+                    Text("Delete Permanently", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAccountConfirm = false }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
 
     if (showRegionDialog) {
@@ -721,18 +1440,24 @@ private fun ProfileMetricCard(
                 text = value,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
                 fontSize = 10.sp,
-                color = tint
+                color = tint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

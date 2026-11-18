@@ -16,7 +16,8 @@ import com.example.data.model.WatchStatus
         Index("status"),
         Index("isFavorite"),
         Index("customWatchlist"),
-        Index("lastWatchedDate")
+        Index("lastWatchedDate"),
+        Index("releaseYear")
     ]
 )
 data class MediaEntity(

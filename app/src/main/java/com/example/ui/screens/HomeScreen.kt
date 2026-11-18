@@ -65,9 +65,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.BuildConfig
 import com.example.R
 import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
@@ -78,11 +80,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.example.data.model.RegionalDefaults
+import com.example.data.model.WatchStatus
 import com.example.ui.components.LocalizationPreferencesDialog
+import com.example.ui.components.SponsoredBannerCard
+import com.example.ui.components.WatchStatusPill
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
+import com.example.ui.theme.DarkBackground
 import com.example.ui.viewmodel.MediaViewModel
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
 fun HomeScreen(
@@ -97,7 +109,9 @@ fun HomeScreen(
     val continueWatchingList by viewModel.continueWatching.collectAsStateWithLifecycle()
     val discoverItems by viewModel.filteredDiscover.collectAsStateWithLifecycle()
     val trendingList by viewModel.trendingItems.collectAsStateWithLifecycle()
+    val pickedForYouItems by viewModel.pickedForYouItems.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
+    val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
 
     val regionOption = remember(effectiveRegion) {
         RegionalDefaults.supportedRegions.find { it.code.equals(effectiveRegion, ignoreCase = true) }
@@ -116,6 +130,211 @@ fun HomeScreen(
                 .fillMaxSize()
                 .testTag("home_screen_grid")
         ) {
+            // WatchPilot v2.0 Brand Header & Signature Quick Actions
+            item(span = { GridItemSpan(2) }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "WatchPilot",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                                if (!BuildConfig.IS_V1_EDITION) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = CinemaCyan.copy(alpha = 0.16f)
+                                    ) {
+                                        Text(
+                                            text = BuildConfig.EDITION_NAME,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = CinemaCyan,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            if (!BuildConfig.IS_V1_EDITION) {
+                                Text(
+                                    text = "Track • Decide Together • Stream Smarter",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        if (!BuildConfig.IS_V1_EDITION) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (monetizationState.isPro) CinemaGold else CinemaGold.copy(alpha = 0.16f),
+                                border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.6f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .clickable { viewModel.openPaywall() }
+                                    .testTag("home_pro_badge_button")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.WorkspacePremium,
+                                        contentDescription = "WatchPilot Pro",
+                                        tint = if (monetizationState.isPro) DarkBackground else CinemaGold,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = if (monetizationState.isPro) "PRO ACTIVE" else "GO PRO",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (monetizationState.isPro) DarkBackground else CinemaGold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (!BuildConfig.IS_V1_EDITION) {
+                        // 3 Signature WatchPilot v2.0 Action Cards
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            HomeQuickFeatureChip(
+                                icon = Icons.Filled.AutoAwesome,
+                                title = "Tonight's Pick",
+                                subtitle = "AI Concierge",
+                                accent = CinemaGold,
+                                onClick = { viewModel.openAiConcierge() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "home_btn_ai_concierge"
+                            )
+                            HomeQuickFeatureChip(
+                                icon = Icons.Filled.Favorite,
+                                title = "Swipe Match",
+                                subtitle = "Live Room",
+                                accent = CinemaGreen,
+                                onClick = { viewModel.openSwipeMatch() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "home_btn_swipe_match"
+                            )
+                            HomeQuickFeatureChip(
+                                icon = Icons.Filled.PhotoCamera,
+                                title = "Snap Scan",
+                                subtitle = "Screenshot AI",
+                                accent = CinemaCyan,
+                                onClick = { viewModel.openSnapScanner() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "home_btn_snap_scan"
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Personalized "Picked For You" Carousel (populated from onboarding & library taste)
+            if (pickedForYouItems.isNotEmpty()) {
+                item(span = { GridItemSpan(2) }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp, bottom = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = CinemaCyan,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Picked For You",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = CinemaCyan.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "FOR YOU",
+                                    color = CinemaCyan,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("home_picked_for_you_carousel")
+                        ) {
+                            items(
+                                items = pickedForYouItems,
+                                key = { item -> "picked_for_you_${item.id}" }
+                            ) { item ->
+                                PickedForYouCard(
+                                    media = item,
+                                    onClick = { viewModel.openMediaFromSearch(item) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Top Horizontal Scrolling Spotlight Carousel (Trending & Featured)
             if (topSpotlightItems.isNotEmpty()) {
                 item(span = { GridItemSpan(2) }) {
@@ -131,7 +350,12 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                     contentDescription = null,
@@ -143,7 +367,9 @@ fun HomeScreen(
                                     text = "${regionOption.flag} Trending in ${regionOption.name}",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
 
@@ -156,6 +382,8 @@ fun HomeScreen(
                                     color = CinemaGold,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
@@ -287,12 +515,19 @@ fun HomeScreen(
                             Text(
                                 text = "Continue Watching",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
                             )
                             Text(
                                 text = "${continueWatchingList.size} Active",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = CinemaCyan
+                                color = CinemaCyan,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
 
@@ -313,6 +548,20 @@ fun HomeScreen(
                 }
             }
 
+            // Calm Inline Sponsored Banner (Collapses to 0dp when WatchPilot Pro is active)
+            if (!monetizationState.isPro) {
+                item(span = { GridItemSpan(2) }) {
+                    SponsoredBannerCard(
+                        isPro = monetizationState.isPro,
+                        onRemoveAdsClick = {
+                            viewModel.openPaywall("Go 100% Ad-Free across WatchPilot with WatchPilot Pro.")
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        tagSuffix = "home"
+                    )
+                }
+            }
+
             // Catalog Grid Header
             item(span = { GridItemSpan(2) }) {
                 Row(
@@ -325,12 +574,19 @@ fun HomeScreen(
                     Text(
                         text = "Popular in ${regionOption.name}",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
                     )
                     Text(
                         text = "${discoverItems.size} titles",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -396,23 +652,26 @@ fun SpotlightBannerCard(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             val bgUrl = media.backdropUrl.ifBlank { media.posterUrl }
-            Image(
-                painter = painterResource(id = R.drawable.banner_cinema),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-
             if (bgUrl.isNotBlank()) {
                 val context = LocalContext.current
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
+                val imageRequest = remember(bgUrl, context) {
+                    ImageRequest.Builder(context)
                         .data(bgUrl)
                         .crossfade(true)
                         .placeholder(R.drawable.banner_cinema)
                         .error(R.drawable.banner_cinema)
-                        .build(),
+                        .build()
+                }
+                AsyncImage(
+                    model = imageRequest,
                     contentDescription = media.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.banner_cinema),
+                    contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -481,7 +740,7 @@ fun SpotlightBannerCard(
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = String.format("%.1f", media.communityRating),
+                            text = if (media.userRating > 0f) media.getFormattedUserRating() else String.format("%.1f", media.communityRating),
                             color = CinemaGold,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -490,12 +749,16 @@ fun SpotlightBannerCard(
                 }
             }
 
-            // Bottom Info
+            // Bottom Info + At-a-Glance Watch Status Pill
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(12.dp)
             ) {
+                if (media.getWatchStatusEnum() != WatchStatus.NONE) {
+                    WatchStatusPill(status = media.getWatchStatusEnum())
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
                 Text(
                     text = media.title,
                     style = MaterialTheme.typography.titleMedium,
@@ -515,3 +778,183 @@ fun SpotlightBannerCard(
         }
     }
 }
+
+@Composable
+private fun HomeQuickFeatureChip(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    accent: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    testTag: String
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.32f)),
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .testTag(testTag)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = accent,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                fontSize = 10.sp,
+                maxLines = 1,
+                color = accent
+            )
+        }
+    }
+}
+
+@Composable
+private fun PickedForYouCard(
+    media: MediaEntity,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        modifier = modifier
+            .width(136.dp)
+            .clickable(onClick = onClick)
+            .testTag("picked_card_${media.id}")
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(2f / 3f)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            ) {
+                val poster = media.posterUrl.ifBlank { media.backdropUrl }
+                if (poster.isNotBlank()) {
+                    val req = remember(poster, context) {
+                        ImageRequest.Builder(context)
+                            .data(poster)
+                            .crossfade(true)
+                            .placeholder(R.drawable.banner_cinema)
+                            .error(R.drawable.banner_cinema)
+                            .build()
+                    }
+                    AsyncImage(
+                        model = req,
+                        contentDescription = media.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(id = R.drawable.banner_cinema),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.8f)
+                                )
+                            )
+                        )
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Black.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                ) {
+                    Text(
+                        text = if (isMovie) "Film" else "TV",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isMovie) CinemaGold else CinemaCyan,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Black.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = CinemaGold,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = String.format("%.1f", media.communityRating),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = media.title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${media.releaseYear} • ${media.genres.substringBefore(",").trim()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+

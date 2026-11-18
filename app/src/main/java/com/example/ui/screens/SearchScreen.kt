@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Tune
@@ -86,6 +87,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.BuildConfig
 import com.example.data.local.MediaEntity
 import com.example.data.model.MultiSearchCategory
 import com.example.data.model.RegionalDefaults
@@ -149,7 +151,7 @@ fun SearchScreen(
                     .onFocusChanged { isSearchFocused = it.isFocused }
                     .testTag("multi_search_input"),
                 placeholder = {
-                    Text("Search Movieverse...")
+                    Text("Search WatchPilot...")
                 },
                 leadingIcon = {
                     Icon(
@@ -212,13 +214,36 @@ fun SearchScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Category Filter Chips
+            // Category Filter Chips + Snap-to-Watchlist Vision Trigger
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (!BuildConfig.IS_V1_EDITION) {
+                    FilterChip(
+                        selected = false,
+                        onClick = { viewModel.openSnapScanner() },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Scan Screenshot",
+                                tint = CinemaCyan,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = "Scan Screenshot",
+                                color = CinemaCyan,
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        modifier = Modifier.testTag("search_btn_snap_scan")
+                    )
+                }
+
                 MultiSearchCategory.entries.forEach { category ->
                     val selected = selectedCategory == category
                     val count = when (category) {
@@ -278,7 +303,12 @@ fun SearchScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Movie,
                                     contentDescription = null,
@@ -290,7 +320,9 @@ fun SearchScreen(
                                     text = "Genre: $activeGenre",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaCyan
+                                    color = CinemaCyan,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
 
@@ -798,7 +830,7 @@ fun SearchResultPersonCard(
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(person.knownFor) { media ->
+                    items(person.knownFor, key = { it.id }) { media ->
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = MaterialTheme.colorScheme.surface,
@@ -896,7 +928,12 @@ fun EmptyQueryView(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.History,
                         contentDescription = null,
@@ -908,7 +945,9 @@ fun EmptyQueryView(
                         text = "Recent Searches",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -921,7 +960,9 @@ fun EmptyQueryView(
                         text = "Clear all",
                         color = CinemaGold,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -976,6 +1017,8 @@ fun EmptyQueryView(
                                     fontSize = 11.sp,
                                     color = CinemaGold,
                                     fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
@@ -1097,7 +1140,7 @@ fun EmptyQueryView(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "TMDB Top 10 Rated",
+                    text = "TMDB Top Rated",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -1115,7 +1158,7 @@ fun EmptyQueryView(
             FilterChip(
                 selected = selectedTopRatedTab == TopRatedTab.MOVIES,
                 onClick = { onSelectTopRatedTab(TopRatedTab.MOVIES) },
-                label = { Text("Top 10 Movies", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                label = { Text("Top Rated Movies", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(16.dp))
                 },
@@ -1130,7 +1173,7 @@ fun EmptyQueryView(
             FilterChip(
                 selected = selectedTopRatedTab == TopRatedTab.TV_SERIES,
                 onClick = { onSelectTopRatedTab(TopRatedTab.TV_SERIES) },
-                label = { Text("Top 10 TV Series", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                label = { Text("Top Rated TV Series", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(16.dp))
                 },

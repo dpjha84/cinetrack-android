@@ -104,11 +104,17 @@ fun SeasonDetailScreen(
     val isLoadingEpisodes by viewModel.isLoadingEpisodes.collectAsStateWithLifecycle()
     val selectedEpisodeDetail by viewModel.selectedEpisodeDetail.collectAsStateWithLifecycle()
     val activeWatchProviders by viewModel.activeWatchProviders.collectAsStateWithLifecycle()
+    val userPrefs by viewModel.userPreferences.collectAsStateWithLifecycle()
+    val showStreamingProviders = userPrefs.showStreamingProviders
 
     val providersInfo = activeWatchProviders ?: remember(media, effectiveRegionCode) {
         media.getWatchProvidersInfo(effectiveRegionCode)
     }
-    val streamAndFree = (providersInfo.stream + providersInfo.free).distinctBy { it.name }
+    val streamAndFree = if (showStreamingProviders) {
+        (providersInfo.stream + providersInfo.free).distinctBy { it.name }
+    } else {
+        emptyList()
+    }
 
     LazyColumn(
         modifier = modifier
@@ -301,7 +307,11 @@ fun SeasonDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
                             Text(
                                 text = "Season Watch Status",
                                 style = MaterialTheme.typography.titleSmall,
@@ -333,6 +343,8 @@ fun SeasonDetailScreen(
                                 text = season.watchStatus.chipLabel.uppercase(),
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 11.sp,
+                                maxLines = 1,
+                                softWrap = false,
                                 color = when (season.watchStatus) {
                                     TvWatchStatus.WATCHED -> CinemaGreen
                                     TvWatchStatus.WATCHING -> CinemaCyan
@@ -405,13 +417,20 @@ fun SeasonDetailScreen(
                         Text(
                             text = "Season Progress",
                             style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
                         )
                         Text(
                             text = "${season.watchedEpisodesCount} of ${season.episodeCount} episodes (${(season.progressFraction * 100).toInt()}%)",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
-                            color = CinemaCyan
+                            color = CinemaCyan,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
 
@@ -538,7 +557,12 @@ fun SeasonDetailScreen(
                 Text(
                     text = "Episodes (${episodes.size})",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
                 )
 
                 if (isLoadingEpisodes) {
@@ -557,6 +581,7 @@ fun SeasonDetailScreen(
                 episode = episode,
                 media = media,
                 streamProviders = streamAndFree,
+                showStreamOverlay = showStreamingProviders,
                 onStatusChange = { newStatus ->
                     viewModel.setEpisodeWatchStatus(
                         media = media,
@@ -623,6 +648,7 @@ fun EpisodeCard(
     episode: EpisodeItem,
     media: MediaEntity,
     streamProviders: List<com.example.data.model.WatchProviderItem>,
+    showStreamOverlay: Boolean = true,
     onStatusChange: (TvWatchStatus) -> Unit,
     onClick: () -> Unit,
     onPlayClick: (com.example.data.model.WatchProviderItem?) -> Unit,
@@ -710,22 +736,24 @@ fun EpisodeCard(
                 }
 
                 // Consolidated Play / Stream Button Overlay
-                Surface(
-                    shape = CircleShape,
-                    color = CinemaGold.copy(alpha = 0.92f),
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(46.dp)
-                        .clickable { onPlayClick(streamProviders.firstOrNull()) }
-                        .testTag("btn_stream_ep_${episode.episodeNumber}")
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play or Stream Episode",
-                            tint = Color.Black,
-                            modifier = Modifier.size(26.dp)
-                        )
+                if (showStreamOverlay) {
+                    Surface(
+                        shape = CircleShape,
+                        color = CinemaGold.copy(alpha = 0.92f),
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(46.dp)
+                            .clickable { onPlayClick(streamProviders.firstOrNull()) }
+                            .testTag("btn_stream_ep_${episode.episodeNumber}")
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Play or Stream Episode",
+                                tint = Color.Black,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
                     }
                 }
 

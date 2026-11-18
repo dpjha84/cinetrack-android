@@ -391,4 +391,64 @@ class RoomDatabaseTest {
         assertEquals(0, customCollectionDao.count())
         assertEquals(0, searchHistoryDao.count())
     }
+
+    @Test
+    fun incrementAndUndoEpisodeAdvancesUpNextAndSeasons() = runTest {
+        val tvShow = MediaEntity(
+            id = "tv_stranger_things",
+            title = "Stranger Things",
+            mediaType = MediaType.TV_SHOW.name,
+            releaseYear = 2016,
+            genres = "Sci-Fi, Drama",
+            posterUrl = "",
+            backdropUrl = "",
+            overview = "",
+            directorOrCreator = "The Duffer Brothers",
+            cast = "Winona Ryder",
+            communityRating = 8.7f,
+            runtimeMinutes = 50,
+            totalSeasons = 4,
+            totalEpisodes = 34,
+            watchedEpisodes = 0
+        )
+        mediaDao.insertOrUpdate(tvShow)
+
+        // Initial unstarted state: Season 1 has 0 watched (Up next = S1 E1)
+        val initialSeasons = repository.getSeasonsForTvShow(tvShow, "")
+        assertEquals(0, initialSeasons.first().watchedEpisodesCount)
+
+        // Click Mark S1·E1 Watched -> Season 1 watchedEpisodesCount becomes 1 (Up next = S1 E2)
+        repository.incrementEpisode("tv_stranger_things", "")
+        val afterE1Media = mediaDao.getMediaByIdDirect("tv_stranger_things")!!
+        assertEquals(1, afterE1Media.watchedEpisodes)
+        assertEquals(WatchStatus.WATCHING.name, afterE1Media.status)
+
+        val seasonsAfterE1 = repository.getSeasonsForTvShow(afterE1Media, "")
+        assertEquals(1, seasonsAfterE1.first { it.seasonNumber == 1 }.watchedEpisodesCount)
+        val s1EpisodesAfterE1 = repository.getEpisodesForSeason(afterE1Media, 1, "")
+        assertEquals(com.example.data.model.TvWatchStatus.WATCHED, s1EpisodesAfterE1.first { it.episodeNumber == 1 }.watchStatus)
+        assertEquals(com.example.data.model.TvWatchStatus.UNWATCHED, s1EpisodesAfterE1.first { it.episodeNumber == 2 }.watchStatus)
+
+        // Click Mark S1·E2 Watched -> Season 1 watchedEpisodesCount becomes 2 (Up next = S1 E3)
+        repository.incrementEpisode("tv_stranger_things", "")
+        val afterE2Media = mediaDao.getMediaByIdDirect("tv_stranger_things")!!
+        assertEquals(2, afterE2Media.watchedEpisodes)
+        val seasonsAfterE2 = repository.getSeasonsForTvShow(afterE2Media, "")
+        assertEquals(2, seasonsAfterE2.first { it.seasonNumber == 1 }.watchedEpisodesCount)
+
+        // Undo from 2 -> 1 reverts S1 E2 back to UNWATCHED (Up next returns to S1 E2)
+        repository.updateWatchedEpisodes("tv_stranger_things", 1, "")
+        val afterUndo1 = mediaDao.getMediaByIdDirect("tv_stranger_things")!!
+        assertEquals(1, afterUndo1.watchedEpisodes)
+        val seasonsAfterUndo1 = repository.getSeasonsForTvShow(afterUndo1, "")
+        assertEquals(1, seasonsAfterUndo1.first { it.seasonNumber == 1 }.watchedEpisodesCount)
+
+        // Undo from 1 -> 0 resets back to Not Started (0 watched, status NONE)
+        repository.updateWatchedEpisodes("tv_stranger_things", 0, "")
+        val afterUndo0 = mediaDao.getMediaByIdDirect("tv_stranger_things")!!
+        assertEquals(0, afterUndo0.watchedEpisodes)
+        assertEquals(WatchStatus.NONE.name, afterUndo0.status)
+        val seasonsAfterUndo0 = repository.getSeasonsForTvShow(afterUndo0, "")
+        assertEquals(0, seasonsAfterUndo0.first { it.seasonNumber == 1 }.watchedEpisodesCount)
+    }
 }

@@ -104,6 +104,13 @@ interface TmdbApiService {
         @Query("page") page: Int = 1
     ): TmdbSearchResponse
 
+    @GET("person/popular")
+    suspend fun getPopularPeople(
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String? = null,
+        @Query("page") page: Int = 1
+    ): TmdbSearchResponse
+
     @GET("discover/movie")
     suspend fun discoverMovies(
         @Query("api_key") apiKey: String,
@@ -113,6 +120,7 @@ interface TmdbApiService {
         @Query("with_origin_country") withOriginCountry: String? = null,
         @Query("with_original_language") withLanguage: String? = null,
         @Query("with_genres") withGenres: String? = null,
+        @Query("with_people") withPeople: String? = null,
         @Query("primary_release_date.gte") primaryReleaseDateGte: String? = null,
         @Query("primary_release_date.lte") primaryReleaseDateLte: String? = null,
         @Query("sort_by") sortBy: String = "popularity.desc",
@@ -189,4 +197,20 @@ interface TmdbApiService {
         @Query("api_key") apiKey: String,
         @Query("language") language: String? = null
     ): TmdbSeasonDetailDto
+
+    @GET("movie/{movie_id}/recommendations")
+    suspend fun getMovieRecommendations(
+        @Path("movie_id") movieId: Long,
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String? = null,
+        @Query("page") page: Int = 1
+    ): TmdbSearchResponse
+
+    @GET("tv/{series_id}/recommendations")
+    suspend fun getTvRecommendations(
+        @Path("series_id") seriesId: Long,
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String? = null,
+        @Query("page") page: Int = 1
+    ): TmdbSearchResponse
 }

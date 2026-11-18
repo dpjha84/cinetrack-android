@@ -2,7 +2,7 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Root user document isolating per-user Movieverse cloud sync subcollections.",
+      "description": "Root user document isolating per-user WatchPilot cloud sync subcollections.",
       "type": "object",
       "properties": {
         "userId": { "type": "string", "description": "Firebase Auth UID of the owner." },
@@ -119,6 +119,42 @@
         "serverUpdatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
       },
       "required": ["mediaId", "seasonNumber", "episodeNumber", "status", "updatedAt", "userId", "serverUpdatedAt"]
+    },
+    "ProEntitlement": {
+      "title": "ProEntitlement",
+      "description": "WatchPilot Pro entitlement and OTT subscription selections synced across user devices.",
+      "type": "object",
+      "properties": {
+        "isPro": { "type": "boolean" },
+        "planType": { "type": "string", "enum": ["FREE", "PRO_MONTHLY", "PRO_ANNUAL", "PRO_LIFETIME", "PRO_SANDBOX"] },
+        "subscribedProviders": { "type": "string" },
+        "streamOnMyAppsOnly": { "type": "boolean" },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["isPro", "planType", "subscribedProviders", "streamOnMyAppsOnly", "userId", "updatedAt"]
+    },
+    "MatchRoom": {
+      "title": "MatchRoom",
+      "description": "Real-time couple or group Swipe-to-Match room with shared poster deck and per-participant swipe map.",
+      "type": "object",
+      "properties": {
+        "roomCode": { "type": "string" },
+        "hostUid": { "type": "string" },
+        "hostName": { "type": "string" },
+        "regionCode": { "type": "string" },
+        "selectedProviders": { "type": "string" },
+        "status": { "type": "string", "enum": ["OPEN", "MATCHED", "CLOSED"] },
+        "participantUids": { "type": "array", "items": { "type": "string" } },
+        "candidatesJson": { "type": "string" },
+        "swipesByUid": { "type": "object" },
+        "matchedMediaId": { "type": "string" },
+        "matchedTitle": { "type": "string" },
+        "matchedPosterUrl": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["roomCode", "hostUid", "hostName", "regionCode", "selectedProviders", "status", "participantUids", "candidatesJson", "swipesByUid", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -149,6 +185,14 @@
     "/users/{userId}/tv_progress/{progressId}": {
       "schema": { "$ref": "#/entities/TvProgress" },
       "description": "Season and episode-level watch checkmarks for TV shows."
+    },
+    "/users/{userId}/monetization/{docId}": {
+      "schema": { "$ref": "#/entities/ProEntitlement" },
+      "description": "WatchPilot Pro entitlement and OTT subscription settings."
+    },
+    "/match_rooms/{roomCode}": {
+      "schema": { "$ref": "#/entities/MatchRoom" },
+      "description": "Live couple and group Swipe-to-Match rooms."
     }
   }
 }

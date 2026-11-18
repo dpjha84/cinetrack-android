@@ -3,19 +3,36 @@ package com.example.ui.viewmodel
 import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.content.Intent
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.BuildConfig
+import com.example.data.ai.WatchPilotAiService
+import com.example.data.billing.MonetizationManager
 import com.example.data.local.AppDatabase
 import com.example.data.local.FavoritePersonEntity
 import com.example.data.local.MediaEntity
+import com.example.data.local.OnboardingPreferences
 import com.example.data.local.SearchHistoryEntity
 import com.example.data.local.UserPreferencesEntity
 import com.example.data.model.CastMemberItem
+import com.example.data.model.ConciergePick
+import com.example.data.model.ConciergeUiState
+import com.example.data.model.DecadeStat
 import com.example.data.model.GenreStat
+import com.example.data.model.MatchCandidateCard
+import com.example.data.model.MatchRoomUiState
 import com.example.data.model.MediaType
+import com.example.data.model.MonetizationState
 import com.example.data.model.MultiSearchCategory
+import com.example.data.model.OttMoneySaverSummary
 import com.example.data.model.RegionalDefaults
+import com.example.data.model.ScannedMediaCandidate
+import com.example.data.model.SnapScanUiState
 import com.example.data.model.TmdbSearchResultItem
 import com.example.data.model.TrailerItem
 import com.example.data.model.ViewingStats
@@ -26,14 +43,27 @@ import com.example.data.model.EpisodeItem
 import com.example.data.model.TvWatchStatus
 import com.example.data.remote.firebase.FirebaseAuthHelper
 import com.example.data.remote.firebase.FirestoreSyncManager
+import com.example.data.remote.firebase.MatchRoomRepository
 import com.example.data.remote.tmdb.TmdbPersonDetailDto
 import com.example.data.repository.MediaRepository
+import com.example.util.CsvLibraryPorter
+import com.example.util.OttMoneySaverCalculator
+import com.example.util.WrappedCardExporter
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.auth
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -41,6 +71,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 enum class LibraryTab(val label: String) {
@@ -103,6 +134,71 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private var syncJob: kotlinx.coroutines.Job? = null
     private var activeSyncUid: String? = null
     private var signOutJob: kotlinx.coroutines.Job? = null
+
+    // WatchPilot v2.0 Monetization, AI & Live Match Room Services
+    val monetizationManager = MonetizationManager(
+        context = application,
+        scope = viewModelScope,
+        onSyncEntitlementToCloud = { updatedState ->
+            val uid = currentUser.value?.uid
+            if (!uid.isNullOrBlank()) {
+                firestoreSyncManager.uploadMonetizationEntitlement(uid, updatedState)
+            }
+        }
+    )
+    val monetizationState: StateFlow<MonetizationState> = monetizationManager.state
+
+    private val aiService = WatchPilotAiService()
+    private val matchRoomRepo = MatchRoomRepository(
+        firestore = firestoreSyncManager.firestore,
+        auth = Firebase.auth
+    )
+    private var matchRoomObserverJob: kotlinx.coroutines.Job? = null
+
+    private val _snapScanState = MutableStateFlow<SnapScanUiState>(SnapScanUiState.Idle)
+    val snapScanState: StateFlow<SnapScanUiState> = _snapScanState.asStateFlow()
+
+    private val _conciergeState = MutableStateFlow<ConciergeUiState>(ConciergeUiState.Idle)
+    val conciergeState: StateFlow<ConciergeUiState> = _conciergeState.asStateFlow()
+
+    private val _matchRoomState = MutableStateFlow<MatchRoomUiState>(MatchRoomUiState.Idle)
+    val matchRoomState: StateFlow<MatchRoomUiState> = _matchRoomState.asStateFlow()
+    val skippedMatchCandidateIds = MutableStateFlow<Set<String>>(emptySet())
+
+    val isImportingCsv = MutableStateFlow(false)
+    val csvImportMessage = MutableStateFlow<String?>(null)
+
+    // Global Sheet Visibility Controls
+    val showPaywallSheet = MutableStateFlow(false)
+    val paywallTriggerReason = MutableStateFlow<String?>(null)
+    val showSnapScannerSheet = MutableStateFlow(false)
+    val showAiConciergeSheet = MutableStateFlow(false)
+    val showSwipeMatchSheet = MutableStateFlow(false)
+    val showOttMoneySaverSheet = MutableStateFlow(false)
+    val showLegalComplianceDialog = MutableStateFlow(false)
+
+    // New-User Onboarding & Home Personalization ("Picked For You")
+    private val _hasCompletedOnboarding = MutableStateFlow(
+        OnboardingPreferences.hasCompletedOnboarding(application)
+    )
+    val hasCompletedOnboarding: StateFlow<Boolean> = _hasCompletedOnboarding.asStateFlow()
+    val onboardingStep = MutableStateFlow(0)
+    val onboardingAuthLoading = MutableStateFlow(false)
+    val onboardingAuthError = MutableStateFlow<String?>(null)
+
+    val onboardingPopularPeople = MutableStateFlow<List<TmdbSearchResultItem.Person>>(emptyList())
+    val onboardingPersonQuery = MutableStateFlow("")
+    val onboardingPersonSearchResults = MutableStateFlow<List<TmdbSearchResultItem.Person>>(emptyList())
+    val isLoadingOnboardingPeople = MutableStateFlow(false)
+
+    val onboardingPopularTitles = MutableStateFlow<List<MediaEntity>>(emptyList())
+    val onboardingTitleQuery = MutableStateFlow("")
+    val onboardingTitleSearchResults = MutableStateFlow<List<MediaEntity>>(emptyList())
+    val isLoadingOnboardingTitles = MutableStateFlow(false)
+
+    val pickedForYouItems = MutableStateFlow<List<MediaEntity>>(emptyList())
+    val isLoadingPickedForYou = MutableStateFlow(false)
+    private var pickedForYouJob: kotlinx.coroutines.Job? = null
 
     val allMedia: StateFlow<List<MediaEntity>> = repository.allMedia.stateIn(
         viewModelScope,
@@ -391,15 +487,42 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Filtered Library list
-    val filteredLibrary: StateFlow<List<MediaEntity>> = combine(
+    // OTT Subscription Money-Saver Radar Summary
+    val ottMoneySaverSummary: StateFlow<OttMoneySaverSummary> = combine(
         trackedMedia,
+        effectiveRegionCode,
+        monetizationState
+    ) { items, regionCode, monState ->
+        OttMoneySaverCalculator.calculateAudit(
+            trackedMedia = items,
+            regionCode = regionCode,
+            subscribedCanonicalNames = monState.subscribedProviders
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), OttMoneySaverSummary())
+
+    private data class LibraryFilterInputs(
+        val tab: LibraryTab,
+        val sort: SortOption,
+        val collection: String?
+    )
+
+    private val libraryFilterInputs = combine(
         selectedLibraryTab,
         librarySortOption,
         selectedCollectionFilter
-    ) { items, tab, sort, collection ->
+    ) { tab, sort, collection ->
+        LibraryFilterInputs(tab, sort, collection)
+    }
+
+    // Filtered Library list (including Pro "On My Apps" OTT filter)
+    val filteredLibrary: StateFlow<List<MediaEntity>> = combine(
+        trackedMedia,
+        libraryFilterInputs,
+        monetizationState,
+        effectiveRegionCode
+    ) { items, inputs, monState, regionCode ->
         val filtered = items.filter { item ->
-            val matchesTab = when (tab) {
+            val matchesTab = when (inputs.tab) {
                 LibraryTab.WATCHING -> item.getWatchStatusEnum() == WatchStatus.WATCHING
                 LibraryTab.PLAN_TO_WATCH -> item.getWatchStatusEnum() == WatchStatus.PLAN_TO_WATCH
                 LibraryTab.COMPLETED -> item.getWatchStatusEnum() == WatchStatus.COMPLETED
@@ -407,12 +530,22 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 LibraryTab.ALL_TRACKED -> true
             }
 
-            val matchesCollection = collection == null || item.customWatchlist == collection
+            val matchesCollection = inputs.collection == null || item.customWatchlist == inputs.collection
 
-            matchesTab && matchesCollection
+            val matchesMyApps = if (monState.streamOnMyAppsOnly && monState.subscribedProviders.isNotEmpty()) {
+                OttMoneySaverCalculator.matchesAnySubscribedApp(
+                    media = item,
+                    regionCode = regionCode,
+                    subscribedCanonicalNames = monState.subscribedProviders
+                )
+            } else {
+                true
+            }
+
+            matchesTab && matchesCollection && matchesMyApps
         }
 
-        when (sort) {
+        when (inputs.sort) {
             SortOption.RECENT -> filtered.sortedByDescending { it.lastWatchedDate ?: it.createdAt }
             SortOption.TITLE -> filtered.sortedBy { it.title.lowercase() }
             SortOption.RATING -> filtered.sortedByDescending {
@@ -443,14 +576,21 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         var completedMovies = 0
         var completedShows = 0
         var activeShows = 0
+        var watchlistCount = 0
         var totalEpisodes = 0
         var ratingSum = 0f
         var ratedCount = 0
         val genreCountMap = mutableMapOf<String, Int>()
+        val decadeCountMap = mutableMapOf<String, Int>()
+        val langCountMap = mutableMapOf<String, Int>()
 
         items.forEach { item ->
             val isMovie = item.getMediaTypeEnum() == MediaType.MOVIE
             val status = item.getWatchStatusEnum()
+
+            if (status == WatchStatus.PLAN_TO_WATCH) {
+                watchlistCount++
+            }
 
             if (isMovie) {
                 if (status == WatchStatus.COMPLETED) {
@@ -476,6 +616,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 item.getGenreList().forEach { genre ->
                     genreCountMap[genre] = (genreCountMap[genre] ?: 0) + 1
                 }
+                val decadeLabel = when {
+                    item.releaseYear >= 2020 -> "2020s"
+                    item.releaseYear >= 2010 -> "2010s"
+                    item.releaseYear >= 2000 -> "2000s"
+                    item.releaseYear >= 1990 -> "1990s"
+                    else -> "Classics"
+                }
+                decadeCountMap[decadeLabel] = (decadeCountMap[decadeLabel] ?: 0) + 1
+                val lang = item.originalLanguage.uppercase().ifBlank { "EN" }
+                langCountMap[lang] = (langCountMap[lang] ?: 0) + 1
             }
         }
 
@@ -487,6 +637,33 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 val pct = if (totalLoggedMedia > 0) (it.value.toFloat() / totalLoggedMedia) else 0f
                 GenreStat(it.key, it.value, pct)
             }
+
+        val decadeBreakdown = decadeCountMap.entries
+            .sortedByDescending { it.value }
+            .map {
+                val pct = if (totalLoggedMedia > 0) (it.value.toFloat() / totalLoggedMedia) else 0f
+                DecadeStat(it.key, it.value, pct)
+            }
+
+        val totalTrackedNonNone = completedMovies + completedShows + activeShows + watchlistCount
+        val completionRatePercent = if (totalTrackedNonNone > 0) {
+            (((completedMovies + completedShows).toFloat() / totalTrackedNonNone.toFloat()) * 100f).toInt().coerceIn(0, 100)
+        } else {
+            0
+        }
+
+        val topLangCode = langCountMap.maxByOrNull { it.value }?.key ?: "EN"
+        val topOriginLanguage = when (topLangCode) {
+            "EN" -> "English"
+            "HI" -> "Hindi"
+            "JA" -> "Japanese"
+            "KO" -> "Korean"
+            "ES" -> "Spanish"
+            "FR" -> "French"
+            "TA" -> "Tamil"
+            "TE" -> "Telugu"
+            else -> topLangCode
+        }
 
         val avgRating = if (ratedCount > 0) ratingSum / ratedCount else 0f
 
@@ -504,10 +681,14 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             completedMoviesCount = completedMovies,
             completedShowsCount = completedShows,
             activeShowsCount = activeShows,
+            watchlistCount = watchlistCount,
             totalEpisodesLogged = totalEpisodes,
             averageUserRating = avgRating,
             ratedItemsCount = ratedCount,
             topGenres = topGenres,
+            decadeBreakdown = decadeBreakdown,
+            completionRatePercent = completionRatePercent,
+            topOriginLanguage = topOriginLanguage,
             cinephileRank = rank,
             cinephileBadge = badge
         )
@@ -518,12 +699,60 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             repository.seedIfEmpty()
+            if (!_hasCompletedOnboarding.value && onboardingStep.value == 0 && repository.hasAnyUserTrackedData()) {
+                completeOnboarding()
+            }
             currentUser
                 .map { it?.uid }
                 .distinctUntilChanged()
                 .filter { !it.isNullOrBlank() }
                 .collect {
                     syncWithCloud(force = false)
+                }
+        }
+
+        if (!_hasCompletedOnboarding.value) {
+            loadOnboardingCatalog()
+        }
+
+        // Live onboarding people search debounce
+        viewModelScope.launch {
+            onboardingPersonQuery
+                .debounce(350)
+                .map { it.trim() }
+                .distinctUntilChanged()
+                .collect { query ->
+                    searchOnboardingPeople(query)
+                }
+        }
+
+        // Live onboarding title search debounce
+        viewModelScope.launch {
+            onboardingTitleQuery
+                .debounce(350)
+                .map { it.trim() }
+                .distinctUntilChanged()
+                .collect { query ->
+                    searchOnboardingTitles(query)
+                }
+        }
+
+        // Keep "Picked For You" on Home synchronized with tracked taste & favorite people
+        viewModelScope.launch {
+            combine(
+                hasCompletedOnboarding,
+                trackedMedia,
+                favoritePeople,
+                effectiveRegionCode
+            ) { completed, tracked, people, region ->
+                Triple(completed, tracked.size + people.size, region)
+            }
+                .distinctUntilChanged()
+                .debounce(500)
+                .collect { (completed, _, _) ->
+                    if (completed) {
+                        refreshPickedForYou()
+                    }
                 }
         }
 
@@ -889,10 +1118,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    companion object {
-        const val EMBEDDED_TMDB_API_KEY = "967abbed236b6e3d97da4ced26b2199c"
-    }
-
     fun getActiveTmdbApiKey(): String {
         val customKey = userPreferences.value.customTmdbApiKey.trim()
         if (customKey.isNotBlank()) return customKey
@@ -904,7 +1129,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         if (buildKey.isNotBlank() && buildKey != "YOUR_TMDB_API_KEY") {
             return buildKey
         }
-        return EMBEDDED_TMDB_API_KEY
+        return ""
     }
 
     fun syncWithCloud(force: Boolean = true) {
@@ -918,8 +1143,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 // Ensure any pending sign-out cleanup completes before pulling/pushing for the new user
                 signOutJob?.join()
-                repository.syncWithCloud(uid)
+                val cloudEntitlement = repository.syncWithCloud(uid)
+                if (cloudEntitlement != null) {
+                    monetizationManager.mergeCloudEntitlement(
+                        cloudIsPro = cloudEntitlement.isPro,
+                        cloudPlanType = cloudEntitlement.planType,
+                        cloudProvidersCsv = cloudEntitlement.subscribedProviders,
+                        cloudStreamOnMyAppsOnly = cloudEntitlement.streamOnMyAppsOnly
+                    )
+                }
+                firestoreSyncManager.uploadMonetizationEntitlement(uid, monetizationState.value)
                 syncStatusMessage.value = "Synced with cloud successfully"
+                if (!_hasCompletedOnboarding.value && onboardingStep.value == 0 && repository.hasAnyUserTrackedData()) {
+                    completeOnboarding()
+                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -952,12 +1189,211 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    // =========================================================================
+    // New-User Onboarding & Home Personalization Actions
+    // =========================================================================
+
+    fun loadOnboardingCatalog() {
+        viewModelScope.launch {
+            val key = getActiveTmdbApiKey()
+            val lang = userPreferences.value.languageCode
+            val reg = effectiveRegionCode.value
+            val peopleJob = async {
+                isLoadingOnboardingPeople.value = true
+                try {
+                    onboardingPopularPeople.value = repository.fetchPopularPeople(key, lang)
+                } finally {
+                    isLoadingOnboardingPeople.value = false
+                }
+            }
+            val titlesJob = async {
+                isLoadingOnboardingTitles.value = true
+                try {
+                    onboardingPopularTitles.value = repository.fetchOnboardingPopularTitles(key, lang, reg)
+                } finally {
+                    isLoadingOnboardingTitles.value = false
+                }
+            }
+            peopleJob.await()
+            titlesJob.await()
+        }
+    }
+
+    fun signInWithGoogleDuringOnboarding(activity: Activity) {
+        if (onboardingAuthLoading.value) return
+        onboardingAuthLoading.value = true
+        onboardingAuthError.value = null
+        FirebaseAuthHelper.signInWithGoogle(
+            activity = activity,
+            scope = viewModelScope,
+            onSuccess = { user ->
+                viewModelScope.launch {
+                    try {
+                        signOutJob?.join()
+                        val cloudEntitlement = repository.syncWithCloud(user.uid)
+                        if (cloudEntitlement != null) {
+                            monetizationManager.mergeCloudEntitlement(
+                                cloudIsPro = cloudEntitlement.isPro,
+                                cloudPlanType = cloudEntitlement.planType,
+                                cloudProvidersCsv = cloudEntitlement.subscribedProviders,
+                                cloudStreamOnMyAppsOnly = cloudEntitlement.streamOnMyAppsOnly
+                            )
+                        }
+                        firestoreSyncManager.uploadMonetizationEntitlement(user.uid, monetizationState.value)
+                        if (repository.hasAnyUserTrackedData()) {
+                            completeOnboarding()
+                        } else {
+                            onboardingStep.value = 1
+                        }
+                    } catch (e: Exception) {
+                        onboardingAuthError.value = e.localizedMessage ?: "Cloud sync warning — continuing setup."
+                        onboardingStep.value = 1
+                    } finally {
+                        onboardingAuthLoading.value = false
+                    }
+                }
+            },
+            onError = { err ->
+                onboardingAuthLoading.value = false
+                onboardingAuthError.value = err
+            },
+            onCancelled = {
+                onboardingAuthLoading.value = false
+            }
+        )
+    }
+
+    fun continueAsGuestDuringOnboarding() {
+        continueAsGuest()
+        onboardingAuthError.value = null
+        onboardingStep.value = 1
+    }
+
+    fun advanceFromOnboardingWelcome() {
+        onboardingAuthError.value = null
+        viewModelScope.launch {
+            if (currentUser.value != null && repository.hasAnyUserTrackedData()) {
+                completeOnboarding()
+            } else {
+                onboardingStep.value = 1
+            }
+        }
+    }
+
+    fun setOnboardingStep(step: Int) {
+        onboardingStep.value = step.coerceIn(0, 2)
+    }
+
+    fun updateOnboardingPersonQuery(query: String) {
+        onboardingPersonQuery.value = query
+        if (query.isBlank()) {
+            onboardingPersonSearchResults.value = emptyList()
+        }
+    }
+
+    private fun searchOnboardingPeople(query: String) {
+        if (query.isBlank()) {
+            onboardingPersonSearchResults.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            isLoadingOnboardingPeople.value = true
+            try {
+                onboardingPersonSearchResults.value = repository.searchPeopleTmdb(
+                    query = query,
+                    apiKey = getActiveTmdbApiKey(),
+                    language = userPreferences.value.languageCode
+                )
+            } finally {
+                isLoadingOnboardingPeople.value = false
+            }
+        }
+    }
+
+    fun toggleOnboardingPerson(person: TmdbSearchResultItem.Person) {
+        toggleFavoritePerson(person, null)
+    }
+
+    fun updateOnboardingTitleQuery(query: String) {
+        onboardingTitleQuery.value = query
+        if (query.isBlank()) {
+            onboardingTitleSearchResults.value = emptyList()
+        }
+    }
+
+    private fun searchOnboardingTitles(query: String) {
+        if (query.isBlank()) {
+            onboardingTitleSearchResults.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            isLoadingOnboardingTitles.value = true
+            try {
+                onboardingTitleSearchResults.value = repository.searchTmdb(
+                    query = query,
+                    apiKey = getActiveTmdbApiKey(),
+                    language = userPreferences.value.languageCode,
+                    region = null
+                )
+            } finally {
+                isLoadingOnboardingTitles.value = false
+            }
+        }
+    }
+
+    fun toggleOnboardingTitleStatus(media: MediaEntity, targetStatus: WatchStatus) {
+        viewModelScope.launch {
+            repository.ensureMediaCached(media)
+            val currentStatus = repository.getMediaByIdDirect(media.id)?.getWatchStatusEnum() ?: WatchStatus.NONE
+            val nextStatus = if (currentStatus == targetStatus) WatchStatus.NONE else targetStatus
+            repository.updateStatus(media.id, nextStatus, getActiveTmdbApiKey())
+        }
+    }
+
+    fun completeOnboarding() {
+        OnboardingPreferences.setCompletedOnboarding(getApplication(), true)
+        _hasCompletedOnboarding.value = true
+        refreshPickedForYou()
+    }
+
+    fun skipOnboarding() {
+        completeOnboarding()
+    }
+
+    fun refreshPickedForYou() {
+        val currentTracked = trackedMedia.value
+        val currentPeople = favoritePeople.value
+        if (currentTracked.isEmpty() && currentPeople.isEmpty()) {
+            pickedForYouItems.value = emptyList()
+            return
+        }
+        pickedForYouJob?.cancel()
+        pickedForYouJob = viewModelScope.launch {
+            isLoadingPickedForYou.value = true
+            try {
+                val items = repository.fetchPersonalizedRecommendations(
+                    favoritePeople = currentPeople,
+                    trackedMedia = currentTracked,
+                    apiKey = getActiveTmdbApiKey(),
+                    region = effectiveRegionCode.value,
+                    language = userPreferences.value.languageCode
+                )
+                pickedForYouItems.value = items
+            } finally {
+                isLoadingPickedForYou.value = false
+            }
+        }
+    }
+
     fun signOut(context: Context) {
         syncJob?.cancel()
+        matchRoomObserverJob?.cancel()
+        _matchRoomState.value = MatchRoomUiState.Idle
         activeSyncUid = null
         isSyncingCloud.value = false
         selectedCollectionFilter.value = null
         selectedMediaId.value = null
+        monetizationManager.resetOnSignOut()
         FirebaseAuthHelper.signOut(context, viewModelScope) {
             syncStatusMessage.value = "Signed out — device library cleared"
         }
@@ -988,6 +1424,34 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun findKnownMedia(id: String): MediaEntity? {
+        return allMedia.value.find { it.id == id }
+            ?: trendingItems.value.find { it.id == id }
+            ?: currentTopRatedList.value.find { it.id == id }
+            ?: pickedForYouItems.value.find { it.id == id }
+    }
+
+    private suspend fun ensureMediaInDb(id: String) {
+        if (repository.getMediaByIdDirect(id) == null) {
+            findKnownMedia(id)?.let { repository.ensureMediaCached(it) }
+        }
+    }
+
+    private suspend fun refreshActiveTvSeasonsIfSelected(id: String) {
+        if (selectedMediaId.value != id) return
+        val media = repository.getMediaByIdDirect(id) ?: findKnownMedia(id) ?: return
+        if (media.getMediaTypeEnum() != MediaType.TV_SHOW) return
+        val apiKey = getActiveTmdbApiKey()
+        val seasons = repository.getSeasonsForTvShow(media, apiKey)
+        if (selectedMediaId.value == id) {
+            currentTvSeasons.value = seasons
+            selectedSeasonForDetail.value?.let { openSeason ->
+                selectedSeasonForDetail.value = seasons.find { it.seasonNumber == openSeason.seasonNumber }
+                currentSeasonEpisodes.value = repository.getEpisodesForSeason(media, openSeason.seasonNumber, apiKey)
+            }
+        }
+    }
+
     fun selectMedia(id: String?) {
         selectedMediaId.value = id
         activeWatchProviders.value = null
@@ -998,12 +1462,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         currentTvSeasons.value = emptyList()
         currentSeasonEpisodes.value = emptyList()
         if (id != null) {
-            val media = allMedia.value.find { it.id == id }
-                ?: trendingItems.value.find { it.id == id }
-                ?: currentTopRatedList.value.find { it.id == id }
+            val media = findKnownMedia(id)
             val region = effectiveRegionCode.value
             val initialNames = media?.getCastList().orEmpty()
             if (media != null) {
+                viewModelScope.launch {
+                    repository.ensureMediaCached(media)
+                }
                 if (initialNames.isNotEmpty()) {
                     currentMediaCast.value = initialNames.map { CastMemberItem(name = it) }
                 }
@@ -1016,6 +1481,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val lang = userPreferences.value.languageCode
             if (id.startsWith("tmdb_m_") || id.startsWith("tmdb_tv_")) {
                 castLoadJob = viewModelScope.launch {
+                    if (media != null) {
+                        repository.ensureMediaCached(media)
+                    }
                     if (key.isNotBlank() && key != "YOUR_TMDB_API_KEY") {
                         val creditsCast = repository.fetchDetailsFromTmdb(id, key)
                         if (selectedMediaId.value == id && creditsCast.isNotEmpty()) {
@@ -1032,8 +1500,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                             activeWatchProviders.value = liveProviders
                         }
                         isLoadingWatchProviders.value = false
-                        allMedia.value.find { it.id == id }?.let { updated ->
-                            if (updated.getMediaTypeEnum() == MediaType.TV_SHOW) {
+                        (repository.getMediaByIdDirect(id) ?: findKnownMedia(id))?.let { updated ->
+                            if (selectedMediaId.value == id && updated.getMediaTypeEnum() == MediaType.TV_SHOW) {
                                 loadSeasonsForMedia(updated)
                             }
                         }
@@ -1173,30 +1641,38 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateStatus(id: String, status: WatchStatus) {
         viewModelScope.launch {
-            repository.updateStatus(id, status)
+            ensureMediaInDb(id)
+            repository.updateStatus(id, status, getActiveTmdbApiKey())
+            refreshActiveTvSeasonsIfSelected(id)
         }
     }
 
     fun incrementEpisode(id: String) {
         viewModelScope.launch {
-            repository.incrementEpisode(id)
+            ensureMediaInDb(id)
+            repository.incrementEpisode(id, getActiveTmdbApiKey())
+            refreshActiveTvSeasonsIfSelected(id)
         }
     }
 
     fun setWatchedEpisodes(id: String, episodes: Int) {
         viewModelScope.launch {
-            repository.updateWatchedEpisodes(id, episodes)
+            ensureMediaInDb(id)
+            repository.updateWatchedEpisodes(id, episodes, getActiveTmdbApiKey())
+            refreshActiveTvSeasonsIfSelected(id)
         }
     }
 
     fun updateRatingAndReview(id: String, rating: Float, review: String) {
         viewModelScope.launch {
+            ensureMediaInDb(id)
             repository.updateRatingAndReview(id, rating, review)
         }
     }
 
     fun toggleFavorite(id: String, current: Boolean) {
         viewModelScope.launch {
+            ensureMediaInDb(id)
             repository.toggleFavorite(id, current)
         }
     }
@@ -1260,8 +1736,21 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createCustomCollection(name: String, description: String = "") {
+        val clean = name.trim()
+        if (clean.isBlank()) return
+        val existingList = customCollections.value
+        val starterDefaults = setOf("Weekend Binge", "Mind-Bending Sci-Fi", "Must-Watch Classics", "Date Night", "Award Winners")
+        val userCreatedCount = existingList.count { it !in starterDefaults }
+        if (!BuildConfig.IS_V1_EDITION &&
+            !monetizationState.value.isPro &&
+            !existingList.any { it.equals(clean, ignoreCase = true) } &&
+            userCreatedCount >= MonetizationState.FREE_CUSTOM_COLLECTIONS_LIMIT
+        ) {
+            openPaywall("Free tier includes ${MonetizationState.FREE_CUSTOM_COLLECTIONS_LIMIT} custom collections. Upgrade to WatchPilot Pro for unlimited collections & CSV/JSON backup!")
+            return
+        }
         viewModelScope.launch {
-            repository.createCustomCollection(name, description)
+            repository.createCustomCollection(clean, description)
         }
     }
 
@@ -1385,5 +1874,553 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             )
             repository.saveMedia(item)
         }
+    }
+
+    // =========================================================================
+    // WatchPilot v2.0: Paywall, Billing, OTT Money-Saver, AI & Live Match Rooms
+    // =========================================================================
+
+    fun openPaywall(reason: String? = null) {
+        if (BuildConfig.IS_V1_EDITION) return
+        paywallTriggerReason.value = reason
+        showPaywallSheet.value = true
+    }
+
+    fun dismissPaywall() {
+        showPaywallSheet.value = false
+        paywallTriggerReason.value = null
+        monetizationManager.clearBillingMessage()
+    }
+
+    fun openSnapScanner() {
+        if (BuildConfig.IS_V1_EDITION) return
+        showSnapScannerSheet.value = true
+    }
+
+    fun closeSnapScanner() {
+        showSnapScannerSheet.value = false
+    }
+
+    fun openAiConcierge() {
+        if (BuildConfig.IS_V1_EDITION) return
+        showAiConciergeSheet.value = true
+    }
+
+    fun closeAiConcierge() {
+        showAiConciergeSheet.value = false
+    }
+
+    fun openSwipeMatch() {
+        if (BuildConfig.IS_V1_EDITION) return
+        showSwipeMatchSheet.value = true
+    }
+
+    fun closeSwipeMatch() {
+        showSwipeMatchSheet.value = false
+    }
+
+    fun reportMatchRoomAuthError(message: String) {
+        _matchRoomState.value = MatchRoomUiState.Error(message)
+    }
+
+    fun openOttMoneySaver() {
+        if (BuildConfig.IS_V1_EDITION) return
+        showOttMoneySaverSheet.value = true
+        refreshOttAuditProviders()
+    }
+
+    fun closeOttMoneySaver() {
+        showOttMoneySaverSheet.value = false
+    }
+
+    fun openLegalCompliance() {
+        showLegalComplianceDialog.value = true
+    }
+
+    fun closeLegalCompliance() {
+        showLegalComplianceDialog.value = false
+    }
+
+    fun purchasePro(activity: Activity, productId: String) {
+        monetizationManager.launchPurchaseFlow(activity, productId)
+    }
+
+    fun restorePurchases() {
+        monetizationManager.restorePurchases()
+    }
+
+    fun activateSandboxPro() {
+        monetizationManager.activateSandboxPro()
+    }
+
+    fun deactivateSandboxPro() {
+        monetizationManager.deactivateSandboxPro()
+    }
+
+    fun toggleSubscribedProvider(providerName: String) {
+        monetizationManager.toggleSubscribedProvider(providerName)
+        refreshOttAuditProviders()
+    }
+
+    fun setStreamOnMyAppsOnly(enabled: Boolean) {
+        if (enabled && !monetizationState.value.isPro) {
+            openPaywall("Filter your entire Library to 'On My Apps' with WatchPilot Pro.")
+            return
+        }
+        if (enabled && monetizationState.value.subscribedProviders.isEmpty()) {
+            openOttMoneySaver()
+            return
+        }
+        monetizationManager.setStreamOnMyAppsOnly(enabled)
+        if (enabled) {
+            refreshOttAuditProviders()
+        }
+    }
+
+    fun refreshOttAuditProviders() {
+        viewModelScope.launch {
+            val key = getActiveTmdbApiKey()
+            val region = effectiveRegionCode.value
+            repository.refreshWatchlistProvidersForAudit(region, key)
+        }
+    }
+
+    fun scanScreenshotUri(context: Context, uri: Uri) {
+        if (!monetizationState.value.canUseSnapScan) {
+            showSnapScannerSheet.value = false
+            openPaywall("You've used all ${MonetizationState.FREE_SNAP_SCANS_LIMIT} free AI Screenshot Scans! Unlock unlimited Reels/TikTok/Top-10 vision imports with WatchPilot Pro.")
+            return
+        }
+
+        viewModelScope.launch {
+            _snapScanState.value = SnapScanUiState.Scanning
+            try {
+                val bitmap = withContext(Dispatchers.IO) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        val source = ImageDecoder.createSource(context.contentResolver, uri)
+                        ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                            decoder.isMutableRequired = true
+                        }
+                    } else {
+                        context.contentResolver.openInputStream(uri)?.use { stream ->
+                            BitmapFactory.decodeStream(stream)
+                        }
+                    }
+                } ?: run {
+                    _snapScanState.value = SnapScanUiState.Error("Could not read the selected screenshot.")
+                    return@launch
+                }
+
+                val aiResult = aiService.extractMediaFromScreenshot(bitmap)
+                aiResult.fold(
+                    onSuccess = { rawItems ->
+                        if (rawItems.isEmpty()) {
+                            _snapScanState.value = SnapScanUiState.Error(
+                                "No movie or TV series titles were detected in this image. Try a clearer Reel caption, streaming row, or Top-10 list screenshot."
+                            )
+                            return@fold
+                        }
+                        val apiKey = getActiveTmdbApiKey()
+                        val region = effectiveRegionCode.value
+                        val candidates = coroutineScope {
+                            rawItems.map { raw ->
+                                async {
+                                    val resolved = repository.resolveTitleToMediaEntity(
+                                        rawTitle = raw.title,
+                                        releaseYear = raw.releaseYear,
+                                        preferredType = raw.mediaType,
+                                        apiKey = apiKey,
+                                        regionCode = region
+                                    )
+                                    ScannedMediaCandidate(
+                                        rawTitle = raw.title,
+                                        releaseYear = raw.releaseYear ?: resolved?.releaseYear,
+                                        mediaType = resolved?.getMediaTypeEnum() ?: raw.mediaType,
+                                        note = raw.note,
+                                        matchedEntity = resolved
+                                    )
+                                }
+                            }.awaitAll()
+                        }
+                        monetizationManager.recordSnapScanUsed()
+                        _snapScanState.value = SnapScanUiState.Success(candidates)
+                    },
+                    onFailure = { err ->
+                        _snapScanState.value = SnapScanUiState.Error(
+                            err.message ?: "Failed to analyze screenshot."
+                        )
+                    }
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _snapScanState.value = SnapScanUiState.Error(
+                    e.localizedMessage ?: "Screenshot analysis failed."
+                )
+            }
+        }
+    }
+
+    fun addScannedCandidateToWatchlist(candidate: ScannedMediaCandidate) {
+        viewModelScope.launch {
+            val entity = candidate.matchedEntity ?: MediaEntity(
+                id = "scan_" + UUID.randomUUID().toString().take(8),
+                title = candidate.rawTitle,
+                mediaType = candidate.mediaType.name,
+                releaseYear = candidate.releaseYear ?: 2025,
+                genres = "AI Scanned",
+                posterUrl = "",
+                backdropUrl = "",
+                overview = candidate.note,
+                directorOrCreator = "",
+                cast = "",
+                communityRating = 0f,
+                runtimeMinutes = if (candidate.mediaType == MediaType.MOVIE) 120 else 45,
+                totalSeasons = if (candidate.mediaType == MediaType.TV_SHOW) 1 else 0,
+                totalEpisodes = if (candidate.mediaType == MediaType.MOVIE) 1 else 10,
+                isCustom = true
+            )
+            repository.ensureMediaCached(entity)
+            repository.updateStatus(entity.id, WatchStatus.PLAN_TO_WATCH, getActiveTmdbApiKey())
+        }
+    }
+
+    fun addAllScannedToWatchlist() {
+        val current = _snapScanState.value as? SnapScanUiState.Success ?: return
+        viewModelScope.launch {
+            current.items.forEach { cand ->
+                val entity = cand.matchedEntity
+                if (entity != null) {
+                    repository.ensureMediaCached(entity)
+                    if (entity.getWatchStatusEnum() == WatchStatus.NONE) {
+                        repository.updateStatus(entity.id, WatchStatus.PLAN_TO_WATCH, getActiveTmdbApiKey())
+                    }
+                } else {
+                    addScannedCandidateToWatchlist(cand)
+                }
+            }
+        }
+    }
+
+    fun resetSnapScan() {
+        _snapScanState.value = SnapScanUiState.Idle
+    }
+
+    fun askAiConcierge(mood: String, timeBudget: String, audience: String) {
+        if (!monetizationState.value.canUseConcierge) {
+            showAiConciergeSheet.value = false
+            openPaywall("You've used all ${MonetizationState.FREE_CONCIERGE_LIMIT} free AI Concierge sessions! Upgrade to WatchPilot Pro for unlimited 'Tonight's Pick' recommendations.")
+            return
+        }
+
+        viewModelScope.launch {
+            _conciergeState.value = ConciergeUiState.Loading
+            val tracked = trackedMedia.value
+            val favAndRated = tracked
+                .filter { it.isFavorite || it.userRating >= 4.0f }
+                .sortedByDescending { it.userRating }
+                .map { "${it.title} (${it.releaseYear})" }
+            val unwatched = tracked
+                .filter { it.getWatchStatusEnum() == WatchStatus.PLAN_TO_WATCH }
+                .map { "${it.title} (${it.releaseYear})" }
+            val region = effectiveRegionCode.value
+            val subs = monetizationState.value.subscribedProviders
+
+            val result = aiService.generateConciergePicks(
+                mood = mood,
+                timeBudget = timeBudget,
+                audience = audience,
+                regionCode = region,
+                subscribedProviders = subs,
+                favoriteAndTopRatedTitles = favAndRated,
+                unwatchedWatchlistTitles = unwatched
+            )
+
+            result.fold(
+                onSuccess = { rawPicks ->
+                    val apiKey = getActiveTmdbApiKey()
+                    val enriched = coroutineScope {
+                        rawPicks.map { pick ->
+                            async {
+                                val entity = repository.resolveTitleToMediaEntity(
+                                    rawTitle = pick.title,
+                                    releaseYear = pick.releaseYear,
+                                    preferredType = pick.mediaType,
+                                    apiKey = apiKey,
+                                    regionCode = region
+                                )
+                                ConciergePick(
+                                    title = entity?.title ?: pick.title,
+                                    releaseYear = entity?.releaseYear ?: pick.releaseYear,
+                                    mediaType = entity?.getMediaTypeEnum() ?: pick.mediaType,
+                                    whyItFits = pick.whyItFits,
+                                    matchScore = pick.matchScore,
+                                    matchedEntity = entity
+                                )
+                            }
+                        }.awaitAll()
+                    }
+                    monetizationManager.recordConciergeUsed()
+                    _conciergeState.value = ConciergeUiState.Success(
+                        mood = mood,
+                        timeBudget = timeBudget,
+                        picks = enriched
+                    )
+                },
+                onFailure = { err ->
+                    _conciergeState.value = ConciergeUiState.Error(
+                        err.message ?: "Failed to generate Tonight's Picks."
+                    )
+                }
+            )
+        }
+    }
+
+    fun resetConcierge() {
+        _conciergeState.value = ConciergeUiState.Idle
+    }
+
+    fun createMatchRoom(selectedProviders: List<String>) {
+        if (currentUser.value == null) {
+            _matchRoomState.value = MatchRoomUiState.Error("Sign in with Google first to host a live Swipe-to-Match room.")
+            return
+        }
+        if (!monetizationState.value.canHostMatchRoom) {
+            showSwipeMatchSheet.value = false
+            openPaywall("Free tier includes ${MonetizationState.FREE_MATCH_ROOMS_LIMIT} hosted Swipe-to-Match room (joining a friend's code is always free!). Upgrade to WatchPilot Pro to host unlimited rooms.")
+            return
+        }
+
+        viewModelScope.launch {
+            _matchRoomState.value = MatchRoomUiState.Loading
+            skippedMatchCandidateIds.value = emptySet()
+            val region = effectiveRegionCode.value
+            val canonicalSelected = selectedProviders.map { OttMoneySaverCalculator.canonicalizeProvider(it) }.filter { it.isNotBlank() }.toSet()
+
+            val pool = (watchlistMedia.value + trendingItems.value + topRatedMovies.value + allMedia.value)
+                .distinctBy { it.id }
+                .filter { it.posterUrl.isNotBlank() }
+
+            val filteredPool = if (canonicalSelected.isNotEmpty()) {
+                val matching = pool.filter { OttMoneySaverCalculator.matchesAnySubscribedApp(it, region, canonicalSelected) }
+                if (matching.size >= 6) matching else (matching + pool).distinctBy { it.id }
+            } else {
+                pool
+            }
+
+            val candidates = filteredPool.take(15).map { item ->
+                val provs = item.getProvidersForRegion(region).take(2).joinToString(" • ").ifBlank { "Popular in $region" }
+                MatchCandidateCard(
+                    id = item.id,
+                    title = item.title,
+                    releaseYear = item.releaseYear,
+                    mediaType = item.mediaType,
+                    genres = item.getGenreList().take(2).joinToString(" • "),
+                    rating = item.communityRating,
+                    posterUrl = item.posterUrl,
+                    providersLabel = provs
+                )
+            }
+
+            if (candidates.isEmpty()) {
+                _matchRoomState.value = MatchRoomUiState.Error("Catalog is still loading — wait a moment and try creating the room again.")
+                return@launch
+            }
+
+            val hostName = currentUser.value?.displayName?.takeIf { it.isNotBlank() } ?: "WatchPilot Host"
+            val res = matchRoomRepo.createRoom(
+                hostName = hostName,
+                regionCode = region,
+                selectedProviders = canonicalSelected.toList(),
+                candidates = candidates
+            )
+            res.fold(
+                onSuccess = { room ->
+                    monetizationManager.recordMatchRoomHosted()
+                    _matchRoomState.value = MatchRoomUiState.Active(room)
+                    startObservingMatchRoom(room.roomCode)
+                },
+                onFailure = { err ->
+                    _matchRoomState.value = MatchRoomUiState.Error(
+                        err.localizedMessage ?: "Could not create room."
+                    )
+                }
+            )
+        }
+    }
+
+    fun joinMatchRoom(rawCode: String) {
+        if (currentUser.value == null) {
+            _matchRoomState.value = MatchRoomUiState.Error("Sign in with Google first to join a live Swipe-to-Match room.")
+            return
+        }
+        viewModelScope.launch {
+            _matchRoomState.value = MatchRoomUiState.Loading
+            skippedMatchCandidateIds.value = emptySet()
+            val res = matchRoomRepo.joinRoom(rawCode)
+            res.fold(
+                onSuccess = { room ->
+                    _matchRoomState.value = MatchRoomUiState.Active(room)
+                    startObservingMatchRoom(room.roomCode)
+                },
+                onFailure = { err ->
+                    _matchRoomState.value = MatchRoomUiState.Error(
+                        err.localizedMessage ?: "Failed to join room."
+                    )
+                }
+            )
+        }
+    }
+
+    private fun startObservingMatchRoom(roomCode: String) {
+        matchRoomObserverJob?.cancel()
+        matchRoomObserverJob = viewModelScope.launch {
+            matchRoomRepo.observeRoom(roomCode)
+                .catch { e ->
+                    if (e is CancellationException && e.cause == null) throw e
+                    _matchRoomState.value = MatchRoomUiState.Error(
+                        e.cause?.localizedMessage ?: e.localizedMessage ?: "Lost connection to room."
+                    )
+                }
+                .collect { room ->
+                    if (room != null) {
+                        _matchRoomState.value = MatchRoomUiState.Active(room)
+                    }
+                }
+        }
+    }
+
+    fun swipeMatchCard(candidate: MatchCandidateCard, liked: Boolean) {
+        val active = (_matchRoomState.value as? MatchRoomUiState.Active)?.room ?: return
+        if (!liked) {
+            skippedMatchCandidateIds.value = skippedMatchCandidateIds.value + candidate.id
+            return
+        }
+        viewModelScope.launch {
+            matchRoomRepo.recordRightSwipe(active.roomCode, candidate).fold(
+                onSuccess = { updatedRoom ->
+                    _matchRoomState.value = MatchRoomUiState.Active(updatedRoom)
+                },
+                onFailure = { err ->
+                    _matchRoomState.value = MatchRoomUiState.Error(
+                        err.localizedMessage ?: "Could not save your swipe. Check your connection and try again."
+                    )
+                }
+            )
+        }
+    }
+
+    fun leaveOrCloseMatchRoom() {
+        val active = (_matchRoomState.value as? MatchRoomUiState.Active)?.room
+        matchRoomObserverJob?.cancel()
+        skippedMatchCandidateIds.value = emptySet()
+        _matchRoomState.value = MatchRoomUiState.Idle
+        if (active != null && active.hostUid == currentUser.value?.uid && active.status == "OPEN") {
+            viewModelScope.launch {
+                matchRoomRepo.closeRoom(active.roomCode)
+            }
+        }
+    }
+
+    fun openMatchedMediaFromRoom(mediaId: String, title: String, year: Int, mediaTypeStr: String) {
+        showSwipeMatchSheet.value = false
+        viewModelScope.launch {
+            val existing = findKnownMedia(mediaId) ?: repository.getMediaByIdDirect(mediaId)
+            if (existing != null) {
+                repository.ensureMediaCached(existing)
+                selectMedia(existing.id)
+            } else {
+                val resolved = repository.resolveTitleToMediaEntity(
+                    rawTitle = title,
+                    releaseYear = year,
+                    preferredType = if (mediaTypeStr.equals("TV_SHOW", ignoreCase = true)) MediaType.TV_SHOW else MediaType.MOVIE,
+                    apiKey = getActiveTmdbApiKey(),
+                    regionCode = effectiveRegionCode.value
+                )
+                if (resolved != null) {
+                    selectMedia(resolved.id)
+                }
+            }
+        }
+    }
+
+    fun importLibraryFromUri(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            isImportingCsv.value = true
+            csvImportMessage.value = null
+            try {
+                val csvText = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                }
+                if (csvText.isNullOrBlank()) {
+                    csvImportMessage.value = "Selected file is empty or unreadable."
+                    return@launch
+                }
+                val res = repository.importCsvLibrary(
+                    csvContent = csvText,
+                    apiKey = getActiveTmdbApiKey(),
+                    regionCode = effectiveRegionCode.value
+                )
+                csvImportMessage.value = res.message
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                csvImportMessage.value = "CSV import error: ${e.localizedMessage ?: "Invalid CSV format"}"
+            } finally {
+                isImportingCsv.value = false
+            }
+        }
+    }
+
+    fun clearCsvImportMessage() {
+        csvImportMessage.value = null
+    }
+
+    fun exportLibrary(
+        context: Context,
+        asJson: Boolean,
+        onShareIntentReady: (Intent) -> Unit
+    ) {
+        if (!BuildConfig.IS_V1_EDITION && !monetizationState.value.isPro) {
+            openPaywall("Portable CSV & JSON backup export is included with WatchPilot Pro (importing from Moviebase/IMDb/Letterboxd/Trakt is always 100% free!).")
+            return
+        }
+        viewModelScope.launch {
+            val tracked = trackedMedia.value
+            if (tracked.isEmpty()) {
+                csvImportMessage.value = "Track at least 1 movie or TV show before exporting a backup."
+                return@launch
+            }
+            val intentRes = withContext(Dispatchers.IO) {
+                CsvLibraryPorter.shareExportFile(context, tracked, asJson)
+            }
+            intentRes.fold(
+                onSuccess = { intent -> onShareIntentReady(intent) },
+                onFailure = { err -> csvImportMessage.value = "Export failed: ${err.localizedMessage}" }
+            )
+        }
+    }
+
+    fun shareWrappedCard(
+        context: Context,
+        onShareIntentReady: (Intent) -> Unit
+    ) {
+        viewModelScope.launch {
+            val userName = currentUser.value?.displayName?.takeIf { it.isNotBlank() } ?: "Cinephile"
+            val currentStats = stats.value
+            val res = withContext(Dispatchers.IO) {
+                WrappedCardExporter.createShareableWrappedIntent(context, userName, currentStats)
+            }
+            res.fold(
+                onSuccess = { intent -> onShareIntentReady(intent) },
+                onFailure = { err -> syncStatusMessage.value = "Could not create Wrapped card: ${err.localizedMessage}" }
+            )
+        }
+    }
+
+    override fun onCleared() {
+        matchRoomObserverJob?.cancel()
+        monetizationManager.destroy()
+        super.onCleared()
     }
 }

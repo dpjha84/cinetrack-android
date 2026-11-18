@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,18 +29,22 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -46,6 +52,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -59,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,13 +74,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.BuildConfig
 import com.example.data.local.FavoritePersonEntity
 import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
 import com.example.data.model.WatchStatus
+import com.example.ui.components.SponsoredBannerCard
 import com.example.ui.components.WatchStatusPill
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
+import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.viewmodel.LibraryTab
 import com.example.ui.viewmodel.MediaViewModel
@@ -85,12 +96,35 @@ fun LibraryScreen(
     onExploreClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val selectedTab by viewModel.selectedLibraryTab.collectAsStateWithLifecycle()
     val sortOption by viewModel.librarySortOption.collectAsStateWithLifecycle()
     val selectedCollection by viewModel.selectedCollectionFilter.collectAsStateWithLifecycle()
     val customCollections by viewModel.customCollections.collectAsStateWithLifecycle()
     val libraryItems by viewModel.filteredLibrary.collectAsStateWithLifecycle()
     val favoritePeople by viewModel.favoritePeople.collectAsStateWithLifecycle()
+    val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
+    val isImportingCsv by viewModel.isImportingCsv.collectAsStateWithLifecycle()
+    val csvImportMessage by viewModel.csvImportMessage.collectAsStateWithLifecycle()
+
+    val csvPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.importLibraryFromUri(context, uri)
+        }
+    }
+
+    val launchCsvImport = {
+        csvPickerLauncher.launch(
+            arrayOf(
+                "text/*",
+                "text/comma-separated-values",
+                "application/csv",
+                "application/octet-stream"
+            )
+        )
+    }
 
     val visibleFavoritePeople = remember(selectedTab, selectedCollection, favoritePeople, sortOption) {
         if (selectedTab == LibraryTab.FAVORITES && selectedCollection == null) {
@@ -103,12 +137,13 @@ fun LibraryScreen(
         }
     }
 
-    val headerSubtitle = remember(selectedTab, libraryItems.size, visibleFavoritePeople.size) {
+    val headerSubtitle = remember(selectedTab, libraryItems.size, visibleFavoritePeople.size, monetizationState.streamOnMyAppsOnly) {
+        val filterSuffix = if (monetizationState.streamOnMyAppsOnly) " • On My Apps" else ""
         if (selectedTab == LibraryTab.FAVORITES && visibleFavoritePeople.isNotEmpty()) {
             val total = libraryItems.size + visibleFavoritePeople.size
-            "$total favorites (${libraryItems.size} titles • ${visibleFavoritePeople.size} people)"
+            "$total favorites (${libraryItems.size} titles • ${visibleFavoritePeople.size} people)$filterSuffix"
         } else {
-            "${libraryItems.size} titles logged"
+            "${libraryItems.size} titles logged$filterSuffix"
         }
     }
 
@@ -125,7 +160,11 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp)
+            ) {
                 Text(
                     text = "My Library",
                     style = MaterialTheme.typography.headlineMedium,
@@ -138,27 +177,83 @@ fun LibraryScreen(
                 )
             }
 
-            Surface(
+            if (!BuildConfig.IS_V1_EDITION) {
+                FilledTonalButton(
+                    onClick = launchCsvImport,
+                    enabled = !isImportingCsv,
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = CinemaGold.copy(alpha = 0.16f),
+                        contentColor = CinemaGold
+                    ),
+                    modifier = Modifier.testTag("btn_import_csv_library")
+                ) {
+                    if (isImportingCsv) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = CinemaGold,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.FileUpload,
+                            contentDescription = "Import CSV",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isImportingCsv) "Importing..." else "Import CSV",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+        }
+
+        if (!BuildConfig.IS_V1_EDITION && (isImportingCsv || !csvImportMessage.isNullOrBlank())) {
+            Card(
                 shape = RoundedCornerShape(12.dp),
-                color = CinemaGold.copy(alpha = 0.15f)
+                colors = CardDefaults.cardColors(
+                    containerColor = CinemaCyan.copy(alpha = 0.14f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .testTag("banner_csv_import_status")
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.VideoLibrary,
-                        contentDescription = null,
-                        tint = CinemaGold,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "LIBRARY",
-                        color = CinemaGold,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        text = if (isImportingCsv) {
+                            "Importing & enriching your watchlist via TMDB..."
+                        } else {
+                            csvImportMessage.orEmpty()
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
                     )
+                    if (!isImportingCsv) {
+                        IconButton(
+                            onClick = { viewModel.clearCsvImportMessage() },
+                            modifier = Modifier.minimumInteractiveComponentSize()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Dismiss import notice",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -212,7 +307,7 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Sort Options & Collections Bar
+        // OTT Smart Filters + Sort Options + Collections Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -221,6 +316,59 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (!BuildConfig.IS_V1_EDITION) {
+                FilterChip(
+                    selected = monetizationState.streamOnMyAppsOnly,
+                    onClick = { viewModel.setStreamOnMyAppsOnly(!monetizationState.streamOnMyAppsOnly) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Subscriptions,
+                            contentDescription = null,
+                            tint = if (monetizationState.streamOnMyAppsOnly) CinemaCyan else CinemaGold,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = if (monetizationState.isPro) "On My Apps" else "On My Apps • PRO",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = CinemaCyan.copy(alpha = 0.2f),
+                        selectedLabelColor = CinemaCyan
+                    ),
+                    modifier = Modifier.testTag("chip_on_my_apps")
+                )
+
+                FilterChip(
+                    selected = false,
+                    onClick = { viewModel.openOttMoneySaver() },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Savings,
+                            contentDescription = null,
+                            tint = CinemaGreen,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = "OTT Money-Saver",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CinemaGreen,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    },
+                    modifier = Modifier.testTag("chip_ott_money_saver")
+                )
+            }
+
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Sort,
                 contentDescription = "Sort",
@@ -232,7 +380,7 @@ fun LibraryScreen(
                 FilterChip(
                     selected = sortOption == option,
                     onClick = { viewModel.librarySortOption.value = option },
-                    label = { Text(option.label, fontSize = 11.sp) },
+                    label = { Text(option.label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = CinemaGold.copy(alpha = 0.2f),
                         selectedLabelColor = CinemaGold
@@ -245,7 +393,7 @@ fun LibraryScreen(
                 FilterChip(
                     selected = selectedCollection == null,
                     onClick = { viewModel.selectedCollectionFilter.value = null },
-                    label = { Text("All Lists", fontSize = 11.sp) }
+                    label = { Text("All Lists", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                 )
                 customCollections.forEach { col ->
                     FilterChip(
@@ -261,7 +409,7 @@ fun LibraryScreen(
                                 modifier = Modifier.size(12.dp)
                             )
                         },
-                        label = { Text(col, fontSize = 11.sp) }
+                        label = { Text(col, fontSize = 11.sp, maxLines = 1, softWrap = false) }
                     )
                 }
             }
@@ -289,16 +437,24 @@ fun LibraryScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "No items in ${selectedTab.label}",
+                        text = if (monetizationState.streamOnMyAppsOnly) {
+                            "No ${selectedTab.label} titles on your selected apps"
+                        } else {
+                            "No items in ${selectedTab.label}"
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = if (selectedTab == LibraryTab.FAVORITES) {
+                        text = if (monetizationState.streamOnMyAppsOnly) {
+                            "Try turning off 'On My Apps' or add more streaming apps in OTT Money-Saver."
+                        } else if (selectedTab == LibraryTab.FAVORITES) {
                             "Favorite movies, TV series, or people to find them quickly here."
+                        } else if (BuildConfig.IS_V1_EDITION) {
+                            "Discover trending movies & TV shows and track what you watch."
                         } else {
-                            "Discover movies and TV series to start tracking your watch journey."
+                            "Discover titles or import your existing Moviebase, IMDb, Letterboxd, or Trakt CSV for free."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -309,11 +465,29 @@ fun LibraryScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = CinemaGold,
                             contentColor = MaterialTheme.colorScheme.surface
-                        )
+                        ),
+                        modifier = Modifier.testTag("btn_explore_from_empty_library")
                     ) {
                         Icon(imageVector = Icons.Default.Explore, contentDescription = null)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Explore Titles", fontWeight = FontWeight.Bold)
+                    }
+                    if (!BuildConfig.IS_V1_EDITION) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = launchCsvImport,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.testTag("btn_import_csv_empty_state")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FileUpload,
+                                contentDescription = null,
+                                tint = CinemaGold,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Import Moviebase / IMDb CSV (Free)")
+                        }
                     }
                 }
             }
@@ -360,6 +534,17 @@ fun LibraryScreen(
                         media = item,
                         onClick = { onMediaClick(item.id) },
                         onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
+                    )
+                }
+
+                item(key = "library_sponsored_slot") {
+                    SponsoredBannerCard(
+                        isPro = monetizationState.isPro,
+                        onRemoveAdsClick = {
+                            viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
+                        },
+                        tagSuffix = "library",
+                        modifier = Modifier.padding(top = 6.dp)
                     )
                 }
             }
@@ -559,12 +744,16 @@ fun LibraryItemCard(
                 )
 
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val seasonLabel = if (media.totalSeasons == 1) "1 Season" else "${media.totalSeasons} Seasons"
                     Text(
-                        text = "${media.releaseYear} • ${if (media.getMediaTypeEnum() == MediaType.MOVIE) "Movie" else "${media.totalSeasons} Season"}",
+                        text = "${media.releaseYear} • ${if (media.getMediaTypeEnum() == MediaType.MOVIE) "Movie" else seasonLabel}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
                     )
 
                     if (media.customWatchlist != null) {
@@ -573,7 +762,9 @@ fun LibraryItemCard(
                             text = "• ${media.customWatchlist}",
                             style = MaterialTheme.typography.labelSmall,
                             color = CinemaGold,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -587,7 +778,12 @@ fun LibraryItemCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (media.userRating > 0f) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 6.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Star,
                                 contentDescription = null,
@@ -599,14 +795,21 @@ fun LibraryItemCard(
                                 text = media.getFormattedUserRating(),
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
-                                color = CinemaGold
+                                color = CinemaGold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     } else {
                         Text(
                             text = "⭐ ${media.communityRating}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 6.dp)
                         )
                     }
 
@@ -615,7 +818,9 @@ fun LibraryItemCard(
                             text = "${media.watchedEpisodes} / ${media.totalEpisodes} eps",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = CinemaCyan
+                            color = CinemaCyan,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -668,7 +873,7 @@ fun LibraryItemCard(
                         contentDescription = "Log Episode",
                         modifier = Modifier.size(16.dp)
                     )
-                    Text("+1", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("+1", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
         }

@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.time.Duration
 
 plugins {
   alias(libs.plugins.android.application)
@@ -8,18 +9,34 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+val watchPilotEdition =
+  providers.gradleProperty("WATCHPILOT_EDITION").orNull?.trim()?.lowercase() ?: "v2"
+val isV1Edition = watchPilotEdition == "v1"
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.cinetrack.tvexpl"
+    applicationId = "com.dpjha.moviebuddy"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = if (isV1Edition) 500 else 600
+    versionName = if (isV1Edition) "5.0.0" else "6.0.0"
+    buildConfigField("boolean", "IS_V1_EDITION", isV1Edition.toString())
+    buildConfigField("String", "EDITION_NAME", "\"${if (isV1Edition) "v1.0" else "v2.0"}\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    androidResources {
+      localeFilters += listOf("en", "hi", "es", "fr", "ja", "ko", "ta", "te")
+    }
+  }
+
+  sourceSets {
+    getByName("main") {
+      kotlin.directories.add(if (isV1Edition) "src/editionV1/java" else "src/editionV2/java")
+    }
   }
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,
@@ -121,6 +138,10 @@ dependencies {
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
+  if (!isV1Edition) {
+    implementation(libs.billing.ktx)
+  }
+  implementation(libs.play.services.ads)
   implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
@@ -138,3 +159,12 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+tasks.withType<Test> {
+  failFast = true
+  timeout.set(Duration.ofMinutes(2))
+  testLogging {
+    events("passed", "failed", "skipped")
+  }
+}
+

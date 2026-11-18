@@ -83,3 +83,10 @@ fun CineTrackTheme(
     darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) = MovieverseTheme(darkTheme = darkTheme, content = content)
+
+@Composable
+fun WatchPilotTheme(
+    darkTheme: Boolean = true,
+    content: @Composable () -> Unit
+) = MovieverseTheme(darkTheme = darkTheme, content = content)
+

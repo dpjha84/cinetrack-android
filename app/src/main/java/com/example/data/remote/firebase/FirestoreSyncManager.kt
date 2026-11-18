@@ -14,7 +14,12 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
-class FirestoreSyncManager(private val context: Context) {
+import com.example.data.model.MonetizationState
+
+class FirestoreSyncManager(
+    private val context: Context,
+    private val injectedFirestore: FirebaseFirestore? = null
+) {
     private val TAG = "FirestoreSyncManager"
 
     private val syncPrefs by lazy {
@@ -32,12 +37,37 @@ class FirestoreSyncManager(private val context: Context) {
     }
 
     val firestore: FirebaseFirestore by lazy {
-        val dbId = try {
-            context.getString(R.string.firestore_database_id)
-        } catch (_: Exception) {
-            "ai-studio-android-cinetrac-4ecf9912-7c55-47f4-8738-c1cd6f12de97"
+        injectedFirestore ?: run {
+            val dbId = try {
+                context.getString(R.string.firestore_database_id).trim()
+            } catch (_: Exception) {
+                "(default)"
+            }
+            if (dbId.isBlank() || dbId == "(default)") {
+                FirebaseFirestore.getInstance()
+            } else {
+                FirebaseFirestore.getInstance(dbId)
+            }
         }
-        FirebaseFirestore.getInstance(dbId)
+    }
+
+    suspend fun uploadMonetizationEntitlement(userId: String, state: MonetizationState) {
+        if (userId.isBlank()) return
+        try {
+            val docRef = firestore.collection("users").document(userId)
+                .collection("monetization").document("entitlement")
+            val payload = hashMapOf(
+                "isPro" to state.isPro,
+                "planType" to state.planType.name,
+                "subscribedProviders" to state.subscribedProviders.joinToString(",").take(1000),
+                "streamOnMyAppsOnly" to state.streamOnMyAppsOnly,
+                "userId" to userId,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            docRef.set(payload, SetOptions.merge()).await()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to upload monetization entitlement to Firestore: ${e.message}")
+        }
     }
 
     suspend fun uploadTrackedMedia(userId: String, item: MediaEntity) {
@@ -336,7 +366,17 @@ class FirestoreSyncManager(private val context: Context) {
                 )
             }
 
-            CloudDataPackage(mediaList, collections, prefs, searches, favPeople, tvProgress)
+            val entDoc = userRef.collection("monetization").document("entitlement").get().await()
+            val cloudEntitlement = if (entDoc.exists()) {
+                CloudEntitlement(
+                    isPro = entDoc.getBoolean("isPro") ?: false,
+                    planType = entDoc.getString("planType") ?: "FREE",
+                    subscribedProviders = entDoc.getString("subscribedProviders").orEmpty(),
+                    streamOnMyAppsOnly = entDoc.getBoolean("streamOnMyAppsOnly") ?: false
+                )
+            } else null
+
+            CloudDataPackage(mediaList, collections, prefs, searches, favPeople, tvProgress, cloudEntitlement)
         } catch (e: Exception) {
             Log.e(TAG, "Error pulling data from Firestore: ${e.message}", e)
             null
@@ -353,7 +393,8 @@ class FirestoreSyncManager(private val context: Context) {
                 "preferences",
                 "search_history",
                 "favorite_people",
-                "tv_progress"
+                "tv_progress",
+                "monetization"
             )
             for (sub in subcollections) {
                 val snapshot = userRef.collection(sub).get().await()
@@ -369,12 +410,20 @@ class FirestoreSyncManager(private val context: Context) {
         }
     }
 
+    data class CloudEntitlement(
+        val isPro: Boolean,
+        val planType: String,
+        val subscribedProviders: String,
+        val streamOnMyAppsOnly: Boolean
+    )
+
     data class CloudDataPackage(
         val media: List<MediaEntity>,
         val collections: List<CustomCollectionEntity>,
         val preferences: UserPreferencesEntity?,
         val searchHistory: List<SearchHistoryEntity>,
         val favoritePeople: List<FavoritePersonEntity> = emptyList(),
-        val tvProgress: List<TvProgressEntity> = emptyList()
+        val tvProgress: List<TvProgressEntity> = emptyList(),
+        val entitlement: CloudEntitlement? = null
     )
 }

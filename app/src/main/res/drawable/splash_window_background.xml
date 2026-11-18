@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_obsidian" />
+    <item
+        android:width="140dp"
+        android:height="140dp"
+        android:drawable="@drawable/watchpilot_aperture_icon"
+        android:gravity="center" />
+</layer-list>

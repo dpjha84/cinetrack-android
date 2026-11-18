@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -84,7 +85,12 @@ fun LocalizationPreferencesDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Public,
                             contentDescription = null,
@@ -203,7 +209,7 @@ fun LocalizationPreferencesDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    RegionalDefaults.supportedLanguages.chunked(3).forEach { rowLangs ->
+                    RegionalDefaults.supportedLanguages.chunked(2).forEach { rowLangs ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -212,13 +218,23 @@ fun LocalizationPreferencesDialog(
                                 FilterChip(
                                     selected = selectedLanguage.equals(lang.code, ignoreCase = true),
                                     onClick = { selectedLanguage = lang.code },
-                                    label = { Text("${lang.flag} ${lang.nativeName}", fontSize = 11.sp) },
+                                    label = {
+                                        Text(
+                                            text = "${lang.flag} ${lang.nativeName}",
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = CinemaGold,
                                         selectedLabelColor = MaterialTheme.colorScheme.surface
                                     ),
                                     modifier = Modifier.weight(1f)
                                 )
+                            }
+                            if (rowLangs.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -232,7 +248,11 @@ fun LocalizationPreferencesDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
                         Text(
                             text = "Filter Discover to this language only",
                             style = MaterialTheme.typography.bodySmall,

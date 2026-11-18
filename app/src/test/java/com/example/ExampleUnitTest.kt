@@ -69,5 +69,26 @@ class ExampleUnitTest {
     assertFalse(nonEmpty.isEmpty)
     assertEquals(1, nonEmpty.allProviders.size)
   }
+
+  @Test
+  fun testTrailerInterstitialThreeMinuteCooldown() {
+    val startMs = 1_700_000_000_000L
+    // First-ever trailer playback is eligible once loaded
+    assertTrue(com.example.util.TrailerInterstitialAdManager.shouldShowInterstitialNow(startMs, 0L))
+    // 2 minutes 59 seconds later is still inside the 3-minute cooldown
+    assertFalse(
+        com.example.util.TrailerInterstitialAdManager.shouldShowInterstitialNow(
+            nowEpochMs = startMs + 179_999L,
+            lastShownEpochMs = startMs
+        )
+    )
+    // Exactly 3 minutes (180,000 ms) later becomes eligible again
+    assertTrue(
+        com.example.util.TrailerInterstitialAdManager.shouldShowInterstitialNow(
+            nowEpochMs = startMs + 180_000L,
+            lastShownEpochMs = startMs
+        )
+    )
+  }
 }
 

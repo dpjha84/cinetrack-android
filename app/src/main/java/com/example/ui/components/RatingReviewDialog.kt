@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -89,7 +91,11 @@ fun RatingReviewDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
                         Text(
                             text = "Rate (1–5 Stars)",
                             style = MaterialTheme.typography.titleLarge,
@@ -150,7 +156,9 @@ fun RatingReviewDialog(
                         text = String.format("%.1f / 5.0", rating),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = CinemaGold
+                        color = CinemaGold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Surface(
@@ -162,6 +170,8 @@ fun RatingReviewDialog(
                             color = CinemaGold,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -182,14 +192,16 @@ fun RatingReviewDialog(
 
                 // Quick preset pills (1★, 2★, 3★, 4★, 5★)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf(1f, 2f, 3f, 4f, 5f).forEach { star ->
                         FilterChip(
                             selected = rating == star,
                             onClick = { rating = star },
-                            label = { Text("${star.toInt()} ★") },
+                            label = { Text("${star.toInt()} ★", maxLines = 1, softWrap = false) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CinemaGold,
                                 selectedLabelColor = MaterialTheme.colorScheme.surface

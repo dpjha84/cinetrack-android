@@ -87,27 +87,30 @@ fun MediaPosterCard(
                     .aspectRatio(2f / 3f)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.banner_cinema),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-
                 val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
                 if (posterSource.isNotBlank()) {
                     val context = LocalContext.current
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
+                    val imageRequest = androidx.compose.runtime.remember(posterSource, context) {
+                        ImageRequest.Builder(context)
                             .data(posterSource)
                             .crossfade(true)
                             .placeholder(R.drawable.banner_cinema)
                             .error(R.drawable.banner_cinema)
-                            .build(),
+                            .build()
+                    }
+                    AsyncImage(
+                        model = imageRequest,
                         contentDescription = media.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
                         alignment = Alignment.Center
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(id = R.drawable.banner_cinema),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
                 }
 
@@ -150,12 +153,16 @@ fun MediaPosterCard(
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White,
                             fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = media.getOriginFlag(),
-                            fontSize = 10.sp
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -186,7 +193,9 @@ fun MediaPosterCard(
                             style = MaterialTheme.typography.labelSmall,
                             color = if (isUserRated) Color.Black else Color.White,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -224,7 +233,9 @@ fun MediaPosterCard(
                     Text(
                         text = "${media.releaseYear}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
                     )
 
                     if (media.getMediaTypeEnum() == MediaType.TV_SHOW && media.totalEpisodes > 0) {
@@ -232,13 +243,17 @@ fun MediaPosterCard(
                             text = "${media.watchedEpisodes}/${media.totalEpisodes} eps",
                             style = MaterialTheme.typography.bodySmall,
                             color = CinemaCyan,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     } else {
                         Text(
                             text = "${media.runtimeMinutes}m",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -293,27 +308,30 @@ fun ContinueWatchingCard(
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.banner_cinema),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-
                 val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
                 if (posterSource.isNotBlank()) {
                     val context = LocalContext.current
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
+                    val imageRequest = androidx.compose.runtime.remember(posterSource, context) {
+                        ImageRequest.Builder(context)
                             .data(posterSource)
                             .crossfade(true)
                             .placeholder(R.drawable.banner_cinema)
                             .error(R.drawable.banner_cinema)
-                            .build(),
+                            .build()
+                    }
+                    AsyncImage(
+                        model = imageRequest,
                         contentDescription = media.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
                         alignment = Alignment.Center
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(id = R.drawable.banner_cinema),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
                 }
             }
@@ -336,6 +354,8 @@ fun ContinueWatchingCard(
                             color = CinemaCyan,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }
@@ -407,7 +427,9 @@ fun ContinueWatchingCard(
                     Text(
                         text = "1 Ep",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -440,6 +462,8 @@ fun WatchStatusPill(
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             fontSize = 10.sp,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }
