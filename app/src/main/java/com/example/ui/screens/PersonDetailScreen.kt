@@ -21,7 +21,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -81,6 +86,7 @@ import com.example.data.remote.tmdb.TmdbPersonDetailDto
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaRed
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 
 private enum class CreditFilter(val label: String) {
     ALL("All"),
@@ -141,21 +147,189 @@ fun PersonDetailScreen(
     }
 
     val trackedMap = remember(trackedMedia) { trackedMedia.associateBy { it.id } }
+    val adaptive = LocalAdaptiveLayoutInfo.current
+    val gridColumns = adaptive.cardGridColumns
+    val bio = detailDto?.biography?.takeIf { it.isNotBlank() }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .testTag("person_detail_screen"),
-        contentPadding = PaddingValues(bottom = 48.dp)
+    if (adaptive.isTabletOrWide) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(gridColumns),
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .testTag("person_detail_screen"),
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 56.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item(span = { GridItemSpan(gridColumns) }) {
+                PersonHeroBanner(
+                    displayName = displayName,
+                    department = department,
+                    profileUrl = profileUrl,
+                    detailDto = detailDto,
+                    isFavorite = isFavorite,
+                    isTablet = true,
+                    onBack = onBack,
+                    onToggleFavorite = onToggleFavorite
+                )
+            }
+
+            if (isLoading) {
+                item(span = { GridItemSpan(gridColumns) }) {
+                    PersonLoadingRow()
+                }
+            }
+
+            if (bio != null) {
+                item(span = { GridItemSpan(gridColumns) }) {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        PersonBiographySection(
+                            bio = bio,
+                            isBioExpanded = isBioExpanded,
+                            onToggleExpand = { isBioExpanded = !isBioExpanded },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = 1040.dp)
+                        )
+                    }
+                }
+            }
+
+            item(span = { GridItemSpan(gridColumns) }) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    PersonFilmographyHeader(
+                        totalCreditsCount = allCredits.size,
+                        filteredCreditsCount = filteredCredits.size,
+                        hasMovies = hasMovies,
+                        hasTvShows = hasTvShows,
+                        selectedFilter = selectedFilter,
+                        onSelectFilter = { selectedFilter = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 1040.dp)
+                    )
+                }
+            }
+
+            if (filteredCredits.isNotEmpty()) {
+                gridItems(filteredCredits, key = { it.id }) { media ->
+                    val currentEntity = trackedMap[media.id] ?: media
+                    val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
+
+                    PersonCreditCard(
+                        media = currentEntity,
+                        isInWatchlist = isInWatchlist,
+                        onCardClick = { onMediaClick(currentEntity) },
+                        onToggleWatchlist = { onToggleWatchlist(currentEntity) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            } else if (!isLoading) {
+                item(span = { GridItemSpan(gridColumns) }) {
+                    PersonEmptyFilmography()
+                }
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .testTag("person_detail_screen"),
+            contentPadding = PaddingValues(bottom = 48.dp)
+        ) {
+            // Hero Portrait & Header Banner
+            item {
+                PersonHeroBanner(
+                    displayName = displayName,
+                    department = department,
+                    profileUrl = profileUrl,
+                    detailDto = detailDto,
+                    isFavorite = isFavorite,
+                    isTablet = false,
+                    onBack = onBack,
+                    onToggleFavorite = onToggleFavorite
+                )
+            }
+
+            // Loading indicator
+            if (isLoading) {
+                item {
+                    PersonLoadingRow()
+                }
+            }
+
+            // Biography Section
+            if (bio != null) {
+                item {
+                    PersonBiographySection(
+                        bio = bio,
+                        isBioExpanded = isBioExpanded,
+                        onToggleExpand = { isBioExpanded = !isBioExpanded },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
+
+            // Filmography Header + Optional Filter Chips
+            item {
+                PersonFilmographyHeader(
+                    totalCreditsCount = allCredits.size,
+                    filteredCreditsCount = filteredCredits.size,
+                    hasMovies = hasMovies,
+                    hasTvShows = hasTvShows,
+                    selectedFilter = selectedFilter,
+                    onSelectFilter = { selectedFilter = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)
+                )
+            }
+
+            // Filmography List
+            if (filteredCredits.isNotEmpty()) {
+                items(filteredCredits, key = { it.id }) { media ->
+                    val currentEntity = trackedMap[media.id] ?: media
+                    val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
+
+                    PersonCreditCard(
+                        media = currentEntity,
+                        isInWatchlist = isInWatchlist,
+                        onCardClick = { onMediaClick(currentEntity) },
+                        onToggleWatchlist = { onToggleWatchlist(currentEntity) },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+            } else if (!isLoading) {
+                item {
+                    PersonEmptyFilmography()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PersonHeroBanner(
+    displayName: String,
+    department: String,
+    profileUrl: String?,
+    detailDto: TmdbPersonDetailDto?,
+    isFavorite: Boolean,
+    isTablet: Boolean,
+    onBack: () -> Unit,
+    onToggleFavorite: () -> Unit
+) {
+    val context = LocalContext.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(if (isTablet) RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp) else RoundedCornerShape(0.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
     ) {
-        // Hero Portrait & Header Banner
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
-            ) {
                 // Atmospheric ambient backdrop
                 Image(
                     painter = painterResource(id = R.drawable.banner_cinema),
@@ -196,8 +370,9 @@ fun PersonDetailScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .then(if (isTablet) Modifier.widthIn(max = 1040.dp).align(Alignment.Center) else Modifier)
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = if (isTablet) 24.dp else 16.dp, vertical = if (isTablet) 18.dp else 12.dp)
                 ) {
                     // Top Bar with Back and Favorite Buttons
                     Row(
@@ -257,7 +432,7 @@ fun PersonDetailScreen(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(108.dp)
+                                .size(if (isTablet) 128.dp else 108.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .border(2.dp, CinemaGold.copy(alpha = 0.85f), CircleShape),
@@ -356,171 +531,133 @@ fun PersonDetailScreen(
                     }
                 }
             }
-        }
+}
 
-        // Loading indicator
-        if (isLoading) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = CinemaGold,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Loading biography & filmography...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
+@Composable
+private fun PersonLoadingRow() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(20.dp),
+            color = CinemaGold,
+            strokeWidth = 2.dp
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = "Loading biography & filmography...",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
 
-        // Biography Section
-        val bio = detailDto?.biography?.takeIf { it.isNotBlank() }
-        if (bio != null) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .animateContentSize()
-                ) {
-                    Text(
-                        text = "Biography",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = bio,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 22.sp,
-                        maxLines = if (isBioExpanded) Int.MAX_VALUE else 5,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (bio.length > 260) {
-                        TextButton(
-                            onClick = { isBioExpanded = !isBioExpanded },
-                            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
-                            modifier = Modifier.testTag("btn_toggle_person_bio")
-                        ) {
-                            Text(
-                                text = if (isBioExpanded) "Show less" else "Read full biography",
-                                color = CinemaCyan,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Filmography Header + Optional Filter Chips
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)
+@Composable
+private fun PersonBiographySection(
+    bio: String,
+    isBioExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.animateContentSize()
+    ) {
+        Text(
+            text = "Biography",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = bio,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 22.sp,
+            maxLines = if (isBioExpanded) Int.MAX_VALUE else 5,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (bio.length > 260) {
+            TextButton(
+                onClick = onToggleExpand,
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
+                modifier = Modifier.testTag("btn_toggle_person_bio")
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Filmography & Credits",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp)
-                    )
-                    if (allCredits.isNotEmpty()) {
-                        Text(
-                            text = "${filteredCredits.size} titles",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = CinemaGold,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-                }
-
-                if (hasMovies && hasTvShows) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CreditFilter.entries.forEach { filter ->
-                            val selected = selectedFilter == filter
-                            FilterChip(
-                                selected = selected,
-                                onClick = { selectedFilter = filter },
-                                label = {
-                                    Text(
-                                        text = filter.label,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = CinemaGold.copy(alpha = 0.22f),
-                                    selectedLabelColor = CinemaGold
-                                ),
-                                modifier = Modifier.testTag("person_filter_${filter.name.lowercase()}")
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Filmography List
-        if (filteredCredits.isNotEmpty()) {
-            items(filteredCredits, key = { it.id }) { media ->
-                val currentEntity = trackedMap[media.id] ?: media
-                val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
-
-                PersonCreditCard(
-                    media = currentEntity,
-                    isInWatchlist = isInWatchlist,
-                    onCardClick = { onMediaClick(currentEntity) },
-                    onToggleWatchlist = { onToggleWatchlist(currentEntity) }
+                Text(
+                    text = if (isBioExpanded) "Show less" else "Read full biography",
+                    color = CinemaCyan,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp
                 )
             }
-        } else if (!isLoading) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Movie,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(44.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "No filmography credits available.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+        }
+    }
+}
+
+@Composable
+private fun PersonFilmographyHeader(
+    totalCreditsCount: Int,
+    filteredCreditsCount: Int,
+    hasMovies: Boolean,
+    hasTvShows: Boolean,
+    selectedFilter: CreditFilter,
+    onSelectFilter: (CreditFilter) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Filmography & Credits",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp)
+            )
+            if (totalCreditsCount > 0) {
+                Text(
+                    text = "$filteredCreditsCount titles",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = CinemaGold,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+
+        if (hasMovies && hasTvShows) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CreditFilter.entries.forEach { filter ->
+                    val selected = selectedFilter == filter
+                    FilterChip(
+                        selected = selected,
+                        onClick = { onSelectFilter(filter) },
+                        label = {
+                            Text(
+                                text = filter.label,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = CinemaGold.copy(alpha = 0.22f),
+                            selectedLabelColor = CinemaGold
+                        ),
+                        modifier = Modifier.testTag("person_filter_${filter.name.lowercase()}")
                     )
                 }
             }
@@ -529,18 +666,41 @@ fun PersonDetailScreen(
 }
 
 @Composable
+private fun PersonEmptyFilmography() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.Movie,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(44.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "No filmography credits available.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
 private fun PersonCreditCard(
     media: MediaEntity,
     isInWatchlist: Boolean,
     onCardClick: () -> Unit,
-    onToggleWatchlist: () -> Unit
+    onToggleWatchlist: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
             .clickable(onClick = onCardClick)
             .testTag("person_filmography_${media.id}"),
         shape = RoundedCornerShape(14.dp),

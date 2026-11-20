@@ -28,6 +28,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -129,6 +131,7 @@ import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.DarkBackground
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.google.firebase.auth.FirebaseUser
 
@@ -188,6 +191,13 @@ fun OnboardingScreen(
         }
     }
 
+    val adaptive = LocalAdaptiveLayoutInfo.current
+    val containerMaxWidth = when {
+        adaptive.isExpanded -> 1040.dp
+        adaptive.isTabletOrWide -> 760.dp
+        else -> 640.dp
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -207,7 +217,7 @@ fun OnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = 640.dp)
+                .widthIn(max = containerMaxWidth)
                 .align(Alignment.TopCenter)
         ) {
             OnboardingProgressBar(
@@ -344,6 +354,7 @@ private fun OnboardingProgressBar(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OnboardingWelcomeStep(
     currentUser: FirebaseUser?,
@@ -353,6 +364,7 @@ private fun OnboardingWelcomeStep(
     onContinueSignedIn: () -> Unit,
     onContinueAsGuest: () -> Unit
 ) {
+    val adaptive = LocalAdaptiveLayoutInfo.current
     val infiniteTransition = rememberInfiniteTransition(label = "welcomeGlow")
     val glowPulse by infiniteTransition.animateFloat(
         initialValue = 0.92f,
@@ -364,354 +376,457 @@ private fun OnboardingWelcomeStep(
         label = "welcomeGlowPulse"
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 6.dp)
-            .navigationBarsPadding(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+    if (adaptive.useTwoPaneLayout) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .navigationBarsPadding(),
+            horizontalArrangement = Arrangement.spacedBy(28.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Cinematic Hero Card with Backdrop Artwork & Animated Titanium Aperture Spotlight
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.linearGradient(
-                        listOf(
-                            CinemaGold.copy(alpha = 0.55f),
-                            CinemaCyan.copy(alpha = 0.45f)
-                        )
-                    )
-                ),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1119)),
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .weight(1.05f)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(176.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.banner_cinema),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color(0xAA0A1119),
-                                        Color(0xDD0B0D13)
-                                    )
-                                )
-                            )
-                    )
-
-                    // Breathing radial spotlight behind brand emblem
-                    Box(
-                        modifier = Modifier
-                            .size(164.dp)
-                            .scale(glowPulse)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        CinemaGold.copy(alpha = 0.28f),
-                                        CinemaCyan.copy(alpha = 0.14f),
-                                        Color.Transparent
-                                    )
-                                )
-                            )
-                    )
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFF0A1119),
-                            border = BorderStroke(
-                                2.dp,
-                                Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
-                            ),
-                            shadowElevation = 14.dp,
-                            modifier = Modifier.size(88.dp)
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.watchpilot_aperture_icon),
-                                contentDescription = "WatchPilot",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = "YOUR PERSONAL CINEMA PILOT",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.6.sp,
-                            color = CinemaGold
-                        )
-                    }
-                }
+                WelcomeHeroAndHeadline(
+                    glowPulse = glowPulse,
+                    isTablet = true
+                )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .weight(0.95f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                WelcomeCloudSyncBenefitCard()
+                Spacer(modifier = Modifier.height(16.dp))
+                WelcomeAuthActionsSection(
+                    currentUser = currentUser,
+                    isLoading = isLoading,
+                    errorMessage = errorMessage,
+                    onGoogleSignIn = onGoogleSignIn,
+                    onContinueSignedIn = onContinueSignedIn,
+                    onContinueAsGuest = onContinueAsGuest
+                )
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                WelcomeHeroAndHeadline(
+                    glowPulse = glowPulse,
+                    isTablet = adaptive.isTabletOrWide
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                WelcomeCloudSyncBenefitCard()
+            }
 
-            Text(
-                text = "Welcome to WatchPilot",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = "Sign in to sync your watchlist, tell us who & what you love, and unlock tailored Top Picks in under 30 seconds.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Concise Highlight Pills
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                    .padding(top = 18.dp, bottom = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                WelcomeFeaturePill(
-                    icon = Icons.Filled.AutoAwesome,
-                    label = "Tailored Top Picks",
-                    accent = CinemaGold
+                WelcomeAuthActionsSection(
+                    currentUser = currentUser,
+                    isLoading = isLoading,
+                    errorMessage = errorMessage,
+                    onGoogleSignIn = onGoogleSignIn,
+                    onContinueSignedIn = onContinueSignedIn,
+                    onContinueAsGuest = onContinueAsGuest
                 )
-                WelcomeFeaturePill(
-                    icon = Icons.Filled.LiveTv,
-                    label = "Where to Stream",
-                    accent = CinemaCyan
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WelcomeHeroAndHeadline(
+    glowPulse: Float,
+    isTablet: Boolean
+) {
+    // Cinematic Hero Card with Backdrop Artwork & Animated Titanium Aperture Spotlight
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(
+            1.dp,
+            Brush.linearGradient(
+                listOf(
+                    CinemaGold.copy(alpha = 0.55f),
+                    CinemaCyan.copy(alpha = 0.45f)
                 )
-                WelcomeFeaturePill(
-                    icon = Icons.Filled.CloudSync,
-                    label = "Cloud Sync",
-                    accent = CinemaGreen
+            )
+        ),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1119)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(if (isTablet) 216.dp else 176.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.banner_cinema),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xAA0A1119),
+                                Color(0xDD0B0D13)
+                            )
+                        )
+                    )
+            )
+
+            // Breathing radial spotlight behind brand emblem
+            Box(
+                modifier = Modifier
+                    .size(164.dp)
+                    .scale(glowPulse)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                CinemaGold.copy(alpha = 0.28f),
+                                CinemaCyan.copy(alpha = 0.14f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFF0A1119),
+                    border = BorderStroke(
+                        2.dp,
+                        Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
+                    ),
+                    shadowElevation = 14.dp,
+                    modifier = Modifier.size(if (isTablet) 100.dp else 88.dp)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.watchpilot_aperture_icon),
+                        contentDescription = "WatchPilot",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "YOUR PERSONAL CINEMA PILOT",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.6.sp,
+                    color = CinemaGold
+                )
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    Text(
+        text = "Welcome to WatchPilot",
+        style = MaterialTheme.typography.headlineMedium,
+        fontWeight = FontWeight.ExtraBold,
+        color = MaterialTheme.colorScheme.onBackground,
+        textAlign = TextAlign.Center
+    )
+
+    Spacer(modifier = Modifier.height(6.dp))
+
+    Text(
+        text = "Sign in to sync your watchlist, tell us who & what you love, and unlock tailored Top Picks in under 30 seconds.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center
+    )
+
+    Spacer(modifier = Modifier.height(14.dp))
+
+    if (isTablet) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            WelcomeFeaturePill(
+                icon = Icons.Filled.AutoAwesome,
+                label = "Tailored Top Picks",
+                accent = CinemaGold
+            )
+            WelcomeFeaturePill(
+                icon = Icons.Filled.LiveTv,
+                label = "Where to Stream",
+                accent = CinemaCyan
+            )
+            WelcomeFeaturePill(
+                icon = Icons.Filled.CloudSync,
+                label = "Cloud Sync",
+                accent = CinemaGreen
+            )
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+        ) {
+            WelcomeFeaturePill(
+                icon = Icons.Filled.AutoAwesome,
+                label = "Tailored Top Picks",
+                accent = CinemaGold
+            )
+            WelcomeFeaturePill(
+                icon = Icons.Filled.LiveTv,
+                label = "Where to Stream",
+                accent = CinemaCyan
+            )
+            WelcomeFeaturePill(
+                icon = Icons.Filled.CloudSync,
+                label = "Cloud Sync",
+                accent = CinemaGreen
+            )
+        }
+    }
+}
+
+@Composable
+private fun WelcomeCloudSyncBenefitCard() {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+        ),
+        border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.28f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = CinemaGold.copy(alpha = 0.16f)
+            ) {
+                Text(
+                    text = "RECOMMENDED • SYNC ACROSS DEVICES",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.8.sp,
+                    color = CinemaGold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            OnboardingBenefitRow(
+                icon = Icons.Filled.CloudSync,
+                accent = CinemaGold,
+                title = "Automatic Cloud Backup",
+                subtitle = "Watched episodes, favorites & Cinema DNA follow you everywhere."
+            )
+            OnboardingBenefitRow(
+                icon = Icons.Filled.Devices,
+                accent = CinemaCyan,
+                title = "Instant Multi-Device Restore",
+                subtitle = "Switch phones cleanly without losing a single movie or rating."
+            )
+            OnboardingBenefitRow(
+                icon = Icons.Filled.AutoAwesome,
+                accent = CinemaGreen,
+                title = "Precision Taste Engine",
+                subtitle = "Your next two steps tune Home Top Picks around your favorite stars & classics."
+            )
+        }
+    }
+}
 
-            // Cloud Sync Benefit Card
-            Card(
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                ),
-                border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.28f)),
+@Composable
+private fun WelcomeAuthActionsSection(
+    currentUser: FirebaseUser?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onGoogleSignIn: () -> Unit,
+    onContinueSignedIn: () -> Unit,
+    onContinueAsGuest: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (!errorMessage.isNullOrBlank()) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = CinemaGold.copy(alpha = 0.16f)
-                    ) {
-                        Text(
-                            text = "RECOMMENDED • SYNC ACROSS DEVICES",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.8.sp,
-                            color = CinemaGold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    OnboardingBenefitRow(
-                        icon = Icons.Filled.CloudSync,
-                        accent = CinemaGold,
-                        title = "Automatic Cloud Backup",
-                        subtitle = "Watched episodes, favorites & Cinema DNA follow you everywhere."
-                    )
-                    OnboardingBenefitRow(
-                        icon = Icons.Filled.Devices,
-                        accent = CinemaCyan,
-                        title = "Instant Multi-Device Restore",
-                        subtitle = "Switch phones cleanly without losing a single movie or rating."
-                    )
-                    OnboardingBenefitRow(
-                        icon = Icons.Filled.AutoAwesome,
-                        accent = CinemaGreen,
-                        title = "Precision Taste Engine",
-                        subtitle = "Your next two steps tune Home Top Picks around your favorite stars & classics."
-                    )
-                }
+                Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 18.dp, bottom = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (!errorMessage.isNullOrBlank()) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
-                    modifier = Modifier.fillMaxWidth()
+        if (currentUser != null) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = CinemaGreen.copy(alpha = 0.14f),
+                border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.45f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = "Signed in",
+                        tint = CinemaGreen
                     )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Google Cloud Sync Active",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = CinemaGreen
+                        )
+                        Text(
+                            text = currentUser.email ?: currentUser.displayName ?: "Signed in",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 
-            if (currentUser != null) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = CinemaGreen.copy(alpha = 0.14f),
-                    border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.45f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.CheckCircle,
-                            contentDescription = "Signed in",
-                            tint = CinemaGreen
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Google Cloud Sync Active",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = CinemaGreen
-                            )
-                            Text(
-                                text = currentUser.email ?: currentUser.displayName ?: "Signed in",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-
-                Button(
-                    onClick = onContinueSignedIn,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = CinemaGold,
-                        contentColor = DarkBackground
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                        .testTag("onboarding_btn_continue_signed_in")
-                ) {
+            Button(
+                onClick = onContinueSignedIn,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CinemaGold,
+                    contentColor = DarkBackground
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .testTag("onboarding_btn_continue_signed_in")
+            ) {
+                Text(
+                    text = "Personalize Your Taste",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null
+                )
+            }
+        } else {
+            Button(
+                onClick = onGoogleSignIn,
+                enabled = !isLoading,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CinemaGold,
+                    contentColor = DarkBackground
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .testTag("onboarding_btn_google_signin")
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = DarkBackground
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Personalize Your Taste",
+                        text = "Signing in & syncing...",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.AccountCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Continue with Google",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 15.sp
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null
-                    )
                 }
-            } else {
-                Button(
-                    onClick = onGoogleSignIn,
-                    enabled = !isLoading,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = CinemaGold,
-                        contentColor = DarkBackground
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                        .testTag("onboarding_btn_google_signin")
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = DarkBackground
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Signing in & syncing...",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Continue with Google",
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 15.sp
-                        )
-                    }
-                }
+            }
 
-                OutlinedButton(
-                    onClick = onContinueAsGuest,
-                    enabled = !isLoading,
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("onboarding_btn_guest")
-                ) {
-                    Text(
-                        text = "Continue as Guest",
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
+            OutlinedButton(
+                onClick = onContinueAsGuest,
+                enabled = !isLoading,
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .testTag("onboarding_btn_guest")
+            ) {
                 Text(
-                    text = "Next up: pick your favorite stars, genres & watched movies.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
+                    text = "Continue as Guest",
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
+
+            Text(
+                text = "Next up: pick your favorite stars, genres & watched movies.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -839,6 +954,7 @@ private fun OnboardingSyncBanner(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OnboardingFavoritePeopleStep(
     syncNotice: String?,
@@ -856,6 +972,7 @@ private fun OnboardingFavoritePeopleStep(
     onSkip: () -> Unit,
     onNext: () -> Unit
 ) {
+    val adaptive = LocalAdaptiveLayoutInfo.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val totalSelected = selectedGenres.size + favoritePeople.size
 
@@ -905,48 +1022,95 @@ private fun OnboardingFavoritePeopleStep(
                 }
             }
 
-            // Favorite Genres / Vibes Quick Strip
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(ONBOARDING_GENRES, key = { it }) { genre ->
-                    val isSelected = selectedGenres.contains(genre)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onToggleGenre(genre) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-                        } else null,
-                        label = {
-                            Text(
-                                text = genre,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaCyan.copy(alpha = 0.22f),
-                            selectedLabelColor = CinemaCyan,
-                            selectedLeadingIconColor = CinemaCyan
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
+            // Favorite Genres / Vibes Quick Strip (FlowRow on tablet, LazyRow on phone)
+            if (adaptive.isTabletOrWide) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ONBOARDING_GENRES.forEach { genre ->
+                        val isSelected = selectedGenres.contains(genre)
+                        FilterChip(
                             selected = isSelected,
-                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                            selectedBorderColor = CinemaCyan.copy(alpha = 0.7f)
-                        ),
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("onboarding_genre_$genre")
-                    )
+                            onClick = { onToggleGenre(genre) },
+                            leadingIcon = if (isSelected) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                            } else null,
+                            label = {
+                                Text(
+                                    text = genre,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CinemaCyan.copy(alpha = 0.22f),
+                                selectedLabelColor = CinemaCyan,
+                                selectedLeadingIconColor = CinemaCyan
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                                selectedBorderColor = CinemaCyan.copy(alpha = 0.7f)
+                            ),
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("onboarding_genre_$genre")
+                        )
+                    }
+                }
+            } else {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(ONBOARDING_GENRES, key = { it }) { genre ->
+                        val isSelected = selectedGenres.contains(genre)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onToggleGenre(genre) },
+                            leadingIcon = if (isSelected) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                            } else null,
+                            label = {
+                                Text(
+                                    text = genre,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CinemaCyan.copy(alpha = 0.22f),
+                                selectedLabelColor = CinemaCyan,
+                                selectedLeadingIconColor = CinemaCyan
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                                selectedBorderColor = CinemaCyan.copy(alpha = 0.7f)
+                            ),
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("onboarding_genre_$genre")
+                        )
+                    }
                 }
             }
 
@@ -1039,10 +1203,10 @@ private fun OnboardingFavoritePeopleStep(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 104.dp),
+                    columns = GridCells.Adaptive(minSize = if (adaptive.isTabletOrWide) 128.dp else 104.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (adaptive.isTabletOrWide) 14.dp else 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (adaptive.isTabletOrWide) 14.dp else 12.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(
@@ -1200,6 +1364,7 @@ private fun OnboardingWatchedTitlesStep(
     onSkip: () -> Unit,
     onFinish: () -> Unit
 ) {
+    val adaptive = LocalAdaptiveLayoutInfo.current
     val keyboardController = LocalSoftwareKeyboardController.current
     var selectedType by remember { mutableStateOf<MediaType?>(null) }
 
@@ -1365,10 +1530,10 @@ private fun OnboardingWatchedTitlesStep(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 152.dp),
+                    columns = GridCells.Adaptive(minSize = if (adaptive.isTabletOrWide) 174.dp else 152.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (adaptive.isTabletOrWide) 14.dp else 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (adaptive.isTabletOrWide) 14.dp else 12.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(

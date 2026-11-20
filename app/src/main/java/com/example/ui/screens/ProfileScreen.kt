@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -91,7 +92,9 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
+import androidx.compose.ui.unit.Dp
 
 @Composable
 fun ProfileScreen(
@@ -122,10 +125,18 @@ fun ProfileScreen(
         }
     }
 
+    val adaptive = LocalAdaptiveLayoutInfo.current
+    val sectionWidthMod = if (adaptive.isTabletOrWide) {
+        Modifier.widthIn(max = 860.dp)
+    } else {
+        Modifier
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .testTag("profile_screen"),
+        horizontalAlignment = Alignment.CenterHorizontally,
         contentPadding = PaddingValues(bottom = 96.dp)
     ) {
         // Top Header
@@ -144,7 +155,12 @@ fun ProfileScreen(
                     .statusBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(sectionWidthMod)
+                        .align(Alignment.Center)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -201,6 +217,7 @@ fun ProfileScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(sectionWidthMod)
                     .padding(horizontal = 20.dp, vertical = 6.dp)
                     .testTag("card_watchpilot_pro")
             ) {
@@ -370,6 +387,7 @@ fun ProfileScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(sectionWidthMod)
                     .padding(horizontal = 20.dp, vertical = 6.dp)
                     .testTag("card_account_status")
             ) {
@@ -559,6 +577,11 @@ fun ProfileScreen(
         // OTT Subscription Money-Saver Radar & Library Portability Card (v2+ only)
         if (!BuildConfig.IS_V1_EDITION) {
             item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(sectionWidthMod)
+                ) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = "Smart OTT & Library Portability",
@@ -795,11 +818,17 @@ fun ProfileScreen(
                     }
                 }
             }
+            }
         }
         }
 
         // Preferences & Region Section
         item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(sectionWidthMod)
+            ) {
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "Preferences & Regional Catalog",
@@ -960,10 +989,16 @@ fun ProfileScreen(
                     }
                 }
             }
+            }
         }
 
         // Viewing Analytics, Wrapped Share & Cinema DNA
         item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(sectionWidthMod)
+            ) {
             Spacer(modifier = Modifier.height(14.dp))
             Text(
                 text = "Cinema DNA & WatchPilot Wrapped",
@@ -1046,10 +1081,16 @@ fun ProfileScreen(
                     }
                 }
             }
+            }
         }
 
         // Stats Grid
         item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(sectionWidthMod)
+            ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1099,6 +1140,7 @@ fun ProfileScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
+            }
         }
 
         // Cinema DNA (Completion Rate, Favorite Era / Decades & Top Language)
@@ -1109,6 +1151,7 @@ fun ProfileScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(sectionWidthMod)
                     .padding(horizontal = 20.dp, vertical = 4.dp)
                     .testTag("card_cinema_dna")
             ) {
@@ -1209,6 +1252,7 @@ fun ProfileScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .then(sectionWidthMod)
                         .padding(horizontal = 20.dp, vertical = 4.dp)
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
@@ -1264,6 +1308,11 @@ fun ProfileScreen(
 
         // About WatchPilot, TMDB & JustWatch Attribution & Play Store Data Safety Section
         item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(sectionWidthMod)
+            ) {
             Spacer(modifier = Modifier.height(14.dp))
             Text(
                 text = "About & Legal",
@@ -1397,6 +1446,7 @@ fun ProfileScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

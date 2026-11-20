@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
@@ -88,6 +89,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.DarkBackground
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.PersonalizationEngine
 import androidx.compose.foundation.BorderStroke
@@ -119,6 +121,9 @@ fun HomeScreen(
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
     val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
 
+    val adaptive = LocalAdaptiveLayoutInfo.current
+    val gridColumns = adaptive.posterGridColumns
+
     val regionOption = remember(effectiveRegion) {
         RegionalDefaults.supportedRegions.find { it.code.equals(effectiveRegion, ignoreCase = true) }
             ?: RegionalDefaults.detectDeviceRegion()
@@ -130,14 +135,18 @@ fun HomeScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(bottom = 24.dp),
+            columns = GridCells.Fixed(gridColumns),
+            contentPadding = PaddingValues(
+                start = if (adaptive.isTabletOrWide) 8.dp else 0.dp,
+                end = if (adaptive.isTabletOrWide) 8.dp else 0.dp,
+                bottom = 24.dp
+            ),
             modifier = Modifier
                 .fillMaxSize()
                 .testTag("home_screen_grid")
         ) {
             // WatchPilot v2.0 Brand Header & Signature Quick Actions
-            item(span = { GridItemSpan(2) }) {
+            item(span = { GridItemSpan(gridColumns) }) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -266,7 +275,7 @@ fun HomeScreen(
 
             // Personalized "Top Picks For You" Carousel (populated from onboarding & library taste)
             if (pickedForYouItems.isNotEmpty() || isLoadingPickedForYou) {
-                item(span = { GridItemSpan(2) }) {
+                item(span = { GridItemSpan(gridColumns) }) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -399,7 +408,7 @@ fun HomeScreen(
 
             // Top Horizontal Scrolling Spotlight Carousel (Trending & Featured)
             if (topSpotlightItems.isNotEmpty()) {
-                item(span = { GridItemSpan(2) }) {
+                item(span = { GridItemSpan(gridColumns) }) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -476,7 +485,7 @@ fun HomeScreen(
             }
 
             // Category & Genre Filter Section (Consolidated & Streamlined)
-            item(span = { GridItemSpan(2) }) {
+            item(span = { GridItemSpan(gridColumns) }) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     // Media Type Chips (All, Movies, TV)
                     Row(
@@ -563,7 +572,7 @@ fun HomeScreen(
 
             // Continue Watching Section (if active)
             if (continueWatchingList.isNotEmpty()) {
-                item(span = { GridItemSpan(2) }) {
+                item(span = { GridItemSpan(gridColumns) }) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -595,15 +604,38 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            continueWatchingList.forEach { item ->
-                                ContinueWatchingCard(
-                                    media = item,
-                                    onClick = { onMediaClick(item.id) },
-                                    onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
-                                )
+                        if (adaptive.isTabletOrWide) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                continueWatchingList.chunked(2).forEach { pair ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        pair.forEach { item ->
+                                            ContinueWatchingCard(
+                                                media = item,
+                                                onClick = { onMediaClick(item.id) },
+                                                onIncrementEpisode = { viewModel.incrementEpisode(item.id) },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                        if (pair.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                continueWatchingList.forEach { item ->
+                                    ContinueWatchingCard(
+                                        media = item,
+                                        onClick = { onMediaClick(item.id) },
+                                        onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -612,20 +644,27 @@ fun HomeScreen(
 
             // Calm Inline Sponsored Banner (Collapses to 0dp when WatchPilot Pro is active)
             if (!monetizationState.isPro) {
-                item(span = { GridItemSpan(2) }) {
-                    SponsoredBannerCard(
-                        isPro = monetizationState.isPro,
-                        onRemoveAdsClick = {
-                            viewModel.openPaywall("Go 100% Ad-Free across WatchPilot with WatchPilot Pro.")
-                        },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                        tagSuffix = "home"
-                    )
+                item(span = { GridItemSpan(gridColumns) }) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        SponsoredBannerCard(
+                            isPro = monetizationState.isPro,
+                            onRemoveAdsClick = {
+                                viewModel.openPaywall("Go 100% Ad-Free across WatchPilot with WatchPilot Pro.")
+                            },
+                            modifier = Modifier
+                                .widthIn(max = 728.dp)
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            tagSuffix = "home"
+                        )
+                    }
                 }
             }
 
             // Catalog Grid Header
-            item(span = { GridItemSpan(2) }) {
+            item(span = { GridItemSpan(gridColumns) }) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -655,7 +694,7 @@ fun HomeScreen(
 
             // Empty State
             if (discoverItems.isEmpty()) {
-                item(span = { GridItemSpan(2) }) {
+                item(span = { GridItemSpan(gridColumns) }) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -701,14 +740,15 @@ fun SpotlightBannerCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val adaptive = LocalAdaptiveLayoutInfo.current
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         modifier = modifier
-            .width(290.dp)
-            .height(175.dp)
+            .width(if (adaptive.isTabletOrWide) 340.dp else 290.dp)
+            .height(if (adaptive.isTabletOrWide) 204.dp else 175.dp)
             .clickable(onClick = onClick)
             .testTag("spotlight_card_${media.id}")
     ) {
@@ -896,6 +936,7 @@ private fun PickedForYouCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val adaptive = LocalAdaptiveLayoutInfo.current
     val context = LocalContext.current
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
     val isStarReason = reasonLabel.startsWith("★")
@@ -904,7 +945,7 @@ private fun PickedForYouCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = modifier
-            .width(136.dp)
+            .width(if (adaptive.isTabletOrWide) 156.dp else 136.dp)
             .clickable(onClick = onClick)
             .testTag("picked_card_${media.id}")
     ) {

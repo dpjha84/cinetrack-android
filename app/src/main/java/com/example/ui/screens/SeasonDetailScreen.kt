@@ -22,7 +22,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -85,6 +90,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.WatchProviderLauncher
 
@@ -116,19 +122,297 @@ fun SeasonDetailScreen(
         emptyList()
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("season_detail_screen"),
-        contentPadding = PaddingValues(bottom = 60.dp)
+    val adaptive = LocalAdaptiveLayoutInfo.current
+    val gridColumns = adaptive.cardGridColumns
+
+    if (adaptive.isTabletOrWide) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(gridColumns),
+            modifier = modifier
+                .fillMaxSize()
+                .testTag("season_detail_screen"),
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 60.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item(span = { GridItemSpan(gridColumns) }) {
+                SeasonHeroHeaderBox(
+                    media = media,
+                    season = season,
+                    isTablet = true,
+                    onBack = onBack
+                )
+            }
+
+            item(span = { GridItemSpan(gridColumns) }) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    SeasonWatchStatusCard(
+                        media = media,
+                        season = season,
+                        streamAndFree = streamAndFree,
+                        providersInfo = providersInfo,
+                        viewModel = viewModel,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 1040.dp)
+                    )
+                }
+            }
+
+            if (season.overview.isNotBlank()) {
+                item(span = { GridItemSpan(gridColumns) }) {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = 1040.dp)
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Season Synopsis",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = season.overview,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 22.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            item(span = { GridItemSpan(gridColumns) }) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 1040.dp)
+                            .padding(top = 8.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Episodes (${episodes.size})",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        )
+
+                        if (isLoadingEpisodes) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = CinemaGold,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+                }
+            }
+
+            gridItems(episodes, key = { it.id }) { episode ->
+                EpisodeCard(
+                    episode = episode,
+                    media = media,
+                    streamProviders = streamAndFree,
+                    showStreamOverlay = showStreamingProviders,
+                    onStatusChange = { newStatus ->
+                        viewModel.setEpisodeWatchStatus(
+                            media = media,
+                            seasonNumber = episode.seasonNumber,
+                            episodeNumber = episode.episodeNumber,
+                            status = newStatus
+                        )
+                    },
+                    onClick = { viewModel.openEpisodeDetail(episode) },
+                    onPlayClick = { provider ->
+                        WatchProviderLauncher.launchProvider(
+                            context = context,
+                            providerName = provider?.name ?: "Streaming Provider",
+                            title = media.title,
+                            releaseYear = media.releaseYear,
+                            isMovie = false,
+                            seasonNumber = episode.seasonNumber,
+                            episodeNumber = episode.episodeNumber,
+                            webLink = provider?.webLink ?: providersInfo.justWatchLink,
+                            directContentUrl = provider?.directContentUrl
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = modifier
+                .fillMaxSize()
+                .testTag("season_detail_screen"),
+            contentPadding = PaddingValues(bottom = 60.dp)
+        ) {
+            // Hero Header Box
+            item {
+                SeasonHeroHeaderBox(
+                    media = media,
+                    season = season,
+                    isTablet = false,
+                    onBack = onBack
+                )
+            }
+
+            // Season Interactive Watch Status Card
+            item {
+                SeasonWatchStatusCard(
+                    media = media,
+                    season = season,
+                    streamAndFree = streamAndFree,
+                    providersInfo = providersInfo,
+                    viewModel = viewModel,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+
+            // Season Overview
+            if (season.overview.isNotBlank()) {
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text(
+                            text = "Season Synopsis",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = season.overview,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 22.sp
+                        )
+                    }
+                }
+            }
+
+            // Episodes Header
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Episodes (${episodes.size})",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    )
+
+                    if (isLoadingEpisodes) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = CinemaGold,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+            }
+
+            // Episodes List
+            items(episodes, key = { it.id }) { episode ->
+                EpisodeCard(
+                    episode = episode,
+                    media = media,
+                    streamProviders = streamAndFree,
+                    showStreamOverlay = showStreamingProviders,
+                    onStatusChange = { newStatus ->
+                        viewModel.setEpisodeWatchStatus(
+                            media = media,
+                            seasonNumber = episode.seasonNumber,
+                            episodeNumber = episode.episodeNumber,
+                            status = newStatus
+                        )
+                    },
+                    onClick = {
+                        viewModel.openEpisodeDetail(episode)
+                    },
+                    onPlayClick = { provider ->
+                        WatchProviderLauncher.launchProvider(
+                            context = context,
+                            providerName = provider?.name ?: "Streaming Provider",
+                            title = media.title,
+                            releaseYear = media.releaseYear,
+                            isMovie = false,
+                            seasonNumber = episode.seasonNumber,
+                            episodeNumber = episode.episodeNumber,
+                            webLink = provider?.webLink ?: providersInfo.justWatchLink,
+                            directContentUrl = provider?.directContentUrl
+                        )
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            }
+        }
+    }
+
+    // Episode Detail Dialog / BottomSheet
+    selectedEpisodeDetail?.let { episode ->
+        EpisodeDetailDialog(
+            episode = episode,
+            media = media,
+            streamProviders = streamAndFree,
+            onDismiss = { viewModel.closeEpisodeDetail() },
+            onStatusChange = { newStatus ->
+                viewModel.setEpisodeWatchStatus(
+                    media = media,
+                    seasonNumber = episode.seasonNumber,
+                    episodeNumber = episode.episodeNumber,
+                    status = newStatus
+                )
+            },
+            onPlayClick = { provider ->
+                WatchProviderLauncher.launchProvider(
+                    context = context,
+                    providerName = provider?.name ?: "Streaming Provider",
+                    title = media.title,
+                    releaseYear = media.releaseYear,
+                    isMovie = false,
+                    seasonNumber = episode.seasonNumber,
+                    episodeNumber = episode.episodeNumber,
+                    webLink = provider?.webLink ?: providersInfo.justWatchLink,
+                    directContentUrl = provider?.directContentUrl
+                )
+            }
+        )
+    }
+}
+
+@Composable
+private fun SeasonHeroHeaderBox(
+    media: MediaEntity,
+    season: SeasonItem,
+    isTablet: Boolean,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(if (isTablet) 320.dp else 280.dp)
+            .clip(if (isTablet) RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp) else RoundedCornerShape(0.dp))
     ) {
-        // Hero Header Box
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(280.dp)
-            ) {
                 Image(
                     painter = painterResource(id = R.drawable.banner_cinema),
                     contentDescription = null,
@@ -171,6 +455,7 @@ fun SeasonDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .then(if (isTablet) Modifier.widthIn(max = 1040.dp).align(Alignment.TopCenter) else Modifier)
                         .statusBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -219,14 +504,16 @@ fun SeasonDetailScreen(
                 // Season Title & Series Floating Content
                 Row(
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
+                        .align(if (isTablet) Alignment.BottomCenter else Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .then(if (isTablet) Modifier.widthIn(max = 1040.dp) else Modifier)
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
                     // Season Poster
                     Box(
                         modifier = Modifier
-                            .width(90.dp)
+                            .width(if (isTablet) 114.dp else 90.dp)
                             .aspectRatio(0.68f)
                             .clip(RoundedCornerShape(10.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
@@ -289,16 +576,22 @@ fun SeasonDetailScreen(
                     }
                 }
             }
-        }
+}
 
-        // Season Interactive Watch Status Card
-        item {
+@Composable
+private fun SeasonWatchStatusCard(
+    media: MediaEntity,
+    season: SeasonItem,
+    streamAndFree: List<com.example.data.model.WatchProviderItem>,
+    providersInfo: com.example.data.model.WatchProvidersInfo,
+    viewModel: MediaViewModel,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                modifier = modifier
                     .testTag("season_status_card")
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -523,124 +816,6 @@ fun SeasonDetailScreen(
                     }
                 }
             }
-        }
-
-        // Season Overview
-        if (season.overview.isNotBlank()) {
-            item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(
-                        text = "Season Synopsis",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = season.overview,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 22.sp
-                    )
-                }
-            }
-        }
-
-        // Episodes Header
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Episodes (${episodes.size})",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 8.dp)
-                )
-
-                if (isLoadingEpisodes) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        color = CinemaGold,
-                        strokeWidth = 2.dp
-                    )
-                }
-            }
-        }
-
-        // Episodes List
-        items(episodes, key = { it.id }) { episode ->
-            EpisodeCard(
-                episode = episode,
-                media = media,
-                streamProviders = streamAndFree,
-                showStreamOverlay = showStreamingProviders,
-                onStatusChange = { newStatus ->
-                    viewModel.setEpisodeWatchStatus(
-                        media = media,
-                        seasonNumber = episode.seasonNumber,
-                        episodeNumber = episode.episodeNumber,
-                        status = newStatus
-                    )
-                },
-                onClick = {
-                    viewModel.openEpisodeDetail(episode)
-                },
-                onPlayClick = { provider ->
-                    WatchProviderLauncher.launchProvider(
-                        context = context,
-                        providerName = provider?.name ?: "Streaming Provider",
-                        title = media.title,
-                        releaseYear = media.releaseYear,
-                        isMovie = false,
-                        seasonNumber = episode.seasonNumber,
-                        episodeNumber = episode.episodeNumber,
-                        webLink = provider?.webLink ?: providersInfo.justWatchLink,
-                        directContentUrl = provider?.directContentUrl
-                    )
-                },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-            )
-        }
-    }
-
-    // Episode Detail Dialog / BottomSheet
-    selectedEpisodeDetail?.let { episode ->
-        EpisodeDetailDialog(
-            episode = episode,
-            media = media,
-            streamProviders = streamAndFree,
-            onDismiss = { viewModel.closeEpisodeDetail() },
-            onStatusChange = { newStatus ->
-                viewModel.setEpisodeWatchStatus(
-                    media = media,
-                    seasonNumber = episode.seasonNumber,
-                    episodeNumber = episode.episodeNumber,
-                    status = newStatus
-                )
-            },
-            onPlayClick = { provider ->
-                WatchProviderLauncher.launchProvider(
-                    context = context,
-                    providerName = provider?.name ?: "Streaming Provider",
-                    title = media.title,
-                    releaseYear = media.releaseYear,
-                    isMovie = false,
-                    seasonNumber = episode.seasonNumber,
-                    episodeNumber = episode.episodeNumber,
-                    webLink = provider?.webLink ?: providersInfo.justWatchLink,
-                    directContentUrl = provider?.directContentUrl
-                )
-            }
-        )
-    }
 }
 
 @Composable

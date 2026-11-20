@@ -90,5 +90,31 @@ class ExampleUnitTest {
         )
     )
   }
+
+  @Test
+  fun testMoshiCodegenWithoutKotlinReflect() {
+    val moshi = com.squareup.moshi.Moshi.Builder().build()
+    val adapter = moshi.adapter(com.example.data.remote.tmdb.TmdbSearchResponse::class.java)
+    val json = """
+      {
+        "page": 1,
+        "results": [
+          {
+            "id": 693134,
+            "media_type": "movie",
+            "title": "Dune: Part Two",
+            "release_date": "2024-02-27",
+            "genre_ids": [878, 12],
+            "vote_average": 8.2
+          }
+        ]
+      }
+    """.trimIndent()
+    val parsed = adapter.fromJson(json)
+    assertNotNull(parsed)
+    assertEquals(1, parsed!!.results.size)
+    assertEquals("Dune: Part Two", parsed.results.first().title)
+    assertEquals(693134L, parsed.results.first().id)
+  }
 }
 

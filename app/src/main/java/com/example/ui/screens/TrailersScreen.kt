@@ -21,8 +21,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -76,6 +81,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.ui.viewmodel.TrailerCategory
 import com.example.util.TrailerInterstitialAdManager
@@ -86,6 +92,7 @@ fun TrailersScreen(
     onMediaClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val adaptive = LocalAdaptiveLayoutInfo.current
     val context = LocalContext.current
     val activity = context as? Activity
     val trailers by viewModel.filteredTrailers.collectAsStateWithLifecycle()
@@ -327,59 +334,133 @@ fun TrailersScreen(
             }
 
             else -> {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("trailers_feed_list")
-                ) {
-                    items(trailers, key = { it.id }) { trailer ->
-                        val isMovie = trailer.mediaType == MediaType.MOVIE
-                        val tracked = allTrackedMedia.find {
-                            it.id == trailer.mediaId || it.title.equals(trailer.title, ignoreCase = true)
-                        }
-                        val isInWatchlist = tracked != null && tracked.getWatchStatusEnum() != WatchStatus.NONE
-
-                        TrailerCard(
-                            trailer = trailer,
-                            isMovie = isMovie,
-                            isInWatchlist = isInWatchlist,
-                            onPlayClick = {
-                                TrailerInterstitialAdManager.maybeShowBeforeTrailer(
-                                    activity = activity,
-                                    isPro = monetizationState.isPro
-                                ) {
-                                    playYouTubeVideo(context, trailer.videoKey)
-                                }
-                            },
-                            onToggleWatchlist = {
-                                if (tracked != null) {
-                                    viewModel.toggleWatchlistQuick(tracked.id)
-                                } else {
-                                    viewModel.toggleWatchlistQuick(trailer.toMediaEntity())
-                                    Toast.makeText(context, "Added to Watchlist", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            onCardClick = {
-                                val targetId = tracked?.id ?: trailer.mediaId
-                                if (tracked == null) {
-                                    viewModel.openMediaFromSearch(trailer.toMediaEntity())
-                                }
-                                onMediaClick(targetId)
+                if (adaptive.isTabletOrWide) {
+                    val gridColumns = adaptive.cardGridColumns
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(gridColumns),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("trailers_feed_list")
+                    ) {
+                        items(
+                            items = trailers,
+                            key = { it.id }
+                        ) { trailer ->
+                            val isMovie = trailer.mediaType == MediaType.MOVIE
+                            val tracked = allTrackedMedia.find {
+                                it.id == trailer.mediaId || it.title.equals(trailer.title, ignoreCase = true)
                             }
-                        )
-                    }
+                            val isInWatchlist = tracked != null && tracked.getWatchStatusEnum() != WatchStatus.NONE
 
-                    if (!monetizationState.isPro) {
-                        item(key = "trailers_sponsored_slot") {
-                            SponsoredBannerCard(
-                                isPro = monetizationState.isPro,
-                                onRemoveAdsClick = {
-                                    viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
+                            TrailerCard(
+                                trailer = trailer,
+                                isMovie = isMovie,
+                                isInWatchlist = isInWatchlist,
+                                onPlayClick = {
+                                    TrailerInterstitialAdManager.maybeShowBeforeTrailer(
+                                        activity = activity,
+                                        isPro = monetizationState.isPro
+                                    ) {
+                                        playYouTubeVideo(context, trailer.videoKey)
+                                    }
                                 },
-                                tagSuffix = "trailers"
+                                onToggleWatchlist = {
+                                    if (tracked != null) {
+                                        viewModel.toggleWatchlistQuick(tracked.id)
+                                    } else {
+                                        viewModel.toggleWatchlistQuick(trailer.toMediaEntity())
+                                        Toast.makeText(context, "Added to Watchlist", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onCardClick = {
+                                    val targetId = tracked?.id ?: trailer.mediaId
+                                    if (tracked == null) {
+                                        viewModel.openMediaFromSearch(trailer.toMediaEntity())
+                                    }
+                                    onMediaClick(targetId)
+                                }
                             )
+                        }
+
+                        if (!monetizationState.isPro) {
+                            item(
+                                key = "trailers_sponsored_slot",
+                                span = { GridItemSpan(gridColumns) }
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SponsoredBannerCard(
+                                        isPro = monetizationState.isPro,
+                                        onRemoveAdsClick = {
+                                            viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
+                                        },
+                                        modifier = Modifier.widthIn(max = 728.dp),
+                                        tagSuffix = "trailers"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("trailers_feed_list")
+                    ) {
+                        items(trailers, key = { it.id }) { trailer ->
+                            val isMovie = trailer.mediaType == MediaType.MOVIE
+                            val tracked = allTrackedMedia.find {
+                                it.id == trailer.mediaId || it.title.equals(trailer.title, ignoreCase = true)
+                            }
+                            val isInWatchlist = tracked != null && tracked.getWatchStatusEnum() != WatchStatus.NONE
+
+                            TrailerCard(
+                                trailer = trailer,
+                                isMovie = isMovie,
+                                isInWatchlist = isInWatchlist,
+                                onPlayClick = {
+                                    TrailerInterstitialAdManager.maybeShowBeforeTrailer(
+                                        activity = activity,
+                                        isPro = monetizationState.isPro
+                                    ) {
+                                        playYouTubeVideo(context, trailer.videoKey)
+                                    }
+                                },
+                                onToggleWatchlist = {
+                                    if (tracked != null) {
+                                        viewModel.toggleWatchlistQuick(tracked.id)
+                                    } else {
+                                        viewModel.toggleWatchlistQuick(trailer.toMediaEntity())
+                                        Toast.makeText(context, "Added to Watchlist", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onCardClick = {
+                                    val targetId = tracked?.id ?: trailer.mediaId
+                                    if (tracked == null) {
+                                        viewModel.openMediaFromSearch(trailer.toMediaEntity())
+                                    }
+                                    onMediaClick(targetId)
+                                }
+                            )
+                        }
+
+                        if (!monetizationState.isPro) {
+                            item(key = "trailers_sponsored_slot") {
+                                SponsoredBannerCard(
+                                    isPro = monetizationState.isPro,
+                                    onRemoveAdsClick = {
+                                        viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
+                                    },
+                                    tagSuffix = "trailers"
+                                )
+                            }
                         }
                     }
                 }

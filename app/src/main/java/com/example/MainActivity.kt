@@ -20,15 +20,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
@@ -93,6 +101,8 @@ import com.example.ui.screens.SeasonDetailScreen
 import com.example.ui.screens.TrailersScreen
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.WatchPilotTheme
+import com.example.ui.util.AdaptiveLayoutProvider
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.TrailerInterstitialAdManager
 import com.example.util.configureAppCheck
@@ -136,31 +146,33 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             WatchPilotTheme {
-                var showLaunchSplash by rememberSaveable { mutableStateOf(true) }
-                val hasCompletedOnboarding by viewModel.hasCompletedOnboarding.collectAsStateWithLifecycle()
-                LaunchedEffect(Unit) {
-                    if (showLaunchSplash) {
-                        delay(780)
-                        showLaunchSplash = false
-                    }
-                }
-                Box(modifier = Modifier.fillMaxSize()) {
-                    AnimatedContent(
-                        targetState = hasCompletedOnboarding,
-                        transitionSpec = { fadeIn(animationSpec = tween(320)) togetherWith fadeOut(animationSpec = tween(240)) },
-                        label = "onboardingGateTransition"
-                    ) { completed ->
-                        if (completed) {
-                            MovieverseApp(viewModel = viewModel)
-                        } else {
-                            OnboardingScreen(viewModel = viewModel)
+                AdaptiveLayoutProvider {
+                    var showLaunchSplash by rememberSaveable { mutableStateOf(true) }
+                    val hasCompletedOnboarding by viewModel.hasCompletedOnboarding.collectAsStateWithLifecycle()
+                    LaunchedEffect(Unit) {
+                        if (showLaunchSplash) {
+                            delay(780)
+                            showLaunchSplash = false
                         }
                     }
-                    AnimatedVisibility(
-                        visible = showLaunchSplash,
-                        exit = fadeOut(animationSpec = tween(durationMillis = 420))
-                    ) {
-                        WatchPilotLaunchSplash()
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AnimatedContent(
+                            targetState = hasCompletedOnboarding,
+                            transitionSpec = { fadeIn(animationSpec = tween(320)) togetherWith fadeOut(animationSpec = tween(240)) },
+                            label = "onboardingGateTransition"
+                        ) { completed ->
+                            if (completed) {
+                                MovieverseApp(viewModel = viewModel)
+                            } else {
+                                OnboardingScreen(viewModel = viewModel)
+                            }
+                        }
+                        AnimatedVisibility(
+                            visible = showLaunchSplash,
+                            exit = fadeOut(animationSpec = tween(durationMillis = 420))
+                        ) {
+                            WatchPilotLaunchSplash()
+                        }
                     }
                 }
             }
@@ -315,62 +327,146 @@ fun MovieverseApp(viewModel: MediaViewModel) {
             ?: pickedForYouItems.find { it.id == selectedMediaId }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            if (selectedMedia == null && selectedPerson == null) {
-                NavigationBar(
-                    modifier = Modifier
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .testTag("bottom_nav_bar"),
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = MaterialTheme.colorScheme.surfaceVariant.let { 4.dp }
-                ) {
-                    MainNavDestination.entries.forEach { destination ->
-                        val selected = currentNav == destination
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { currentNav = destination },
-                            alwaysShowLabel = true,
-                            icon = {
-                                Icon(
-                                    imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
-                                    contentDescription = destination.title
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = destination.title,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 10.sp,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                indicatorColor = CinemaGold.copy(alpha = 0.25f),
-                                selectedIconColor = CinemaGold,
-                                selectedTextColor = CinemaGold,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val adaptive = LocalAdaptiveLayoutInfo.current
+    val showTopNav = selectedMedia == null && selectedPerson == null
+    val useNavigationRail = adaptive.isTabletOrWide
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (useNavigationRail && showTopNav) {
+            NavigationRail(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                windowInsets = WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Vertical + WindowInsetsSides.Start
+                ),
+                header = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF0A1119),
+                            border = BorderStroke(
+                                1.5.dp,
+                                Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
                             ),
-                            modifier = Modifier.testTag(destination.testTag)
-                        )
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.watchpilot_aperture_icon),
+                                contentDescription = "WatchPilot",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .testTag("tablet_nav_rail")
+            ) {
+                Spacer(modifier = Modifier.weight(0.25f))
+                MainNavDestination.entries.forEach { destination ->
+                    val selected = currentNav == destination
+                    NavigationRailItem(
+                        selected = selected,
+                        onClick = { currentNav = destination },
+                        alwaysShowLabel = true,
+                        icon = {
+                            Icon(
+                                imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
+                                contentDescription = destination.title
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = destination.title,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        colors = NavigationRailItemDefaults.colors(
+                            indicatorColor = CinemaGold.copy(alpha = 0.25f),
+                            selectedIconColor = CinemaGold,
+                            selectedTextColor = CinemaGold,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.testTag(destination.testTag)
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+
+        Scaffold(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            contentWindowInsets = if (useNavigationRail && showTopNav) {
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.End)
+            } else {
+                WindowInsets.safeDrawing
+            },
+            bottomBar = {
+                if (!useNavigationRail && showTopNav) {
+                    NavigationBar(
+                        modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.navigationBars)
+                            .testTag("bottom_nav_bar"),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        tonalElevation = MaterialTheme.colorScheme.surfaceVariant.let { 4.dp }
+                    ) {
+                        MainNavDestination.entries.forEach { destination ->
+                            val selected = currentNav == destination
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = { currentNav = destination },
+                                alwaysShowLabel = true,
+                                icon = {
+                                    Icon(
+                                        imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
+                                        contentDescription = destination.title
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = destination.title,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    indicatorColor = CinemaGold.copy(alpha = 0.25f),
+                                    selectedIconColor = CinemaGold,
+                                    selectedTextColor = CinemaGold,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                modifier = Modifier.testTag(destination.testTag)
+                            )
+                        }
                     }
                 }
             }
-        }
-    ) { innerPadding ->
-        AnimatedContent(
-            targetState = Triple(selectedPerson, selectedMedia, selectedSeasonForDetail),
-            contentKey = { (person, media, season) ->
-                Triple(person != null, media?.id, season?.seasonNumber)
-            },
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
-            label = "screenTransition",
-            modifier = Modifier.padding(innerPadding)
-        ) { (activePerson, activeMedia, activeSeason) ->
+        ) { innerPadding ->
+            AnimatedContent(
+                targetState = Triple(selectedPerson, selectedMedia, selectedSeasonForDetail),
+                contentKey = { (person, media, season) ->
+                    Triple(person != null, media?.id, season?.seasonNumber)
+                },
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "screenTransition",
+                modifier = Modifier.padding(innerPadding)
+            ) { (activePerson, activeMedia, activeSeason) ->
             if (activePerson != null) {
                 val resolvedId = personDetail?.id?.takeIf { it > 0L } ?: activePerson.id
                 val resolvedName = personDetail?.name?.takeIf { it.isNotBlank() } ?: activePerson.name
@@ -555,5 +651,6 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                 onDismiss = { viewModel.closeLegalCompliance() }
             )
         }
+    }
     }
 }

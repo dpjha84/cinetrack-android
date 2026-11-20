@@ -10,6 +10,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,8 +22,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.rememberScrollState
@@ -83,6 +89,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -98,6 +105,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.ui.viewmodel.TopRatedTab
 
@@ -122,6 +130,7 @@ fun SearchScreen(
     val topRatedList by viewModel.currentTopRatedList.collectAsStateWithLifecycle()
     val isTopRatedLoading by viewModel.isTopRatedLoading.collectAsStateWithLifecycle()
 
+    val adaptive = LocalAdaptiveLayoutInfo.current
     var showLocalizationDialog by remember { mutableStateOf(false) }
     var isSearchFocused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
@@ -140,6 +149,8 @@ fun SearchScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = if (adaptive.isTabletOrWide) 1040.dp else Dp.Unspecified)
+                .align(Alignment.CenterHorizontally)
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
         ) {
             // Search textfield
@@ -477,62 +488,126 @@ fun SearchScreen(
                 }
 
                 else -> {
-                    // Results List
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("search_results_list")
-                    ) {
-                        items(searchResults, key = { item ->
-                            when (item) {
-                                is TmdbSearchResultItem.Media -> "media_${item.entity.id}"
-                                is TmdbSearchResultItem.Person -> "person_${item.id}"
-                            }
-                        }) { item ->
-                            when (item) {
-                                is TmdbSearchResultItem.Media -> {
-                                    val currentEntity = allTrackedMedia.find { it.id == item.entity.id } ?: item.entity
-                                    val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
-
-                                    SearchResultMediaCard(
-                                        media = currentEntity,
-                                        isMovie = item.isMovie,
-                                        isInWatchlist = isInWatchlist,
-                                        onCardClick = {
-                                            if (searchQuery.isNotBlank()) {
-                                                viewModel.recordCompletedSearch(searchQuery)
-                                            }
-                                            viewModel.openMediaFromSearch(currentEntity)
-                                            onMediaClick(currentEntity.id)
-                                        },
-                                        onToggleWatchlist = {
-                                            if (searchQuery.isNotBlank()) {
-                                                viewModel.recordCompletedSearch(searchQuery)
-                                            }
-                                            viewModel.toggleWatchlistQuick(currentEntity)
-                                        }
-                                    )
+                    if (adaptive.isTabletOrWide) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(adaptive.cardGridColumns),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("search_results_list")
+                        ) {
+                            items(searchResults, key = { item ->
+                                when (item) {
+                                    is TmdbSearchResultItem.Media -> "media_${item.entity.id}"
+                                    is TmdbSearchResultItem.Person -> "person_${item.id}"
                                 }
+                            }) { item ->
+                                when (item) {
+                                    is TmdbSearchResultItem.Media -> {
+                                        val currentEntity = allTrackedMedia.find { it.id == item.entity.id } ?: item.entity
+                                        val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
 
-                                is TmdbSearchResultItem.Person -> {
-                                    SearchResultPersonCard(
-                                        person = item,
-                                        onPersonClick = {
-                                            if (searchQuery.isNotBlank()) {
-                                                viewModel.recordCompletedSearch(searchQuery)
+                                        SearchResultMediaCard(
+                                            media = currentEntity,
+                                            isMovie = item.isMovie,
+                                            isInWatchlist = isInWatchlist,
+                                            onCardClick = {
+                                                if (searchQuery.isNotBlank()) {
+                                                    viewModel.recordCompletedSearch(searchQuery)
+                                                }
+                                                viewModel.openMediaFromSearch(currentEntity)
+                                                onMediaClick(currentEntity.id)
+                                            },
+                                            onToggleWatchlist = {
+                                                if (searchQuery.isNotBlank()) {
+                                                    viewModel.recordCompletedSearch(searchQuery)
+                                                }
+                                                viewModel.toggleWatchlistQuick(currentEntity)
                                             }
-                                            viewModel.selectPersonForDetail(item)
-                                        },
-                                        onMediaClick = { media ->
-                                            if (searchQuery.isNotBlank()) {
-                                                viewModel.recordCompletedSearch(searchQuery)
+                                        )
+                                    }
+
+                                    is TmdbSearchResultItem.Person -> {
+                                        SearchResultPersonCard(
+                                            person = item,
+                                            onPersonClick = {
+                                                if (searchQuery.isNotBlank()) {
+                                                    viewModel.recordCompletedSearch(searchQuery)
+                                                }
+                                                viewModel.selectPersonForDetail(item)
+                                            },
+                                            onMediaClick = { media ->
+                                                if (searchQuery.isNotBlank()) {
+                                                    viewModel.recordCompletedSearch(searchQuery)
+                                                }
+                                                viewModel.openMediaFromSearch(media)
+                                                onMediaClick(media.id)
                                             }
-                                            viewModel.openMediaFromSearch(media)
-                                            onMediaClick(media.id)
-                                        }
-                                    )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Results List
+                        LazyColumn(
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("search_results_list")
+                        ) {
+                            items(searchResults, key = { item ->
+                                when (item) {
+                                    is TmdbSearchResultItem.Media -> "media_${item.entity.id}"
+                                    is TmdbSearchResultItem.Person -> "person_${item.id}"
+                                }
+                            }) { item ->
+                                when (item) {
+                                    is TmdbSearchResultItem.Media -> {
+                                        val currentEntity = allTrackedMedia.find { it.id == item.entity.id } ?: item.entity
+                                        val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
+
+                                        SearchResultMediaCard(
+                                            media = currentEntity,
+                                            isMovie = item.isMovie,
+                                            isInWatchlist = isInWatchlist,
+                                            onCardClick = {
+                                                if (searchQuery.isNotBlank()) {
+                                                    viewModel.recordCompletedSearch(searchQuery)
+                                                }
+                                                viewModel.openMediaFromSearch(currentEntity)
+                                                onMediaClick(currentEntity.id)
+                                            },
+                                            onToggleWatchlist = {
+                                                if (searchQuery.isNotBlank()) {
+                                                    viewModel.recordCompletedSearch(searchQuery)
+                                                }
+                                                viewModel.toggleWatchlistQuick(currentEntity)
+                                            }
+                                        )
+                                    }
+
+                                    is TmdbSearchResultItem.Person -> {
+                                        SearchResultPersonCard(
+                                            person = item,
+                                            onPersonClick = {
+                                                if (searchQuery.isNotBlank()) {
+                                                    viewModel.recordCompletedSearch(searchQuery)
+                                                }
+                                                viewModel.selectPersonForDetail(item)
+                                            },
+                                            onMediaClick = { media ->
+                                                if (searchQuery.isNotBlank()) {
+                                                    viewModel.recordCompletedSearch(searchQuery)
+                                                }
+                                                viewModel.openMediaFromSearch(media)
+                                                onMediaClick(media.id)
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -876,6 +951,7 @@ fun SearchResultPersonCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EmptyQueryView(
     isSearchFocused: Boolean,
@@ -896,6 +972,7 @@ fun EmptyQueryView(
     onToggleWatchlist: (MediaEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val adaptive = LocalAdaptiveLayoutInfo.current
     val trendingSuggestions = listOf(
         "Christopher Nolan",
         "Dune: Part Two",
@@ -915,12 +992,18 @@ fun EmptyQueryView(
         "Action", "Sci-Fi", "Thriller", "Comedy", "Drama", "Horror", "Animation", "Crime"
     )
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = if (adaptive.isTabletOrWide) 1080.dp else Dp.Unspecified)
+                .align(Alignment.TopCenter)
+                .padding(16.dp)
+        ) {
         // Recent Search History (ONLY shown when user clicks / focuses on the search text box)
         if (isSearchFocused && recentHistory.isNotEmpty()) {
             Row(
@@ -1063,18 +1146,33 @@ fun EmptyQueryView(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Single scrollable row of trending suggestions
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            trendingSuggestions.forEach { tag ->
-                SuggestionChip(
-                    text = tag,
-                    onClick = { onSuggestionClick(tag) }
-                )
+        if (adaptive.isTabletOrWide) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                trendingSuggestions.forEach { tag ->
+                    SuggestionChip(
+                        text = tag,
+                        onClick = { onSuggestionClick(tag) }
+                    )
+                }
+            }
+        } else {
+            // Single scrollable row of trending suggestions
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                trendingSuggestions.forEach { tag ->
+                    SuggestionChip(
+                        text = tag,
+                        onClick = { onSuggestionClick(tag) }
+                    )
+                }
             }
         }
 
@@ -1099,27 +1197,53 @@ fun EmptyQueryView(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            popularGenres.forEach { genre ->
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier
-                        .clickable { onGenreClick(genre) }
-                        .testTag("genre_chip_$genre")
-                ) {
-                    Text(
-                        text = genre,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                    )
+        if (adaptive.isTabletOrWide) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                popularGenres.forEach { genre ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier
+                            .clickable { onGenreClick(genre) }
+                            .testTag("genre_chip_$genre")
+                    ) {
+                        Text(
+                            text = genre,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                popularGenres.forEach { genre ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier
+                            .clickable { onGenreClick(genre) }
+                            .testTag("genre_chip_$genre")
+                    ) {
+                        Text(
+                            text = genre,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                        )
+                    }
                 }
             }
         }
@@ -1209,164 +1333,207 @@ fun EmptyQueryView(
                 modifier = Modifier.padding(vertical = 12.dp)
             )
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                topRatedList.take(10).forEachIndexed { index, item ->
-                    val currentEntity = allTrackedMedia.find { it.id == item.id } ?: item
-                    val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
+            val rankedTopTen = topRatedList.take(10)
+            if (adaptive.isTabletOrWide) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    rankedTopTen.mapIndexed { idx, item -> idx to item }.chunked(2).forEach { pair ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            pair.forEach { (index, item) ->
+                                val currentEntity = allTrackedMedia.find { it.id == item.id } ?: item
+                                val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
+                                TopRatedEntryCard(
+                                    rankIndex = index,
+                                    entity = currentEntity,
+                                    isInWatchlist = isInWatchlist,
+                                    onMediaClick = { onMediaClick(currentEntity) },
+                                    onToggleWatchlist = { onToggleWatchlist(currentEntity) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (pair.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    rankedTopTen.forEachIndexed { index, item ->
+                        val currentEntity = allTrackedMedia.find { it.id == item.id } ?: item
+                        val isInWatchlist = currentEntity.getWatchStatusEnum() != WatchStatus.NONE
+                        TopRatedEntryCard(
+                            rankIndex = index,
+                            entity = currentEntity,
+                            isInWatchlist = isInWatchlist,
+                            onMediaClick = { onMediaClick(currentEntity) },
+                            onToggleWatchlist = { onToggleWatchlist(currentEntity) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+    }
+}
 
-                    Card(
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onMediaClick(currentEntity) }
-                            .testTag("top_rated_item_${currentEntity.id}")
+@Composable
+private fun TopRatedEntryCard(
+    rankIndex: Int,
+    entity: MediaEntity,
+    isInWatchlist: Boolean,
+    onMediaClick: () -> Unit,
+    onToggleWatchlist: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onMediaClick)
+            .testTag("top_rated_item_${entity.id}")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (rankIndex < 3) CinemaGold else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                modifier = Modifier.size(32.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "#${rankIndex + 1}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (rankIndex < 3) Color.Black else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            AsyncImage(
+                model = entity.posterUrl.ifBlank { entity.backdropUrl },
+                contentDescription = entity.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .width(58.dp)
+                    .aspectRatio(2f / 3f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = entity.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = CinemaGold.copy(alpha = 0.18f),
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = CinemaGold,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = String.format("%.1f", entity.communityRating),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CinemaGold
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "${entity.releaseYear}" + if (entity.runtimeMinutes > 0) " • ${entity.runtimeMinutes}m" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+                }
+
+                if (entity.genres.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = entity.genres,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = CinemaCyan.copy(alpha = 0.9f),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                if (entity.overview.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = entity.overview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 15.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isInWatchlist) CinemaGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface,
+                        modifier = Modifier
+                            .clickable(onClick = onToggleWatchlist)
+                            .testTag("btn_top_rated_watchlist_${entity.id}")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Rank badge (#1..#10)
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (index < 3) CinemaGold else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "#${index + 1}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (index < 3) Color.Black else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            // 2:3 aspect ratio poster thumbnail
-                            AsyncImage(
-                                model = currentEntity.posterUrl.ifBlank { currentEntity.backdropUrl },
-                                contentDescription = currentEntity.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .width(58.dp)
-                                    .aspectRatio(2f / 3f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.surface)
+                            Icon(
+                                imageVector = if (isInWatchlist) Icons.Default.Check else Icons.Default.BookmarkBorder,
+                                contentDescription = if (isInWatchlist) "In Watchlist" else "Add to Watchlist",
+                                tint = if (isInWatchlist) CinemaGreen else CinemaGold,
+                                modifier = Modifier.size(14.dp)
                             )
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            // Details & + Watchlist action
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = currentEntity.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = CinemaGold.copy(alpha = 0.18f),
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Star,
-                                                contentDescription = null,
-                                                tint = CinemaGold,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(3.dp))
-                                            Text(
-                                                text = String.format("%.1f", currentEntity.communityRating),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = CinemaGold
-                                            )
-                                        }
-                                    }
-
-                                    Text(
-                                        text = "${currentEntity.releaseYear}" + if (currentEntity.runtimeMinutes > 0) " • ${currentEntity.runtimeMinutes}m" else "",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 12.sp
-                                    )
-                                }
-
-                                if (currentEntity.genres.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = currentEntity.genres,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = CinemaCyan.copy(alpha = 0.9f),
-                                        fontSize = 11.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                if (currentEntity.overview.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = currentEntity.overview,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 11.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        lineHeight = 15.sp
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = if (isInWatchlist) CinemaGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface,
-                                        modifier = Modifier
-                                            .clickable { onToggleWatchlist(currentEntity) }
-                                            .testTag("btn_top_rated_watchlist_${currentEntity.id}")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = if (isInWatchlist) Icons.Default.Check else Icons.Default.BookmarkBorder,
-                                                contentDescription = if (isInWatchlist) "In Watchlist" else "Add to Watchlist",
-                                                tint = if (isInWatchlist) CinemaGreen else CinemaGold,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = if (isInWatchlist) "In Watchlist" else "+ Watchlist",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isInWatchlist) CinemaGreen else CinemaGold
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isInWatchlist) "In Watchlist" else "+ Watchlist",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isInWatchlist) CinemaGreen else CinemaGold
+                            )
                         }
                     }
                 }

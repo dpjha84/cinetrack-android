@@ -40,6 +40,12 @@ object TrailerInterstitialAdManager {
         return elapsed >= cooldownMs
     }
 
+    fun releasePreloaded() {
+        if (!isLoading) {
+            loadedInterstitial = null
+        }
+    }
+
     fun preload(context: Context, isPro: Boolean = false) {
         if (isPro) {
             loadedInterstitial = null

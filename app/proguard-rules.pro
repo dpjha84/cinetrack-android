@@ -1,30 +1,33 @@
-# WatchPilot v2.0.0 R8 / ProGuard Commercial Release Rules
+# WatchPilot Commercial Release R8 Optimization & Minimal Keep Rules
 -keepattributes SourceFile,LineNumberTable
--keepattributes Signature,InnerClasses,EnclosingMethod
--keepattributes *Annotation*
+-renamesourcefileattribute SourceFile
+-keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations
 
 # Retrofit & OkHttp
 -dontwarn okhttp3.**
 -dontwarn okio.**
+-dontwarn javax.annotation.**
 -keepclassmembers,allowshrinking,allowobfuscation interface * {
     @retrofit2.http.* <methods>;
 }
 
-# Moshi DTOs & Generated Adapters
--keep class com.squareup.moshi.** { *; }
--keep @com.squareup.moshi.JsonClass class * { *; }
--keep class **JsonAdapter { *; }
--keep class com.example.data.remote.tmdb.** { *; }
+# Moshi Codegen (all TMDB DTOs use @JsonClass(generateAdapter = true) with KSP adapters)
+-keep,allowobfuscation @com.squareup.moshi.JsonClass class *
+-keepclassmembers class * extends com.squareup.moshi.JsonAdapter {
+    public <init>(com.squareup.moshi.Moshi);
+}
+-keepclassmembers,allowobfuscation class * {
+    @com.squareup.moshi.Json <fields>;
+}
 
-# Room Entities
+# Room Database
 -keep class * extends androidx.room.RoomDatabase
--keep @androidx.room.Entity class * { *; }
+-dontwarn androidx.room.paging.**
 
-# Firebase Firestore & AI Logic Models
--keep class com.example.data.remote.firebase.** { *; }
--keep class com.example.data.model.** { *; }
--keep class com.google.firebase.** { *; }
-
-# Google Play Billing & AdMob
--keep class com.android.vending.billing.** { *; }
--keep class com.google.android.gms.ads.** { *; }
+# Strip verbose/debug/info logs from release DEX to shrink bytecode and reduce allocations
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

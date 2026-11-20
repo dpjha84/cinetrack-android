@@ -12,6 +12,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -110,6 +112,7 @@ import com.example.data.model.CastMemberItem
 import com.example.data.model.RegionalDefaults
 import com.example.data.model.SeasonItem
 import com.example.data.model.TvWatchStatus
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.WatchProviderLauncher
 
@@ -188,6 +191,21 @@ fun MediaDetailScreen(
         seasons.find { it.seasonNumber == selectedSeason }?.episodeCount?.takeIf { it > 0 }
     }
 
+    val adaptive = LocalAdaptiveLayoutInfo.current
+    val tabletMaxWidth = if (adaptive.isExpanded) 1140.dp else 760.dp
+
+    val providersInfo = activeWatchProviders ?: remember(media, effectiveRegionCode) {
+        media.getWatchProvidersInfo(effectiveRegionCode)
+    }
+    val streamAndFree = (providersInfo.stream + providersInfo.free).distinctBy { it.name }
+    val displayCast = remember(currentMediaCast, media.cast) {
+        if (currentMediaCast.isNotEmpty()) {
+            currentMediaCast
+        } else {
+            media.getCastList().map { CastMemberItem(name = it) }
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -197,13 +215,14 @@ fun MediaDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 60.dp)
+                .padding(bottom = 60.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Backdrop Header
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(280.dp)
+                    .height(if (adaptive.isTabletOrWide) 340.dp else 280.dp)
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Image(
@@ -248,8 +267,9 @@ fun MediaDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .then(if (adaptive.isTabletOrWide) Modifier.widthIn(max = tabletMaxWidth).align(Alignment.TopCenter) else Modifier)
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = if (adaptive.isTabletOrWide) 24.dp else 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -285,13 +305,14 @@ fun MediaDetailScreen(
                 // Poster & Title Row Floating over bottom of backdrop
                 Row(
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .align(if (adaptive.isTabletOrWide) Alignment.BottomCenter else Alignment.BottomStart)
+                        .then(if (adaptive.isTabletOrWide) Modifier.fillMaxWidth().widthIn(max = tabletMaxWidth) else Modifier)
+                        .padding(horizontal = if (adaptive.isTabletOrWide) 24.dp else 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
                     Box(
                         modifier = Modifier
-                            .width(105.dp)
+                            .width(if (adaptive.isTabletOrWide) 134.dp else 105.dp)
                             .aspectRatio(2f / 3f)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
@@ -340,7 +361,7 @@ fun MediaDetailScreen(
 
                         Text(
                             text = media.title,
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = if (adaptive.isTabletOrWide) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
@@ -354,61 +375,329 @@ fun MediaDetailScreen(
                 }
             }
 
-            // Details Body
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-            ) {
-                // Genres chips
+            if (adaptive.useTwoPaneLayout) {
+                // Tablet Expanded Two-Pane Details Body
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        .widthIn(max = tabletMaxWidth)
+                        .padding(horizontal = 24.dp, vertical = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    // Origin and Language Badges
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = CinemaCyan.copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            text = "${media.getOriginFlag()} ${media.originCountry} • ${media.getLanguageFlagAndName()}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = CinemaCyan,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    // Left Pane: Genres, Rating & Review, Collection, Synopsis, Creator, Cast
+                    Column(modifier = Modifier.weight(1.06f)) {
+                        MediaGenresAndOriginStrip(media = media, isTablet = true)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        MediaRatingAndReviewCard(
+                            media = media,
+                            onEditRating = { showRatingDialog = true }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        MediaCustomCollectionCard(
+                            media = media,
+                            onChangeClick = { showWatchlistDialog = true }
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        MediaSynopsisAndCastSection(
+                            media = media,
+                            displayCast = displayCast,
+                            onCastClick = { viewModel.openCastMember(it) }
                         )
                     }
 
-                    media.getGenreList().forEach { genre ->
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Text(
-                                text = genre,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    // Right Pane: Where to Watch, Watch Status, Episode Progress, Seasons
+                    Column(modifier = Modifier.weight(0.94f)) {
+                        if (showStreamingProviders) {
+                            MediaWhereToWatchCard(
+                                media = media,
+                                isMovie = isMovie,
+                                effectiveRegionCode = effectiveRegionCode,
+                                providersInfo = providersInfo,
+                                streamAndFree = streamAndFree,
+                                isLoadingWatchProviders = isLoadingWatchProviders,
+                                maxSeasons = maxSeasons,
+                                selectedSeason = selectedSeason,
+                                selectedEpisode = selectedEpisode,
+                                maxEpisodesInSelectedSeason = maxEpisodesInSelectedSeason,
+                                onSelectSeason = { newSeason ->
+                                    hasCustomPlaybackTarget = true
+                                    selectedSeason = newSeason
+                                    selectedEpisode = 1
+                                },
+                                onSelectEpisode = { newEpisode ->
+                                    hasCustomPlaybackTarget = true
+                                    selectedEpisode = newEpisode
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        MediaWatchStatusSelectorSection(
+                            media = media,
+                            isTablet = true,
+                            onUpdateStatus = { st -> viewModel.updateStatus(media.id, st) }
+                        )
+
+                        if (media.getMediaTypeEnum() == MediaType.TV_SHOW && media.totalEpisodes > 0) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            MediaEpisodeProgressCard(
+                                media = media,
+                                maxSeasons = maxSeasons,
+                                nextUpSeason = nextUpSeason,
+                                nextUpEpisode = nextUpEpisode,
+                                showStreamingProviders = showStreamingProviders,
+                                streamAndFree = streamAndFree,
+                                providersInfo = providersInfo,
+                                selectedSeason = selectedSeason,
+                                selectedEpisode = selectedEpisode,
+                                onSetWatchedEpisodes = { count -> viewModel.setWatchedEpisodes(media.id, count) },
+                                onIncrementEpisode = { viewModel.incrementEpisode(media.id) }
+                            )
+                        }
+
+                        if (media.getMediaTypeEnum() == MediaType.TV_SHOW) {
+                            Spacer(modifier = Modifier.height(20.dp))
+                            MediaSeasonsSection(
+                                media = media,
+                                seasons = seasons,
+                                isLoadingSeasons = isLoadingSeasons,
+                                onSetSeasonStatus = { sNum, status ->
+                                    viewModel.setSeasonWatchStatus(media, sNum, status)
+                                },
+                                onOpenSeasonDetail = { seasonItem ->
+                                    viewModel.openSeasonDetail(media, seasonItem)
+                                }
                             )
                         }
                     }
                 }
+            } else {
+                // Phone (Compact) & Tablet Medium Single-Column Details Body
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (adaptive.isTabletOrWide) Modifier.widthIn(max = tabletMaxWidth) else Modifier)
+                        .padding(horizontal = if (adaptive.isTabletOrWide) 24.dp else 20.dp, vertical = 12.dp)
+                ) {
+                    MediaGenresAndOriginStrip(media = media, isTablet = adaptive.isTabletOrWide)
 
-                Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                // Regional Streaming Providers Card with Direct Deep Linking
-                val providersInfo = activeWatchProviders ?: remember(media, effectiveRegionCode) {
-                    media.getWatchProvidersInfo(effectiveRegionCode)
+                    if (showStreamingProviders) {
+                        MediaWhereToWatchCard(
+                            media = media,
+                            isMovie = isMovie,
+                            effectiveRegionCode = effectiveRegionCode,
+                            providersInfo = providersInfo,
+                            streamAndFree = streamAndFree,
+                            isLoadingWatchProviders = isLoadingWatchProviders,
+                            maxSeasons = maxSeasons,
+                            selectedSeason = selectedSeason,
+                            selectedEpisode = selectedEpisode,
+                            maxEpisodesInSelectedSeason = maxEpisodesInSelectedSeason,
+                            onSelectSeason = { newSeason ->
+                                hasCustomPlaybackTarget = true
+                                selectedSeason = newSeason
+                                selectedEpisode = 1
+                            },
+                            onSelectEpisode = { newEpisode ->
+                                hasCustomPlaybackTarget = true
+                                selectedEpisode = newEpisode
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    MediaWatchStatusSelectorSection(
+                        media = media,
+                        isTablet = adaptive.isTabletOrWide,
+                        onUpdateStatus = { st -> viewModel.updateStatus(media.id, st) }
+                    )
+
+                    if (media.getMediaTypeEnum() == MediaType.TV_SHOW && media.totalEpisodes > 0) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        MediaEpisodeProgressCard(
+                            media = media,
+                            maxSeasons = maxSeasons,
+                            nextUpSeason = nextUpSeason,
+                            nextUpEpisode = nextUpEpisode,
+                            showStreamingProviders = showStreamingProviders,
+                            streamAndFree = streamAndFree,
+                            providersInfo = providersInfo,
+                            selectedSeason = selectedSeason,
+                            selectedEpisode = selectedEpisode,
+                            onSetWatchedEpisodes = { count -> viewModel.setWatchedEpisodes(media.id, count) },
+                            onIncrementEpisode = { viewModel.incrementEpisode(media.id) }
+                        )
+                    }
+
+                    if (media.getMediaTypeEnum() == MediaType.TV_SHOW) {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        MediaSeasonsSection(
+                            media = media,
+                            seasons = seasons,
+                            isLoadingSeasons = isLoadingSeasons,
+                            onSetSeasonStatus = { sNum, status ->
+                                viewModel.setSeasonWatchStatus(media, sNum, status)
+                            },
+                            onOpenSeasonDetail = { seasonItem ->
+                                viewModel.openSeasonDetail(media, seasonItem)
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    MediaRatingAndReviewCard(
+                        media = media,
+                        onEditRating = { showRatingDialog = true }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    MediaCustomCollectionCard(
+                        media = media,
+                        onChangeClick = { showWatchlistDialog = true }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    MediaSynopsisAndCastSection(
+                        media = media,
+                        displayCast = displayCast,
+                        onCastClick = { viewModel.openCastMember(it) }
+                    )
                 }
-                val streamAndFree = (providersInfo.stream + providersInfo.free).distinctBy { it.name }
+            }
+        }
+    }
 
-                if (showStreamingProviders) {
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("card_where_to_watch")
-                    ) {
+    // Dialogs
+    if (showRatingDialog) {
+        RatingReviewDialog(
+            mediaTitle = media.title,
+            currentRating = media.userRating,
+            currentReview = media.userReview,
+            onDismiss = { showRatingDialog = false },
+            onSave = { rating, review ->
+                viewModel.updateRatingAndReview(media.id, rating, review)
+                showRatingDialog = false
+            }
+        )
+    }
+
+    if (showWatchlistDialog) {
+        WatchlistSelectDialog(
+            currentWatchlist = media.customWatchlist,
+            availableCollections = availableCollections,
+            onDismiss = { showWatchlistDialog = false },
+            onSelect = { selectedCol ->
+                viewModel.setCustomWatchlist(media.id, selectedCol)
+                showWatchlistDialog = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MediaGenresAndOriginStrip(
+    media: MediaEntity,
+    isTablet: Boolean
+) {
+    if (isTablet) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = CinemaCyan.copy(alpha = 0.15f)
+            ) {
+                Text(
+                    text = "${media.getOriginFlag()} ${media.originCountry} • ${media.getLanguageFlagAndName()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CinemaCyan,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                )
+            }
+
+            media.getGenreList().forEach { genre ->
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Text(
+                        text = genre,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
+                }
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Origin and Language Badges
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = CinemaCyan.copy(alpha = 0.15f)
+            ) {
+                Text(
+                    text = "${media.getOriginFlag()} ${media.originCountry} • ${media.getLanguageFlagAndName()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CinemaCyan,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                )
+            }
+
+            media.getGenreList().forEach { genre ->
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Text(
+                        text = genre,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaWhereToWatchCard(
+    media: MediaEntity,
+    isMovie: Boolean,
+    effectiveRegionCode: String,
+    providersInfo: WatchProvidersInfo,
+    streamAndFree: List<WatchProviderItem>,
+    isLoadingWatchProviders: Boolean,
+    maxSeasons: Int,
+    selectedSeason: Int,
+    selectedEpisode: Int,
+    maxEpisodesInSelectedSeason: Int?,
+    onSelectSeason: (Int) -> Unit,
+    onSelectEpisode: (Int) -> Unit
+) {
+    val context = LocalContext.current
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("card_where_to_watch")
+    ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -517,16 +806,12 @@ fun MediaDetailScreen(
                                             canIncrement = selectedSeason < maxSeasons,
                                             onDecrement = {
                                                 if (selectedSeason > 1) {
-                                                    hasCustomPlaybackTarget = true
-                                                    selectedSeason--
-                                                    selectedEpisode = 1
+                                                    onSelectSeason(selectedSeason - 1)
                                                 }
                                             },
                                             onIncrement = {
                                                 if (selectedSeason < maxSeasons) {
-                                                    hasCustomPlaybackTarget = true
-                                                    selectedSeason++
-                                                    selectedEpisode = 1
+                                                    onSelectSeason(selectedSeason + 1)
                                                 }
                                             },
                                             decrementDescription = "Previous season",
@@ -542,15 +827,13 @@ fun MediaDetailScreen(
                                             canIncrement = maxEpisodesInSelectedSeason == null || selectedEpisode < maxEpisodesInSelectedSeason,
                                             onDecrement = {
                                                 if (selectedEpisode > 1) {
-                                                    hasCustomPlaybackTarget = true
-                                                    selectedEpisode--
+                                                    onSelectEpisode(selectedEpisode - 1)
                                                 }
                                             },
                                             onIncrement = {
                                                 val maxEp = maxEpisodesInSelectedSeason
                                                 if (maxEp == null || selectedEpisode < maxEp) {
-                                                    hasCustomPlaybackTarget = true
-                                                    selectedEpisode++
+                                                    onSelectEpisode(selectedEpisode + 1)
                                                 }
                                             },
                                             decrementDescription = "Previous episode",
@@ -785,11 +1068,15 @@ fun MediaDetailScreen(
                         )
                     }
                 }
+}
 
-                Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                // Watch Status Selector
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MediaWatchStatusSelectorSection(
+    media: MediaEntity,
+    isTablet: Boolean,
+    onUpdateStatus: (WatchStatus) -> Unit
+) {
                 Text(
                     text = "Watch Status",
                     style = MaterialTheme.typography.titleSmall,
@@ -798,43 +1085,80 @@ fun MediaDetailScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                val statuses = remember {
                     listOf(
                         WatchStatus.PLAN_TO_WATCH,
                         WatchStatus.WATCHING,
                         WatchStatus.COMPLETED,
                         WatchStatus.ON_HOLD,
                         WatchStatus.DROPPED
-                    ).forEach { st ->
-                        FilterChip(
-                            selected = media.getWatchStatusEnum() == st,
-                            onClick = { viewModel.updateStatus(media.id, st) },
-                            label = { Text(st.label) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaGold,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
-                            )
-                        )
-                    }
+                    )
                 }
 
-                // If TV Series: Episode Progression Card
-                if (media.getMediaTypeEnum() == MediaType.TV_SHOW && media.totalEpisodes > 0) {
-                    val hasStartedWatching = media.watchedEpisodes > 0
-                    val isSeriesCompleted = media.watchedEpisodes >= media.totalEpisodes
-                    val progressPercent = (media.progressFraction * 100).toInt().coerceIn(0, 100)
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier.fillMaxWidth()
+                if (isTablet) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        statuses.forEach { st ->
+                            FilterChip(
+                                selected = media.getWatchStatusEnum() == st,
+                                onClick = { onUpdateStatus(st) },
+                                label = { Text(st.label, maxLines = 1, softWrap = false) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = CinemaGold,
+                                    selectedLabelColor = MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        statuses.forEach { st ->
+                            FilterChip(
+                                selected = media.getWatchStatusEnum() == st,
+                                onClick = { onUpdateStatus(st) },
+                                label = { Text(st.label) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = CinemaGold,
+                                    selectedLabelColor = MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        }
+                    }
+                }
+}
+
+@Composable
+private fun MediaEpisodeProgressCard(
+    media: MediaEntity,
+    maxSeasons: Int,
+    nextUpSeason: Int,
+    nextUpEpisode: Int,
+    showStreamingProviders: Boolean,
+    streamAndFree: List<WatchProviderItem>,
+    providersInfo: WatchProvidersInfo,
+    selectedSeason: Int,
+    selectedEpisode: Int,
+    onSetWatchedEpisodes: (Int) -> Unit,
+    onIncrementEpisode: () -> Unit
+) {
+    val context = LocalContext.current
+    val hasStartedWatching = media.watchedEpisodes > 0
+    val isSeriesCompleted = media.watchedEpisodes >= media.totalEpisodes
+    val progressPercent = (media.progressFraction * 100).toInt().coerceIn(0, 100)
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -971,7 +1295,7 @@ fun MediaDetailScreen(
                                             .heightIn(min = 40.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                             .clickable {
-                                                viewModel.setWatchedEpisodes(media.id, media.watchedEpisodes - 1)
+                                                onSetWatchedEpisodes(media.watchedEpisodes - 1)
                                             }
                                             .testTag("btn_undo_episode")
                                     ) {
@@ -1018,7 +1342,7 @@ fun MediaDetailScreen(
                                         .heightIn(min = 40.dp)
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable(enabled = !isSeriesCompleted) {
-                                            viewModel.incrementEpisode(media.id)
+                                            onIncrementEpisode()
                                         }
                                         .testTag("btn_mark_next_episode")
                                 ) {
@@ -1115,13 +1439,17 @@ fun MediaDetailScreen(
                             }
                         }
                     }
-                }
+}
 
-                // If TV Series: Seasons & Episodes Interactive Section
-                if (media.getMediaTypeEnum() == MediaType.TV_SHOW) {
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
+@Composable
+private fun MediaSeasonsSection(
+    media: MediaEntity,
+    seasons: List<SeasonItem>,
+    isLoadingSeasons: Boolean,
+    onSetSeasonStatus: (Int, TvWatchStatus) -> Unit,
+    onOpenSeasonDetail: (SeasonItem) -> Unit
+) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1170,19 +1498,22 @@ fun MediaDetailScreen(
                                 season = seasonItem,
                                 media = media,
                                 onStatusChange = { newStatus ->
-                                    viewModel.setSeasonWatchStatus(media, seasonItem.seasonNumber, newStatus)
+                                    onSetSeasonStatus(seasonItem.seasonNumber, newStatus)
                                 },
                                 onClick = {
-                                    viewModel.openSeasonDetail(media, seasonItem)
+                                    onOpenSeasonDetail(seasonItem)
                                 }
                             )
                         }
                     }
-                }
+                    }
+}
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Rating & Review Card
+@Composable
+private fun MediaRatingAndReviewCard(
+    media: MediaEntity,
+    onEditRating: () -> Unit
+) {
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1204,7 +1535,7 @@ fun MediaDetailScreen(
                                     .weight(1f)
                                     .padding(end = 8.dp)
                             )
-                            IconButton(onClick = { showRatingDialog = true }) {
+                            IconButton(onClick = onEditRating) {
                                 Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit Rating", tint = CinemaGold)
                             }
                         }
@@ -1247,7 +1578,7 @@ fun MediaDetailScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             FilledTonalButton(
-                                onClick = { showRatingDialog = true },
+                                onClick = onEditRating,
                                 colors = ButtonDefaults.filledTonalButtonColors(
                                     containerColor = CinemaGold.copy(alpha = 0.2f),
                                     contentColor = CinemaGold
@@ -1260,10 +1591,13 @@ fun MediaDetailScreen(
                         }
                     }
                 }
+}
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Custom Collection / Watchlist Section
+@Composable
+private fun MediaCustomCollectionCard(
+    media: MediaEntity,
+    onChangeClick: () -> Unit
+) {
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1297,7 +1631,7 @@ fun MediaDetailScreen(
                         }
 
                         FilledTonalButton(
-                            onClick = { showWatchlistDialog = true },
+                            onClick = onChangeClick,
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                             modifier = Modifier.widthIn(min = 104.dp)
@@ -1312,8 +1646,16 @@ fun MediaDetailScreen(
                         }
                     }
                 }
+}
 
-                Spacer(modifier = Modifier.height(16.dp))
+@Composable
+private fun MediaSynopsisAndCastSection(
+    media: MediaEntity,
+    displayCast: List<CastMemberItem>,
+    onCastClick: (CastMemberItem) -> Unit
+) {
+    val context = LocalContext.current
+    Column(modifier = Modifier.fillMaxWidth()) {
 
                 // Overview / Synopsis
                 Text(
@@ -1347,13 +1689,6 @@ fun MediaDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Starring Cast with Circular Images & Name Below
-                val displayCast = remember(currentMediaCast, media.cast) {
-                    if (currentMediaCast.isNotEmpty()) {
-                        currentMediaCast
-                    } else {
-                        media.getCastList().map { CastMemberItem(name = it) }
-                    }
-                }
                 if (displayCast.isNotEmpty()) {
                     Text(
                         text = "Starring Cast",
@@ -1382,7 +1717,7 @@ fun MediaDetailScreen(
                                 modifier = Modifier
                                     .width(80.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { viewModel.openCastMember(member) }
+                                    .clickable { onCastClick(member) }
                                     .padding(vertical = 4.dp, horizontal = 2.dp)
                                     .testTag("cast_chip_${member.name}")
                             ) {
@@ -1446,34 +1781,6 @@ fun MediaDetailScreen(
                         }
                     }
                 }
-            }
-        }
-    }
-
-    // Dialogs
-    if (showRatingDialog) {
-        RatingReviewDialog(
-            mediaTitle = media.title,
-            currentRating = media.userRating,
-            currentReview = media.userReview,
-            onDismiss = { showRatingDialog = false },
-            onSave = { rating, review ->
-                viewModel.updateRatingAndReview(media.id, rating, review)
-                showRatingDialog = false
-            }
-        )
-    }
-
-    if (showWatchlistDialog) {
-        WatchlistSelectDialog(
-            currentWatchlist = media.customWatchlist,
-            availableCollections = availableCollections,
-            onDismiss = { showWatchlistDialog = false },
-            onSelect = { selectedCol ->
-                viewModel.setCustomWatchlist(media.id, selectedCol)
-                showWatchlistDialog = false
-            }
-        )
     }
 }
 

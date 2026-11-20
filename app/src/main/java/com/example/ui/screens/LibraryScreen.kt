@@ -19,7 +19,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -85,6 +90,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.LibraryTab
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.ui.viewmodel.SortOption
@@ -96,6 +102,7 @@ fun LibraryScreen(
     onExploreClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val adaptive = LocalAdaptiveLayoutInfo.current
     val context = LocalContext.current
     val selectedTab by viewModel.selectedLibraryTab.collectAsStateWithLifecycle()
     val sortOption by viewModel.librarySortOption.collectAsStateWithLifecycle()
@@ -492,60 +499,138 @@ fun LibraryScreen(
                 }
             }
         } else {
-            LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp, top = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                if (visibleFavoritePeople.isNotEmpty()) {
-                    item(key = "fav_people_header") {
-                        Text(
-                            text = "People (${visibleFavoritePeople.size})",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = CinemaGold,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
-                        )
-                    }
-
-                    items(visibleFavoritePeople, key = { "person_${it.id}" }) { person ->
-                        FavoritePersonLibraryCard(
-                            person = person,
-                            onClick = { viewModel.openFavoritePerson(person) },
-                            onToggleFavorite = { viewModel.removeFavoritePerson(person) }
-                        )
-                    }
-
-                    if (libraryItems.isNotEmpty()) {
-                        item(key = "fav_media_header") {
+            if (adaptive.isTabletOrWide) {
+                val gridColumns = adaptive.cardGridColumns
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(gridColumns),
+                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 96.dp, top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    if (visibleFavoritePeople.isNotEmpty()) {
+                        item(
+                            key = "fav_people_header",
+                            span = { GridItemSpan(gridColumns) }
+                        ) {
                             Text(
-                                text = "Movies & Series (${libraryItems.size})",
+                                text = "People (${visibleFavoritePeople.size})",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = CinemaGold,
-                                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                            )
+                        }
+
+                        items(visibleFavoritePeople, key = { "person_${it.id}" }) { person ->
+                            FavoritePersonLibraryCard(
+                                person = person,
+                                onClick = { viewModel.openFavoritePerson(person) },
+                                onToggleFavorite = { viewModel.removeFavoritePerson(person) }
+                            )
+                        }
+
+                        if (libraryItems.isNotEmpty()) {
+                            item(
+                                key = "fav_media_header",
+                                span = { GridItemSpan(gridColumns) }
+                            ) {
+                                Text(
+                                    text = "Movies & Series (${libraryItems.size})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CinemaGold,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    items(libraryItems, key = { it.id }) { item ->
+                        LibraryItemCard(
+                            media = item,
+                            onClick = { onMediaClick(item.id) },
+                            onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
+                        )
+                    }
+
+                    item(
+                        key = "library_sponsored_slot",
+                        span = { GridItemSpan(gridColumns) }
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            SponsoredBannerCard(
+                                isPro = monetizationState.isPro,
+                                onRemoveAdsClick = {
+                                    viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
+                                },
+                                tagSuffix = "library",
+                                modifier = Modifier
+                                    .widthIn(max = 728.dp)
+                                    .padding(top = 6.dp)
                             )
                         }
                     }
                 }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp, top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    if (visibleFavoritePeople.isNotEmpty()) {
+                        item(key = "fav_people_header") {
+                            Text(
+                                text = "People (${visibleFavoritePeople.size})",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = CinemaGold,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                            )
+                        }
 
-                items(libraryItems, key = { it.id }) { item ->
-                    LibraryItemCard(
-                        media = item,
-                        onClick = { onMediaClick(item.id) },
-                        onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
-                    )
-                }
+                        items(visibleFavoritePeople, key = { "person_${it.id}" }) { person ->
+                            FavoritePersonLibraryCard(
+                                person = person,
+                                onClick = { viewModel.openFavoritePerson(person) },
+                                onToggleFavorite = { viewModel.removeFavoritePerson(person) }
+                            )
+                        }
 
-                item(key = "library_sponsored_slot") {
-                    SponsoredBannerCard(
-                        isPro = monetizationState.isPro,
-                        onRemoveAdsClick = {
-                            viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
-                        },
-                        tagSuffix = "library",
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
+                        if (libraryItems.isNotEmpty()) {
+                            item(key = "fav_media_header") {
+                                Text(
+                                    text = "Movies & Series (${libraryItems.size})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CinemaGold,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    items(libraryItems, key = { it.id }) { item ->
+                        LibraryItemCard(
+                            media = item,
+                            onClick = { onMediaClick(item.id) },
+                            onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
+                        )
+                    }
+
+                    item(key = "library_sponsored_slot") {
+                        SponsoredBannerCard(
+                            isPro = monetizationState.isPro,
+                            onRemoveAdsClick = {
+                                viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
+                            },
+                            tagSuffix = "library",
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
                 }
             }
         }

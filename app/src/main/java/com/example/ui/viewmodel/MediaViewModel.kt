@@ -2099,12 +2099,31 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 val bitmap = withContext(Dispatchers.IO) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         val source = ImageDecoder.createSource(context.contentResolver, uri)
-                        ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
-                            decoder.isMutableRequired = true
+                        ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                            val w = info.size.width
+                            val h = info.size.height
+                            val longest = maxOf(w, h)
+                            if (longest > 1280) {
+                                val ratio = 1280f / longest.toFloat()
+                                decoder.setTargetSize(
+                                    (w * ratio).toInt().coerceAtLeast(1),
+                                    (h * ratio).toInt().coerceAtLeast(1)
+                                )
+                            }
+                            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
                         }
                     } else {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                         context.contentResolver.openInputStream(uri)?.use { stream ->
-                            BitmapFactory.decodeStream(stream)
+                            BitmapFactory.decodeStream(stream, null, bounds)
+                        }
+                        var sampleSize = 1
+                        while (maxOf(bounds.outWidth, bounds.outHeight) / sampleSize > 1280) {
+                            sampleSize *= 2
+                        }
+                        val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                        context.contentResolver.openInputStream(uri)?.use { stream ->
+                            BitmapFactory.decodeStream(stream, null, decodeOpts)
                         }
                     }
                 } ?: run {
@@ -2112,7 +2131,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
 
-                val aiResult = aiService.extractMediaFromScreenshot(bitmap)
+                val aiResult = try {
+                    aiService.extractMediaFromScreenshot(bitmap)
+                } finally {
+                    bitmap.recycle()
+                }
                 aiResult.fold(
                     onSuccess = { rawItems ->
                         if (rawItems.isEmpty()) {

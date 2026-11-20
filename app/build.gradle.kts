@@ -21,7 +21,7 @@ android {
     applicationId = "com.dpjha.moviebuddy"
     minSdk = 24
     targetSdk = 36
-    versionCode = if (isV1Edition) 1000 else 1100
+    versionCode = if (isV1Edition) 1001 else 2000
     versionName = if (isV1Edition) "5.0.0" else "6.0.0"
     buildConfigField("boolean", "IS_V1_EDITION", isV1Edition.toString())
     buildConfigField("String", "EDITION_NAME", "\"${if (isV1Edition) "v1.0" else "v2.0"}\"")
@@ -61,6 +61,7 @@ android {
     release {
       isCrunchPngs = false
       isMinifyEnabled = false
+      isShrinkResources = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
       // AI Studio.
@@ -135,7 +136,7 @@ dependencies {
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
-  implementation(libs.moshi.kotlin)
+  // implementation(libs.moshi.kotlin) // All DTOs use KSP codegen (@JsonClass(generateAdapter = true))
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   if (!isV1Edition) {
