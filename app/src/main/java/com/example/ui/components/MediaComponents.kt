@@ -91,6 +91,17 @@ fun MediaPosterCard(
                     .aspectRatio(2f / 3f)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (media.getMediaTypeEnum() == MediaType.MOVIE) Icons.Default.Movie else Icons.Default.Tv,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
                 val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
                 if (posterSource.isNotBlank()) {
                     val context = LocalContext.current
@@ -98,15 +109,13 @@ fun MediaPosterCard(
                         ImageRequest.Builder(context)
                             .data(posterSource)
                             .crossfade(true)
-                            .placeholder(R.drawable.banner_cinema)
-                            .error(R.drawable.banner_cinema)
                             .build()
                     }
                     AsyncImage(
                         model = imageRequest,
                         contentDescription = media.title,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                        contentScale = ContentScale.Crop,
                         alignment = Alignment.Center
                     )
                 } else {
@@ -309,6 +318,17 @@ fun CompactMediaPosterCard(
                     .aspectRatio(2f / 3f)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isMovie) Icons.Default.Movie else Icons.Default.Tv,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
                 val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
                 if (posterSource.isNotBlank()) {
                     val context = LocalContext.current
@@ -316,15 +336,13 @@ fun CompactMediaPosterCard(
                         ImageRequest.Builder(context)
                             .data(posterSource)
                             .crossfade(true)
-                            .placeholder(R.drawable.banner_cinema)
-                            .error(R.drawable.banner_cinema)
                             .build()
                     }
                     AsyncImage(
                         model = imageRequest,
                         contentDescription = media.title,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                        contentScale = ContentScale.Crop,
                         alignment = Alignment.Center
                     )
                 } else {
@@ -569,6 +587,17 @@ fun ContinueWatchingCard(
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tv,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
                 if (posterSource.isNotBlank()) {
                     val context = LocalContext.current
@@ -576,15 +605,13 @@ fun ContinueWatchingCard(
                         ImageRequest.Builder(context)
                             .data(posterSource)
                             .crossfade(true)
-                            .placeholder(R.drawable.banner_cinema)
-                            .error(R.drawable.banner_cinema)
                             .build()
                     }
                     AsyncImage(
                         model = imageRequest,
                         contentDescription = media.title,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                        contentScale = ContentScale.Crop,
                         alignment = Alignment.Center
                     )
                 } else {
@@ -727,5 +754,29 @@ fun WatchStatusPill(
             softWrap = false,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
+    }
+}
+
+@Composable
+fun GoogleSignInIcon(
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = CircleShape,
+        color = Color.White,
+        modifier = modifier.size(22.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(3.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_google_logo),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 }

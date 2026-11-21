@@ -127,6 +127,29 @@ data class HomeSectionGridUiState(
     val hasMore: Boolean = true
 )
 
+internal fun <T> mergeAppendOnlyById(
+    existingOrderedIds: MutableList<String>,
+    candidates: List<T>,
+    idSelector: (T) -> String
+): List<T> {
+    val candidateById = LinkedHashMap<String, T>(candidates.size)
+    for (item in candidates) {
+        val id = idSelector(item)
+        if (id.isNotBlank() && !candidateById.containsKey(id)) {
+            candidateById[id] = item
+        }
+    }
+    existingOrderedIds.retainAll(candidateById.keys)
+    val seen = existingOrderedIds.toHashSet()
+    for (item in candidates) {
+        val id = idSelector(item)
+        if (id.isNotBlank() && seen.add(id)) {
+            existingOrderedIds.add(id)
+        }
+    }
+    return existingOrderedIds.mapNotNull { candidateById[it] }
+}
+
 @OptIn(FlowPreview::class)
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -600,13 +623,29 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val isHomeCatalogRefreshing = MutableStateFlow(false)
     val activeHomeCatalogSection = MutableStateFlow<HomeCatalogSection?>(null)
     private val sectionPageStateMap = MutableStateFlow<Map<String, HomeSectionPaginationState>>(emptyMap())
+    private val sectionOrderedIdsCache = java.util.concurrent.ConcurrentHashMap<String, MutableList<String>>()
 
-    private fun sectionStateKey(section: HomeCatalogSection, typeFilter: MediaType?): String =
-        "${section.name}_${typeFilter?.name ?: "ALL"}"
+    private fun sectionStateKey(
+        section: HomeCatalogSection,
+        typeFilter: MediaType?,
+        genreFilter: String? = selectedGenreFilter.value
+    ): String = "${section.name}_${typeFilter?.name ?: "ALL"}_${genreFilter ?: "ALL"}"
+
+    private fun sectionOrderKey(
+        section: HomeCatalogSection,
+        filters: SearchFilters,
+        prefs: UserPreferencesEntity,
+        regionCode: String
+    ): String {
+        val lang = if (prefs.filterCatalogByLanguage) prefs.languageCode else "all"
+        return "${section.name}_${filters.type?.name ?: "ALL"}_${filters.genre ?: "ALL"}_${regionCode}_${lang}_${filters.query.trim().lowercase()}"
+    }
 
     val activeSectionGridUiState: StateFlow<HomeSectionGridUiState> = combine(
         activeHomeCatalogSection,
-        selectedTypeFilter,
+        searchFilters,
+        userPreferences,
+        effectiveRegionCode,
         popularHomeItems,
         nowPlayingHomeItems,
         upcomingHomeItems,
@@ -614,28 +653,35 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         sectionPageStateMap
     ) { args ->
         val section = args[0] as HomeCatalogSection?
-        val typeFilter = args[1] as MediaType?
+        val filters = args[1] as SearchFilters
+        val prefs = args[2] as UserPreferencesEntity
+        val regionCode = args[3] as String
         @Suppress("UNCHECKED_CAST")
-        val popular = args[2] as List<MediaEntity>
+        val popular = args[4] as List<MediaEntity>
         @Suppress("UNCHECKED_CAST")
-        val nowPlaying = args[3] as List<MediaEntity>
+        val nowPlaying = args[5] as List<MediaEntity>
         @Suppress("UNCHECKED_CAST")
-        val upcoming = args[4] as List<MediaEntity>
+        val upcoming = args[6] as List<MediaEntity>
         @Suppress("UNCHECKED_CAST")
-        val peopleList = args[5] as List<TmdbSearchResultItem.Person>
+        val peopleList = args[7] as List<TmdbSearchResultItem.Person>
         @Suppress("UNCHECKED_CAST")
-        val pageMap = args[6] as Map<String, HomeSectionPaginationState>
+        val pageMap = args[8] as Map<String, HomeSectionPaginationState>
 
         if (section == null) {
             HomeSectionGridUiState()
         } else {
-            val key = sectionStateKey(section, typeFilter)
-            val paging = pageMap[key] ?: HomeSectionPaginationState()
+            val stateKey = sectionStateKey(section, filters.type, filters.genre)
+            val paging = pageMap[stateKey] ?: HomeSectionPaginationState()
+            val orderKey = sectionOrderKey(section, filters, prefs, regionCode)
             if (section == HomeCatalogSection.POPULAR_PEOPLE) {
+                val orderedPeople = synchronized(sectionOrderedIdsCache) {
+                    val orderedIds = sectionOrderedIdsCache.getOrPut(orderKey) { mutableListOf() }
+                    mergeAppendOnlyById(orderedIds, peopleList) { it.id.toString() }
+                }
                 HomeSectionGridUiState(
                     section = section,
-                    people = peopleList.take(paging.visibleLimit),
-                    totalAvailableCount = peopleList.size,
+                    people = orderedPeople.take(paging.visibleLimit),
+                    totalAvailableCount = orderedPeople.size,
                     isLoadingMore = paging.isLoadingMore,
                     hasMore = paging.hasMore
                 )
@@ -646,10 +692,14 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     HomeCatalogSection.UPCOMING -> upcoming
                     HomeCatalogSection.POPULAR_PEOPLE -> emptyList()
                 }
+                val orderedItems = synchronized(sectionOrderedIdsCache) {
+                    val orderedIds = sectionOrderedIdsCache.getOrPut(orderKey) { mutableListOf() }
+                    mergeAppendOnlyById(orderedIds, fullList) { it.id }
+                }
                 HomeSectionGridUiState(
                     section = section,
-                    items = fullList.take(paging.visibleLimit),
-                    totalAvailableCount = fullList.size,
+                    items = orderedItems.take(paging.visibleLimit),
+                    totalAvailableCount = orderedItems.size,
                     isLoadingMore = paging.isLoadingMore,
                     hasMore = paging.hasMore
                 )
@@ -946,6 +996,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         // Listen to region changes to refresh regional popular, now playing, upcoming, trending and trailers
         viewModelScope.launch {
             effectiveRegionCode.collect {
+                synchronized(sectionOrderedIdsCache) {
+                    sectionOrderedIdsCache.clear()
+                }
                 sectionPageStateMap.value = emptyMap()
                 fetchPopularMedia()
                 fetchTrendingNow()
@@ -1101,7 +1154,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun openHomeCatalogSection(section: HomeCatalogSection) {
         activeHomeCatalogSection.value = section
         val typeFilter = selectedTypeFilter.value
-        val stateKey = sectionStateKey(section, typeFilter)
+        val genreFilter = selectedGenreFilter.value
+        val stateKey = sectionStateKey(section, typeFilter, genreFilter)
         val existing = sectionPageStateMap.value[stateKey]
         if (existing == null) {
             sectionPageStateMap.value = sectionPageStateMap.value + (stateKey to HomeSectionPaginationState())
@@ -1121,11 +1175,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeHomeCatalogSection() {
         activeHomeCatalogSection.value = null
+        synchronized(sectionOrderedIdsCache) {
+            sectionOrderedIdsCache.clear()
+        }
+        if (sectionPageStateMap.value.isNotEmpty()) {
+            sectionPageStateMap.value = sectionPageStateMap.value.mapValues { (_, state) ->
+                state.copy(visibleLimit = 24, isLoadingMore = false)
+            }
+        }
     }
 
     fun loadMoreForHomeSection(section: HomeCatalogSection) {
         val typeFilter = selectedTypeFilter.value
-        val stateKey = sectionStateKey(section, typeFilter)
+        val genreFilter = selectedGenreFilter.value
+        val stateKey = sectionStateKey(section, typeFilter, genreFilter)
         val current = sectionPageStateMap.value[stateKey] ?: HomeSectionPaginationState()
         if (current.isLoadingMore || !current.hasMore) return
 
@@ -1136,7 +1199,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 val tmdbKey = getActiveTmdbApiKey()
                 val lang = userPreferences.value.languageCode
                 val region = effectiveRegionCode.value
-                val genreFilter = selectedGenreFilter.value
 
                 val currentPoolSize = when (section) {
                     HomeCatalogSection.POPULAR -> popularHomeItems.value.size
@@ -1158,10 +1220,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                             page = nextPage
                         )
                         newlyFetchedCount = fetchedPeople.size
-                        // If a Movies/TV filter narrowed page results, fetch one more page smoothly
-                        if (typeFilter != null && fetchedPeople.count { p ->
+                        // If page 2 was already pre-cached or filtered by Movies/TV, pull one more page smoothly
+                        if (fetchedPeople.isNotEmpty() && (typeFilter != null && fetchedPeople.count { p ->
                                 p.knownFor.any { it.getMediaTypeEnum() == typeFilter }
-                            } < 6
+                            } < 6)
                         ) {
                             nextPage += 1
                             newlyFetchedCount += repository.fetchPopularPeoplePage(
@@ -1216,10 +1278,15 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     HomeCatalogSection.POPULAR_PEOPLE -> popularPeopleHomeItems.value.size
                 }
 
-                val canStillLoadMore = newlyFetchedCount > 0 || updatedPoolSize > current.visibleLimit
+                val effectiveVisibleLimit = if (updatedPoolSize > 0) {
+                    maxOf(current.visibleLimit, minOf(newVisibleLimit, maxOf(24, updatedPoolSize)))
+                } else {
+                    newVisibleLimit
+                }
+                val canStillLoadMore = newlyFetchedCount > 0 || updatedPoolSize > effectiveVisibleLimit
                 sectionPageStateMap.value = sectionPageStateMap.value + (
                     stateKey to HomeSectionPaginationState(
-                        visibleLimit = minOf(maxOf(newVisibleLimit, current.visibleLimit), maxOf(updatedPoolSize, newVisibleLimit)),
+                        visibleLimit = effectiveVisibleLimit,
                         lastTmdbPage = nextPage,
                         isLoadingMore = false,
                         hasMore = canStillLoadMore

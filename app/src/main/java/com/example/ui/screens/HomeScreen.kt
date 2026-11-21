@@ -1156,6 +1156,12 @@ fun SpotlightBannerCard(
             .testTag("spotlight_card_${media.id}")
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = painterResource(id = R.drawable.banner_cinema),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
             val bgUrl = media.backdropUrl.ifBlank { media.posterUrl }
             if (bgUrl.isNotBlank()) {
                 val context = LocalContext.current
@@ -1163,20 +1169,11 @@ fun SpotlightBannerCard(
                     ImageRequest.Builder(context)
                         .data(bgUrl)
                         .crossfade(true)
-                        .placeholder(R.drawable.banner_cinema)
-                        .error(R.drawable.banner_cinema)
                         .build()
                 }
                 AsyncImage(
                     model = imageRequest,
                     contentDescription = media.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Image(
-                    painter = painterResource(id = R.drawable.banner_cinema),
-                    contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -1359,14 +1356,23 @@ private fun PickedForYouCard(
                     .aspectRatio(2f / 3f)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isMovie) Icons.Default.Movie else Icons.Default.Tv,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
                 val poster = media.posterUrl.ifBlank { media.backdropUrl }
                 if (poster.isNotBlank()) {
                     val req = remember(poster, context) {
                         ImageRequest.Builder(context)
                             .data(poster)
                             .crossfade(true)
-                            .placeholder(R.drawable.banner_cinema)
-                            .error(R.drawable.banner_cinema)
                             .build()
                     }
                     AsyncImage(

@@ -790,10 +790,8 @@ private fun WelcomeAuthActionsSection(
                         fontSize = 15.sp
                     )
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.AccountCircle,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                    com.example.ui.components.GoogleSignInIcon(
+                        modifier = Modifier.testTag("icon_google_onboarding_signin")
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
@@ -1628,14 +1626,23 @@ private fun OnboardingTitlePickerCard(
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     .clickable(onClick = onToggleFavorite)
             ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Movie,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f),
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
                 val poster = media.posterUrl.ifBlank { media.backdropUrl }
                 if (poster.isNotBlank()) {
                     val req = remember(poster, context) {
                         ImageRequest.Builder(context)
                             .data(poster)
                             .crossfade(true)
-                            .placeholder(R.drawable.banner_cinema)
-                            .error(R.drawable.banner_cinema)
                             .build()
                     }
                     AsyncImage(

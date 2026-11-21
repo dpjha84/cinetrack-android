@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -10,6 +14,7 @@ import androidx.compose.ui.test.performScrollToNode
 import com.example.data.local.MediaEntity
 import com.example.data.model.HomeCatalogSection
 import com.example.data.model.MediaType
+import com.example.ui.components.GoogleSignInIcon
 import com.example.ui.theme.WatchPilotTheme
 import com.example.ui.util.AdaptiveLayoutProvider
 import org.junit.Assert.assertEquals
@@ -156,5 +161,24 @@ class HomeSectionGridScreenTest {
 
         composeTestRule.onNodeWithTag("section_grid_back_button").performClick()
         assertTrue(backClicked)
+    }
+
+    @Test
+    fun googleSignInIconRendersOnLoginButton() {
+        composeTestRule.setContent {
+            WatchPilotTheme {
+                AdaptiveLayoutProvider {
+                    Button(onClick = {}) {
+                        GoogleSignInIcon(
+                            modifier = Modifier.testTag("icon_google_signin")
+                        )
+                        Text("Sign in with Google")
+                    }
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("icon_google_signin", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Sign in with Google").assertIsDisplayed()
     }
 }

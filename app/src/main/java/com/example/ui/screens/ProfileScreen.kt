@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -87,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.BuildConfig
 import com.example.data.model.RegionalDefaults
+import com.example.ui.components.GoogleSignInIcon
 import com.example.ui.components.LocalizationPreferencesDialog
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
@@ -152,8 +152,7 @@ fun ProfileScreen(
                             )
                         )
                     )
-                    .statusBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -555,7 +554,7 @@ fun ProfileScreen(
                                 .fillMaxWidth()
                                 .testTag("btn_google_signin")
                         ) {
-                            Icon(imageVector = Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(18.dp))
+                            GoogleSignInIcon(modifier = Modifier.testTag("icon_google_signin"))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Sign in with Google", fontWeight = FontWeight.Bold)
                         }

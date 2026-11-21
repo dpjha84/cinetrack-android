@@ -172,7 +172,7 @@ fun SwipeToMatchSheet(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.testTag("match_room_google_signin_button")
                         ) {
-                            Icon(Icons.Filled.Login, contentDescription = null, modifier = Modifier.size(18.dp))
+                            com.example.ui.components.GoogleSignInIcon(modifier = Modifier.testTag("icon_google_match_signin"))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Sign in with Google", fontWeight = FontWeight.Bold)
                         }

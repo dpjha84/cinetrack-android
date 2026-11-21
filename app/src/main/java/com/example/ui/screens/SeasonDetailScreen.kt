@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -427,8 +428,6 @@ private fun SeasonHeroHeaderBox(
                         model = ImageRequest.Builder(context)
                             .data(headerImageUrl)
                             .crossfade(true)
-                            .placeholder(R.drawable.banner_cinema)
-                            .error(R.drawable.banner_cinema)
                             .build(),
                         contentDescription = season.name,
                         modifier = Modifier.fillMaxSize(),
@@ -514,16 +513,27 @@ private fun SeasonHeroHeaderBox(
                     Box(
                         modifier = Modifier
                             .width(if (isTablet) 114.dp else 90.dp)
-                            .aspectRatio(0.68f)
+                            .aspectRatio(2f / 3f)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        contentAlignment = Alignment.Center
                     ) {
-                        AsyncImage(
-                            model = season.posterUrl.ifBlank { media.posterUrl },
-                            contentDescription = season.name,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
+                        Icon(
+                            imageVector = Icons.Default.Tv,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                            modifier = Modifier.size(32.dp)
                         )
+                        val posterSource = season.posterUrl.ifBlank { media.posterUrl }
+                        if (posterSource.isNotBlank()) {
+                            AsyncImage(
+                                model = posterSource,
+                                contentDescription = season.name,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                alignment = Alignment.Center
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(14.dp))

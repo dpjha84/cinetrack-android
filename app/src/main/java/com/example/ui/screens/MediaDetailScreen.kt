@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
@@ -238,8 +239,6 @@ fun MediaDetailScreen(
                         model = ImageRequest.Builder(context)
                             .data(backdropSource)
                             .crossfade(true)
-                            .placeholder(R.drawable.banner_cinema)
-                            .error(R.drawable.banner_cinema)
                             .build(),
                         contentDescription = media.title,
                         modifier = Modifier.fillMaxSize(),
@@ -315,14 +314,19 @@ fun MediaDetailScreen(
                             .width(if (adaptive.isTabletOrWide) 134.dp else 105.dp)
                             .aspectRatio(2f / 3f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.banner_cinema),
-                            contentDescription = null,
+                        Box(
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isMovie) Icons.Default.Movie else Icons.Default.Tv,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
 
                         val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
                         if (posterSource.isNotBlank()) {
@@ -330,12 +334,10 @@ fun MediaDetailScreen(
                                 model = ImageRequest.Builder(context)
                                     .data(posterSource)
                                     .crossfade(true)
-                                    .placeholder(R.drawable.banner_cinema)
-                                    .error(R.drawable.banner_cinema)
                                     .build(),
                                 contentDescription = media.title,
                                 modifier = Modifier.fillMaxSize(),
-                                contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                                contentScale = ContentScale.Crop,
                                 alignment = Alignment.Center
                             )
                         }
@@ -1805,15 +1807,25 @@ fun SeasonOverviewCard(
                         .width(60.dp)
                         .aspectRatio(2f / 3f)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    contentAlignment = Alignment.Center
                 ) {
-                    AsyncImage(
-                        model = season.posterUrl.ifBlank { media.posterUrl },
-                        contentDescription = season.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = if (season.posterUrl.isNotBlank() || media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
-                        alignment = Alignment.Center
+                    Icon(
+                        imageVector = Icons.Default.Tv,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.size(22.dp)
                     )
+                    val posterSource = season.posterUrl.ifBlank { media.posterUrl }
+                    if (posterSource.isNotBlank()) {
+                        AsyncImage(
+                            model = posterSource,
+                            contentDescription = season.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            alignment = Alignment.Center
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))

@@ -29,7 +29,7 @@ interface PopularPersonDao {
     @Query("SELECT COUNT(*) FROM popular_people")
     suspend fun countPopularPeople(): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(people: List<PopularPersonEntity>)
 
     @Query("DELETE FROM popular_people")

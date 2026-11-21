@@ -124,4 +124,44 @@ class WatchPilotV2UnitTest {
         assertTrue(OttMoneySaverCalculator.matchesAnySubscribedApp(tracked[0], "US", setOf("Netflix")))
         assertFalse(OttMoneySaverCalculator.matchesAnySubscribedApp(tracked[3], "US", setOf("Apple TV+")))
     }
+
+    @Test
+    fun mergeAppendOnlyById_preservesExistingOrderAndAppendsNewPagesStrictlyAtEnd() {
+        val page1A = sampleMedia("tmdb_m_1", "Alpha", rating = 6.5f)
+        val page1B = sampleMedia("tmdb_m_2", "Beta", rating = 6.0f)
+        val page1C = sampleMedia("tmdb_m_3", "Gamma", rating = 5.5f)
+
+        val orderedIds = mutableListOf<String>()
+        val firstResult = com.example.ui.viewmodel.mergeAppendOnlyById(
+            existingOrderedIds = orderedIds,
+            candidates = listOf(page1A, page1B, page1C)
+        ) { it.id }
+        assertEquals(listOf("tmdb_m_1", "tmdb_m_2", "tmdb_m_3"), firstResult.map { it.id })
+
+        // Simulate global sort returning higher-ranked page 2 items ahead of page 1 items
+        val page2Top = sampleMedia("tmdb_m_99", "Top Hit", rating = 9.9f)
+        val page2Mid = sampleMedia("tmdb_m_100", "Runner Up", rating = 8.8f)
+        val sortedCombined = listOf(page2Top, page2Mid, page1A, page1B, page1C)
+
+        val secondResult = com.example.ui.viewmodel.mergeAppendOnlyById(
+            existingOrderedIds = orderedIds,
+            candidates = sortedCombined
+        ) { it.id }
+        assertEquals(
+            listOf("tmdb_m_1", "tmdb_m_2", "tmdb_m_3", "tmdb_m_99", "tmdb_m_100"),
+            secondResult.map { it.id }
+        )
+
+        // Verify person list follows the exact same append-only rule
+        val personIds = mutableListOf<String>()
+        val p1 = com.example.data.model.TmdbSearchResultItem.Person(10L, "Actor A", null, "Acting", emptyList(), 50.0)
+        val p2 = com.example.data.model.TmdbSearchResultItem.Person(20L, "Actor B", null, "Acting", emptyList(), 40.0)
+        com.example.ui.viewmodel.mergeAppendOnlyById(personIds, listOf(p1, p2)) { it.id.toString() }
+
+        val p3Higher = com.example.data.model.TmdbSearchResultItem.Person(30L, "Star C", null, "Acting", emptyList(), 99.0)
+        val peopleSecond = com.example.ui.viewmodel.mergeAppendOnlyById(personIds, listOf(p3Higher, p1, p2)) {
+            it.id.toString()
+        }
+        assertEquals(listOf(10L, 20L, 30L), peopleSecond.map { it.id })
+    }
 }

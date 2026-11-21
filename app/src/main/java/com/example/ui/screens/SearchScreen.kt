@@ -670,15 +670,25 @@ fun SearchResultMediaCard(
                     .width(76.dp)
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.DarkGray)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = media.posterUrl.ifBlank { media.backdropUrl },
-                    contentDescription = media.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
-                    alignment = Alignment.Center
+                Icon(
+                    imageVector = if (isMovie) Icons.Default.Movie else Icons.Default.Tv,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                    modifier = Modifier.size(28.dp)
                 )
+                val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
+                if (posterSource.isNotBlank()) {
+                    AsyncImage(
+                        model = posterSource,
+                        contentDescription = media.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        alignment = Alignment.Center
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(12.dp))
