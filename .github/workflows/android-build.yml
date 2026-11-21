@@ -52,6 +52,22 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
+      # Firebase config from the GOOGLE_SERVICES_JSON secret (raw JSON or base64).
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::warning::GOOGLE_SERVICES_JSON secret is empty, building without Firebase config."
+            exit 0
+          fi
+          if printf '%s' "$GOOGLE_SERVICES_JSON" | head -c1 | grep -q '{'; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          else
+            printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode > app/google-services.json
+          fi
+          python3 -c "import json; json.load(open('app/google-services.json')); print('google-services.json OK')"
+
       # Test APK (debug-signed, installable on any phone)
       - run: chmod +x gradlew && ./gradlew assembleDebug -PWATCHPILOT_EDITION=${{ steps.edition.outputs.edition }} --stacktrace
       - uses: actions/upload-artifact@v4
