@@ -27,6 +27,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -59,7 +61,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
@@ -67,7 +68,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LiveTv
@@ -85,6 +85,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -92,19 +93,25 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import android.os.Build
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -123,6 +130,7 @@ import coil.request.ImageRequest
 import com.example.R
 import com.example.data.local.FavoritePersonEntity
 import com.example.data.local.MediaEntity
+import com.example.data.local.SampleMediaData
 import com.example.data.model.MediaType
 import com.example.data.model.TmdbSearchResultItem
 import com.example.data.model.WatchStatus
@@ -134,6 +142,7 @@ import com.example.ui.theme.DarkBackground
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.delay
 
 private val ONBOARDING_GENRES = listOf(
     "Sci-Fi",
@@ -178,6 +187,38 @@ fun OnboardingScreen(
     val allMedia by viewModel.allMedia.collectAsStateWithLifecycle()
     val trackedMedia by viewModel.trackedMedia.collectAsStateWithLifecycle()
 
+    val welcomeShowcaseTitles = remember(popularTitles, allMedia) {
+        val pool = (popularTitles + allMedia + SampleMediaData.getInitialCatalog())
+            .distinctBy { it.id }
+            .filter { it.posterUrl.isNotBlank() || it.backdropUrl.isNotBlank() }
+        val movies = pool.filter { it.getMediaTypeEnum() == MediaType.MOVIE }
+        val shows = pool.filter { it.getMediaTypeEnum() == MediaType.TV_SHOW }
+        buildList {
+            val maxPairs = maxOf(movies.size, shows.size).coerceAtMost(5)
+            for (i in 0 until maxPairs) {
+                if (i < movies.size) add(movies[i])
+                if (i < shows.size) add(shows[i])
+            }
+        }.take(8).ifEmpty { SampleMediaData.getInitialCatalog().take(8) }
+    }
+
+    var ambientActiveIndex by remember(welcomeShowcaseTitles.size) { mutableIntStateOf(0) }
+    LaunchedEffect(welcomeShowcaseTitles.size) {
+        if (welcomeShowcaseTitles.size > 1) {
+            while (true) {
+                delay(3200L)
+                ambientActiveIndex = (ambientActiveIndex + 1) % welcomeShowcaseTitles.size
+            }
+        }
+    }
+    val safeAmbientIndex = if (welcomeShowcaseTitles.isNotEmpty()) ambientActiveIndex % welcomeShowcaseTitles.size else 0
+    val activeAmbientMedia = welcomeShowcaseTitles.getOrNull(safeAmbientIndex)
+    val backdropAlpha by animateFloatAsState(
+        targetValue = if (step == 0) 0.36f else 0.30f,
+        animationSpec = tween(durationMillis = 520),
+        label = "onboardingBackdropAlpha"
+    )
+
     val hasAnyPersonalizationSignal = remember(selectedGenres, favoritePeople, trackedMedia, allMedia) {
         selectedGenres.isNotEmpty() ||
             favoritePeople.isNotEmpty() ||
@@ -210,20 +251,27 @@ fun OnboardingScreen(
                     )
                 )
             )
-            .statusBarsPadding()
             .imePadding()
             .testTag("onboarding_root")
     ) {
+        OnboardingAmbientBackdrop(
+            activeMedia = activeAmbientMedia,
+            imageAlpha = backdropAlpha,
+            isInteractiveStep = step > 0,
+            modifier = Modifier.fillMaxSize()
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = containerMaxWidth)
-                .align(Alignment.TopCenter)
+                .statusBarsPadding()
         ) {
             OnboardingProgressBar(
                 currentStep = step,
                 totalSteps = 3,
                 modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .widthIn(max = containerMaxWidth)
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp)
             )
@@ -236,13 +284,19 @@ fun OnboardingScreen(
                         (slideOutHorizontally { width -> if (forward) -width / 4 else width / 4 } + fadeOut(tween(180)))
                 },
                 label = "onboardingStepTransition",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
             ) { activeStep ->
                 when (activeStep) {
                     0 -> OnboardingWelcomeStep(
                         currentUser = currentUser,
                         isLoading = authLoading,
                         errorMessage = authError,
+                        showcaseTitles = welcomeShowcaseTitles,
+                        sharedActiveIndex = safeAmbientIndex,
+                        onSelectShowcaseIndex = { ambientActiveIndex = it },
+                        showAmbientBackdrop = false,
                         onGoogleSignIn = {
                             if (activity != null) {
                                 viewModel.signInWithGoogleDuringOnboarding(activity)
@@ -252,40 +306,62 @@ fun OnboardingScreen(
                         onContinueAsGuest = { viewModel.continueAsGuestDuringOnboarding() }
                     )
 
-                    1 -> OnboardingFavoritePeopleStep(
-                        syncNotice = syncNotice,
-                        onDismissSyncNotice = { viewModel.dismissOnboardingSyncNotice() },
-                        selectedGenres = selectedGenres,
-                        onToggleGenre = { genre -> viewModel.toggleOnboardingGenre(genre) },
-                        query = personQuery,
-                        onQueryChange = { viewModel.updateOnboardingPersonQuery(it) },
-                        people = if (personQuery.isNotBlank()) personSearchResults else popularPeople,
-                        favoritePeople = favoritePeople,
-                        isLoading = isLoadingPeople,
-                        onTogglePerson = { person -> viewModel.toggleOnboardingPerson(person) },
-                        onRemoveFavoritePerson = { fav -> viewModel.removeFavoritePerson(fav) },
-                        onBack = { viewModel.setOnboardingStep(0) },
-                        onSkip = { viewModel.setOnboardingStep(2) },
-                        onNext = { viewModel.setOnboardingStep(2) }
-                    )
+                    1 -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = containerMaxWidth)
+                                .fillMaxSize()
+                        ) {
+                            OnboardingFavoritePeopleStep(
+                                syncNotice = syncNotice,
+                                onDismissSyncNotice = { viewModel.dismissOnboardingSyncNotice() },
+                                selectedGenres = selectedGenres,
+                                onToggleGenre = { genre -> viewModel.toggleOnboardingGenre(genre) },
+                                query = personQuery,
+                                onQueryChange = { viewModel.updateOnboardingPersonQuery(it) },
+                                people = if (personQuery.isNotBlank()) personSearchResults else popularPeople,
+                                favoritePeople = favoritePeople,
+                                isLoading = isLoadingPeople,
+                                onTogglePerson = { person -> viewModel.toggleOnboardingPerson(person) },
+                                onRemoveFavoritePerson = { fav -> viewModel.removeFavoritePerson(fav) },
+                                onBack = { viewModel.setOnboardingStep(0) },
+                                onSkip = { viewModel.setOnboardingStep(2) },
+                                onNext = { viewModel.setOnboardingStep(2) }
+                            )
+                        }
+                    }
 
-                    else -> OnboardingWatchedTitlesStep(
-                        syncNotice = syncNotice,
-                        onDismissSyncNotice = { viewModel.dismissOnboardingSyncNotice() },
-                        query = titleQuery,
-                        onQueryChange = { viewModel.updateOnboardingTitleQuery(it) },
-                        titles = if (titleQuery.isNotBlank()) titleSearchResults else popularTitles,
-                        allMedia = allMedia,
-                        hasAnyTasteSignal = hasAnyPersonalizationSignal,
-                        isLoading = isLoadingTitles,
-                        onToggleFavorite = { media -> viewModel.toggleOnboardingTitleFavorite(media) },
-                        onToggleStatus = { media, status ->
-                            viewModel.toggleOnboardingTitleStatus(media, status)
-                        },
-                        onBack = { viewModel.setOnboardingStep(1) },
-                        onSkip = { viewModel.skipOnboarding() },
-                        onFinish = { viewModel.completeOnboarding() }
-                    )
+                    else -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = containerMaxWidth)
+                                .fillMaxSize()
+                        ) {
+                            OnboardingWatchedTitlesStep(
+                                syncNotice = syncNotice,
+                                onDismissSyncNotice = { viewModel.dismissOnboardingSyncNotice() },
+                                query = titleQuery,
+                                onQueryChange = { viewModel.updateOnboardingTitleQuery(it) },
+                                titles = if (titleQuery.isNotBlank()) titleSearchResults else popularTitles,
+                                allMedia = allMedia,
+                                hasAnyTasteSignal = hasAnyPersonalizationSignal,
+                                isLoading = isLoadingTitles,
+                                onToggleFavorite = { media -> viewModel.toggleOnboardingTitleFavorite(media) },
+                                onToggleStatus = { media, status ->
+                                    viewModel.toggleOnboardingTitleStatus(media, status)
+                                },
+                                onBack = { viewModel.setOnboardingStep(1) },
+                                onSkip = { viewModel.skipOnboarding() },
+                                onFinish = { viewModel.completeOnboarding() }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -354,103 +430,556 @@ internal fun OnboardingProgressBar(
     }
 }
 
+@Composable
+internal fun OnboardingAmbientBackdrop(
+    activeMedia: MediaEntity?,
+    imageAlpha: Float,
+    isInteractiveStep: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "onboardingBackdropMotion")
+    val ambientScale by infiniteTransition.animateFloat(
+        initialValue = 1.03f,
+        targetValue = 1.11f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 6400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "onboardingAmbientScale"
+    )
+    val blurModifier = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Modifier.blur(if (isInteractiveStep) 22.dp else 26.dp)
+    } else {
+        Modifier
+    }
+
+    Box(modifier = modifier.testTag("onboarding_ambient_backdrop")) {
+        AnimatedContent(
+            targetState = activeMedia,
+            transitionSpec = {
+                fadeIn(tween(850)) togetherWith fadeOut(tween(850))
+            },
+            label = "onboardingAmbientCrossfade",
+            modifier = Modifier.fillMaxSize()
+        ) { media ->
+            val ambientSource = media?.backdropUrl?.ifBlank { media.posterUrl }.orEmpty()
+            if (ambientSource.isNotBlank()) {
+                AsyncImage(
+                    model = ambientSource,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .scale(ambientScale)
+                        .then(blurModifier)
+                        .alpha(imageAlpha)
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.banner_cinema),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .scale(ambientScale)
+                        .then(blurModifier)
+                        .alpha(imageAlpha * 0.92f)
+                )
+            }
+        }
+
+        // Scrim ensures comfortable readability while preserving vibrant cinema glow across all 3 onboarding steps
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = if (isInteractiveStep) {
+                            listOf(
+                                Color(0x840A1119),
+                                Color(0x9A0B0D13),
+                                DarkBackground.copy(alpha = 0.86f)
+                            )
+                        } else {
+                            listOf(
+                                Color(0x880A1119),
+                                Color(0x9E0B0D13),
+                                DarkBackground.copy(alpha = 0.95f)
+                            )
+                        }
+                    )
+                )
+        )
+
+        if (isInteractiveStep) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                CinemaGold.copy(alpha = 0.08f),
+                                CinemaCyan.copy(alpha = 0.06f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun OnboardingWelcomeStep(
+internal fun OnboardingWelcomeStep(
     currentUser: FirebaseUser?,
     isLoading: Boolean,
     errorMessage: String?,
     onGoogleSignIn: () -> Unit,
     onContinueSignedIn: () -> Unit,
-    onContinueAsGuest: () -> Unit
+    onContinueAsGuest: () -> Unit,
+    showcaseTitles: List<MediaEntity> = emptyList(),
+    sharedActiveIndex: Int? = null,
+    onSelectShowcaseIndex: ((Int) -> Unit)? = null,
+    showAmbientBackdrop: Boolean = true
 ) {
     val adaptive = LocalAdaptiveLayoutInfo.current
-    val infiniteTransition = rememberInfiniteTransition(label = "welcomeGlow")
+    val resolvedShowcase = remember(showcaseTitles) {
+        if (showcaseTitles.isNotEmpty()) {
+            showcaseTitles
+        } else {
+            SampleMediaData.getInitialCatalog().take(8)
+        }
+    }
+
+    var localActiveIndex by remember(resolvedShowcase.size) { mutableIntStateOf(0) }
+    LaunchedEffect(resolvedShowcase.size, sharedActiveIndex == null) {
+        if (sharedActiveIndex == null && resolvedShowcase.size > 1) {
+            while (true) {
+                delay(3200L)
+                localActiveIndex = (localActiveIndex + 1) % resolvedShowcase.size
+            }
+        }
+    }
+
+    val rawIndex = sharedActiveIndex ?: localActiveIndex
+    val safeIndex = if (resolvedShowcase.isNotEmpty()) rawIndex % resolvedShowcase.size else 0
+    val activeMedia = resolvedShowcase.getOrNull(safeIndex)
+    val selectIndex: (Int) -> Unit = onSelectShowcaseIndex ?: { localActiveIndex = it }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "welcomeAmbient")
     val glowPulse by infiniteTransition.animateFloat(
-        initialValue = 0.92f,
+        initialValue = 0.94f,
         targetValue = 1.08f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2200, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 2400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "welcomeGlowPulse"
     )
+    val driftOffset by infiniteTransition.animateFloat(
+        initialValue = -6f,
+        targetValue = 6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 4200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "welcomeAmbientDrift"
+    )
 
-    if (adaptive.useTwoPaneLayout) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
-                .navigationBarsPadding(),
-            horizontalArrangement = Arrangement.spacedBy(28.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (showAmbientBackdrop) {
+            OnboardingAmbientBackdrop(
+                activeMedia = activeMedia,
+                imageAlpha = 0.34f,
+                isInteractiveStep = false,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        if (adaptive.useTwoPaneLayout) {
+            Row(
                 modifier = Modifier
-                    .weight(1.05f)
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxSize()
+                    .navigationBarsPadding(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                WelcomeHeroAndHeadline(
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .weight(0.86f)
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 28.dp, vertical = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.widthIn(max = 420.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        WelcomeHeadlineAndPills(isTablet = true)
+                        Spacer(modifier = Modifier.height(20.dp))
+                        WelcomeAuthActionsSection(
+                            currentUser = currentUser,
+                            isLoading = isLoading,
+                            errorMessage = errorMessage,
+                            onGoogleSignIn = onGoogleSignIn,
+                            onContinueSignedIn = onContinueSignedIn,
+                            onContinueAsGuest = onContinueAsGuest
+                        )
+                    }
+                }
+
+                WelcomeAmbientCinemaShowcase(
+                    items = resolvedShowcase,
+                    activeIndex = safeIndex,
+                    onSelectIndex = selectIndex,
                     glowPulse = glowPulse,
-                    isTablet = true
+                    driftOffset = driftOffset,
+                    isTablet = true,
+                    fillStage = true,
+                    modifier = Modifier
+                        .weight(1.14f)
+                        .fillMaxHeight()
+                        .padding(vertical = 8.dp)
                 )
             }
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
+        } else {
+            BoxWithConstraints(
                 modifier = Modifier
-                    .weight(0.95f)
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxSize()
+                    .navigationBarsPadding()
             ) {
-                WelcomeCloudSyncBenefitCard()
-                Spacer(modifier = Modifier.height(16.dp))
-                WelcomeAuthActionsSection(
-                    currentUser = currentUser,
-                    isLoading = isLoading,
-                    errorMessage = errorMessage,
-                    onGoogleSignIn = onGoogleSignIn,
-                    onContinueSignedIn = onContinueSignedIn,
-                    onContinueAsGuest = onContinueAsGuest
-                )
+                val fillStage = maxHeight >= 520.dp
+                if (fillStage) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // 1. Welcome to WatchPilot + Top App Features
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .widthIn(max = 520.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .padding(top = 6.dp, bottom = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            WelcomeHeadlineAndPills(isTablet = adaptive.isTabletOrWide)
+                        }
+
+                        // 2. Giant borderless rotating title cards filling the hero space
+                        WelcomeAmbientCinemaShowcase(
+                            items = resolvedShowcase,
+                            activeIndex = safeIndex,
+                            onSelectIndex = selectIndex,
+                            glowPulse = glowPulse,
+                            driftOffset = driftOffset,
+                            isTablet = adaptive.isTabletOrWide,
+                            fillStage = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        )
+
+                        // 3. Login buttons directly below title cards
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .widthIn(max = 520.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .padding(top = 8.dp, bottom = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            WelcomeAuthActionsSection(
+                                currentUser = currentUser,
+                                isLoading = isLoading,
+                                errorMessage = errorMessage,
+                                onGoogleSignIn = onGoogleSignIn,
+                                onContinueSignedIn = onContinueSignedIn,
+                                onContinueAsGuest = onContinueAsGuest
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .widthIn(max = 520.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            WelcomeHeadlineAndPills(isTablet = adaptive.isTabletOrWide)
+                        }
+
+                        WelcomeAmbientCinemaShowcase(
+                            items = resolvedShowcase,
+                            activeIndex = safeIndex,
+                            onSelectIndex = selectIndex,
+                            glowPulse = glowPulse,
+                            driftOffset = driftOffset,
+                            isTablet = adaptive.isTabletOrWide,
+                            fillStage = false,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .widthIn(max = 520.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            WelcomeAuthActionsSection(
+                                currentUser = currentUser,
+                                isLoading = isLoading,
+                                errorMessage = errorMessage,
+                                onGoogleSignIn = onGoogleSignIn,
+                                onContinueSignedIn = onContinueSignedIn,
+                                onContinueAsGuest = onContinueAsGuest
+                            )
+                        }
+                    }
+                }
             }
         }
-    } else {
+    }
+}
+
+@Composable
+private fun WelcomeAmbientCinemaShowcase(
+    items: List<MediaEntity>,
+    activeIndex: Int,
+    onSelectIndex: (Int) -> Unit,
+    glowPulse: Float,
+    driftOffset: Float,
+    isTablet: Boolean,
+    fillStage: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val activeItem = items.getOrNull(activeIndex)
+    val prevIndex = if (items.size > 1) (activeIndex - 1 + items.size) % items.size else null
+    val nextIndex = if (items.size > 2) (activeIndex + 1) % items.size else null
+    val sideBlur = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Modifier.blur(2.5.dp) else Modifier
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("welcome_ambient_showcase")
+    ) {
+        // Subtle breathing radial cinema spotlight behind the rotating title posters
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(340.dp)
+                .scale(glowPulse)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            CinemaGold.copy(alpha = 0.20f),
+                            CinemaCyan.copy(alpha = 0.14f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 6.dp)
-                .navigationBarsPadding(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .fillMaxWidth()
+                .then(if (fillStage) Modifier.fillMaxHeight() else Modifier)
+                .padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                WelcomeHeroAndHeadline(
-                    glowPulse = glowPulse,
-                    isTablet = adaptive.isTabletOrWide
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                WelcomeCloudSyncBenefitCard()
-            }
-
-            Column(
+            // Rotating full-width giant 3-poster depth-of-field deck
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 18.dp, bottom = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .then(
+                        if (fillStage) Modifier.weight(1f)
+                        else Modifier.height(if (isTablet) 260.dp else 220.dp)
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                WelcomeAuthActionsSection(
-                    currentUser = currentUser,
-                    isLoading = isLoading,
-                    errorMessage = errorMessage,
-                    onGoogleSignIn = onGoogleSignIn,
-                    onContinueSignedIn = onContinueSignedIn,
-                    onContinueAsGuest = onContinueAsGuest
+                val desiredCenterHeight = (maxHeight - 8.dp).coerceIn(190.dp, 390.dp)
+                val maxAllowedCenterWidth = (maxWidth * 0.54f).coerceAtLeast(150.dp)
+                val centerCardWidth = (desiredCenterHeight * (2f / 3f)).coerceAtMost(maxAllowedCenterWidth)
+                val sideCardWidth = centerCardWidth * 0.78f
+                val sideHorizontalSpread = maxWidth * 0.30f
+
+                if (prevIndex != null) {
+                    val leftItem = items[prevIndex]
+                    WelcomeShowcasePosterCard(
+                        media = leftItem,
+                        isFocused = false,
+                        onClick = { onSelectIndex(prevIndex) },
+                        modifier = Modifier
+                            .width(sideCardWidth)
+                            .aspectRatio(2f / 3f)
+                            .graphicsLayer {
+                                translationX = -sideHorizontalSpread.toPx() + driftOffset
+                                rotationZ = -8f
+                                scaleX = 0.94f
+                                scaleY = 0.94f
+                            }
+                            .then(sideBlur)
+                            .alpha(0.62f)
+                    )
+                }
+
+                if (nextIndex != null) {
+                    val rightItem = items[nextIndex]
+                    WelcomeShowcasePosterCard(
+                        media = rightItem,
+                        isFocused = false,
+                        onClick = { onSelectIndex(nextIndex) },
+                        modifier = Modifier
+                            .width(sideCardWidth)
+                            .aspectRatio(2f / 3f)
+                            .graphicsLayer {
+                                translationX = sideHorizontalSpread.toPx() - driftOffset
+                                rotationZ = 8f
+                                scaleX = 0.94f
+                                scaleY = 0.94f
+                            }
+                            .then(sideBlur)
+                            .alpha(0.62f)
+                    )
+                }
+
+                if (activeItem != null) {
+                    AnimatedContent(
+                        targetState = activeItem,
+                        transitionSpec = {
+                            fadeIn(tween(450)) togetherWith fadeOut(tween(350))
+                        },
+                        label = "welcomeCenterPoster"
+                    ) { centerMedia ->
+                        WelcomeShowcasePosterCard(
+                            media = centerMedia,
+                            isFocused = true,
+                            onClick = {
+                                if (items.size > 1) {
+                                    onSelectIndex((activeIndex + 1) % items.size)
+                                }
+                            },
+                            modifier = Modifier
+                                .width(centerCardWidth)
+                                .aspectRatio(2f / 3f)
+                                .testTag("welcome_center_poster")
+                        )
+                    }
+                }
+            }
+
+            // Minimal spotlight title & indicator dots (no low-level details)
+            if (activeItem != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                AnimatedContent(
+                    targetState = activeItem,
+                    transitionSpec = {
+                        fadeIn(tween(320)) togetherWith fadeOut(tween(220))
+                    },
+                    label = "welcomeSpotlightCaption",
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                ) { spotlight ->
+                    Text(
+                        text = spotlight.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.testTag("welcome_showcase_title")
+                    )
+                }
+
+                if (items.size > 1) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val dotCount = items.size.coerceAtMost(6)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        for (i in 0 until dotCount) {
+                            val selected = i == (activeIndex % dotCount)
+                            Box(
+                                modifier = Modifier
+                                    .height(5.dp)
+                                    .width(if (selected) 16.dp else 5.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (selected) CinemaGold
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WelcomeShowcasePosterCard(
+    media: MediaEntity,
+    isFocused: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = if (isFocused) BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)) else null,
+        shadowElevation = if (isFocused) 20.dp else 4.dp,
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isMovie) Icons.Default.Movie else Icons.Default.Tv,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                modifier = Modifier.size(34.dp)
+            )
+            val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
+            if (posterSource.isNotBlank()) {
+                AsyncImage(
+                    model = posterSource,
+                    contentDescription = media.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            if (isFocused) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.35f)
+                                )
+                            )
+                        )
                 )
             }
         }
@@ -459,128 +988,32 @@ private fun OnboardingWelcomeStep(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WelcomeHeroAndHeadline(
-    glowPulse: Float,
+private fun WelcomeHeadlineAndPills(
     isTablet: Boolean
 ) {
-    // Cinematic Hero Card with Backdrop Artwork & Animated Titanium Aperture Spotlight
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(
-            1.dp,
-            Brush.linearGradient(
-                listOf(
-                    CinemaGold.copy(alpha = 0.55f),
-                    CinemaCyan.copy(alpha = 0.45f)
-                )
-            )
-        ),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1119)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(if (isTablet) 196.dp else 148.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.banner_cinema),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xAA0A1119),
-                                Color(0xDD0B0D13)
-                            )
-                        )
-                    )
-            )
-
-            // Breathing radial spotlight behind brand emblem
-            Box(
-                modifier = Modifier
-                    .size(144.dp)
-                    .scale(glowPulse)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                CinemaGold.copy(alpha = 0.28f),
-                                CinemaCyan.copy(alpha = 0.14f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(12.dp)
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color(0xFF0A1119),
-                    border = BorderStroke(
-                        2.dp,
-                        Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
-                    ),
-                    shadowElevation = 14.dp,
-                    modifier = Modifier.size(if (isTablet) 92.dp else 76.dp)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.watchpilot_aperture_icon),
-                        contentDescription = "WatchPilot",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = "YOUR CINEMA GUIDE",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.4.sp,
-                    color = CinemaGold
-                )
-            }
-        }
-    }
-
-    Spacer(modifier = Modifier.height(14.dp))
-
     Text(
         text = "Welcome to WatchPilot",
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.ExtraBold,
-        color = MaterialTheme.colorScheme.onBackground,
+        color = Color.White,
         textAlign = TextAlign.Center
     )
 
     Spacer(modifier = Modifier.height(4.dp))
 
     Text(
-        text = "Sync your watchlist and tailor your feed.",
-        style = MaterialTheme.typography.bodyMedium,
+        text = "Your cinema guide. Personalized and synced.",
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center
     )
 
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(10.dp))
 
+    val featuresModifier = Modifier.testTag("welcome_features_row")
     if (isTablet) {
         FlowRow(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = featuresModifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -602,7 +1035,7 @@ private fun WelcomeHeroAndHeadline(
         }
     } else {
         Row(
-            modifier = Modifier
+            modifier = featuresModifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
@@ -621,56 +1054,6 @@ private fun WelcomeHeroAndHeadline(
                 icon = Icons.Filled.CloudSync,
                 label = "Cloud Sync",
                 accent = CinemaGreen
-            )
-        }
-    }
-}
-
-@Composable
-private fun WelcomeCloudSyncBenefitCard() {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-        ),
-        border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.28f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = CinemaGold.copy(alpha = 0.16f)
-            ) {
-                Text(
-                    text = "CLOUD SYNC",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.8.sp,
-                    color = CinemaGold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                )
-            }
-
-            OnboardingBenefitRow(
-                icon = Icons.Filled.CloudSync,
-                accent = CinemaGold,
-                title = "Cloud Backup",
-                subtitle = "Sync library, ratings & progress."
-            )
-            OnboardingBenefitRow(
-                icon = Icons.Filled.Devices,
-                accent = CinemaCyan,
-                title = "Any Device",
-                subtitle = "Restore your history seamlessly."
-            )
-            OnboardingBenefitRow(
-                icon = Icons.Filled.AutoAwesome,
-                accent = CinemaGreen,
-                title = "Tailored Picks",
-                subtitle = "Home picks from your stars & genres."
             )
         }
     }
@@ -1147,9 +1530,9 @@ internal fun OnboardingFavoritePeopleStep(
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CinemaGold,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.14f),
+                    focusedContainerColor = Color(0xAA131A26),
+                    unfocusedContainerColor = Color(0x99131A26)
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1270,12 +1653,12 @@ private fun OnboardingPersonCard(
             .scale(cardScale)
             .clip(RoundedCornerShape(14.dp))
             .background(
-                if (isSelected) CinemaGold.copy(alpha = 0.14f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                if (isSelected) CinemaGold.copy(alpha = 0.16f)
+                else Color(0x88131A26)
             )
             .border(
                 width = if (isSelected) 1.5.dp else 1.dp,
-                color = if (isSelected) CinemaGold else Color.Transparent,
+                color = if (isSelected) CinemaGold else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(14.dp)
             )
             .clickable(onClick = onClick)
@@ -1452,9 +1835,9 @@ internal fun OnboardingWatchedTitlesStep(
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CinemaGold,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.14f),
+                    focusedContainerColor = Color(0xAA131A26),
+                    unfocusedContainerColor = Color(0x99131A26)
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1607,12 +1990,12 @@ private fun OnboardingTitlePickerCard(
 
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = Color(0x99131A26)),
         border = when {
             isFavorite -> BorderStroke(1.5.dp, CinemaRed)
             isWatched -> BorderStroke(1.5.dp, CinemaGreen)
             isWatchlist -> BorderStroke(1.5.dp, CinemaCyan)
-            else -> BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            else -> BorderStroke(1.dp, Color.White.copy(alpha = 0.09f))
         },
         modifier = Modifier
             .fillMaxWidth()
@@ -1862,15 +2245,17 @@ private fun OnboardingBottomActionBar(
     onNext: () -> Unit
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        tonalElevation = 6.dp,
+        color = Color(0xB80A1119),
+        tonalElevation = 0.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+        Column(modifier = Modifier.fillMaxWidth()) {
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -1924,6 +2309,7 @@ private fun OnboardingBottomActionBar(
                     modifier = Modifier.size(18.dp)
                 )
             }
+        }
         }
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,6 +38,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +61,6 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 
 @Composable
 fun HomeSectionGridScreen(
@@ -92,22 +97,30 @@ fun HomeSectionGridScreen(
 
     val gridState = rememberLazyGridState()
     val displayedCount = if (isPeopleSection) people.size else items.size
+    val latestIsLoadingMore by rememberUpdatedState(isLoadingMore)
+    val latestHasMore by rememberUpdatedState(hasMore)
+    val latestDisplayedCount by rememberUpdatedState(displayedCount)
+    val latestOnLoadMore by rememberUpdatedState(onLoadMore)
+    var lastAutoTriggerCount by remember(section, selectedType, selectedGenre) {
+        mutableIntStateOf(-1)
+    }
 
-    // Infinite scrolling trigger: load/populate new data from DB & TMDB before bottom is reached
-    LaunchedEffect(gridState, displayedCount, isLoadingMore, hasMore, selectedType, selectedGenre, section) {
+    // Smooth infinite scrolling trigger: does not tear down on isLoadingMore flips and avoids re-looping at same count
+    LaunchedEffect(gridState, section, selectedType, selectedGenre, columns) {
         snapshotFlow {
             val layoutInfo = gridState.layoutInfo
             val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
             val totalItems = layoutInfo.totalItemsCount
-            lastVisible to totalItems
+            val countNow = latestDisplayedCount
+            val nearBottom = totalItems > 0 && lastVisible >= (totalItems - (columns * 3)).coerceAtLeast(0)
+            Triple(nearBottom, countNow, latestIsLoadingMore to latestHasMore)
         }
-            .map { (lastVisible, totalItems) ->
-                totalItems > 0 && lastVisible >= (totalItems - (columns * 2)).coerceAtLeast(0)
-            }
             .distinctUntilChanged()
-            .collect { nearBottom ->
-                if (nearBottom && !isLoadingMore && hasMore) {
-                    onLoadMore()
+            .collect { (nearBottom, countNow, flags) ->
+                val (loading, moreAvailable) = flags
+                if (countNow > lastAutoTriggerCount && nearBottom && !loading && moreAvailable) {
+                    lastAutoTriggerCount = countNow
+                    latestOnLoadMore()
                 }
             }
     }
@@ -358,23 +371,28 @@ fun HomeSectionGridScreen(
                     }
                 }
 
-                item(span = { GridItemSpan(columns) }) {
+                item(
+                    key = "section_grid_footer",
+                    span = { GridItemSpan(columns) }
+                ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 16.dp),
+                            .heightIn(min = 56.dp)
+                            .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         when {
                             isLoadingMore -> {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.testTag("section_grid_loading_more")
                                 ) {
                                     CircularProgressIndicator(
                                         color = CinemaGold,
                                         strokeWidth = 2.dp,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                     Text(
                                         text = "Loading more...",
@@ -390,8 +408,9 @@ fun HomeSectionGridScreen(
                                 ) {
                                     Text(
                                         text = "Load More",
-                                        color = CinemaGold,
-                                        fontWeight = FontWeight.Bold
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }

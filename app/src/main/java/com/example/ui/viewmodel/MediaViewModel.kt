@@ -59,9 +59,11 @@ import com.google.firebase.auth.auth
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -75,6 +77,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 
 enum class LibraryTab(val label: String) {
@@ -626,6 +629,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val isHomeSectionGenreLocked = MutableStateFlow(false)
     private val sectionPageStateMap = MutableStateFlow<Map<String, HomeSectionPaginationState>>(emptyMap())
     private val sectionOrderedIdsCache = java.util.concurrent.ConcurrentHashMap<String, MutableList<String>>()
+    private var sectionLoadMoreJob: Job? = null
 
     private fun sectionStateKey(
         section: HomeCatalogSection,
@@ -1154,6 +1158,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openHomeCatalogSection(section: HomeCatalogSection) {
+        sectionLoadMoreJob?.cancel()
         val typeFilter = selectedTypeFilter.value
         val genreFilter = selectedGenreFilter.value
         isHomeSectionFilterLocked.value = (typeFilter != null)
@@ -1163,8 +1168,14 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         val existing = sectionPageStateMap.value[stateKey]
         if (existing == null) {
             sectionPageStateMap.value = sectionPageStateMap.value + (stateKey to HomeSectionPaginationState())
-        } else if (existing.visibleLimit < 24) {
-            sectionPageStateMap.value = sectionPageStateMap.value + (stateKey to existing.copy(visibleLimit = 24, hasMore = true))
+        } else {
+            sectionPageStateMap.value = sectionPageStateMap.value + (
+                stateKey to existing.copy(
+                    visibleLimit = maxOf(24, existing.visibleLimit),
+                    isLoadingMore = false,
+                    hasMore = true
+                )
+            )
         }
         val currentCount = when (section) {
             HomeCatalogSection.POPULAR -> popularHomeItems.value.size
@@ -1178,6 +1189,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeHomeCatalogSection() {
+        sectionLoadMoreJob?.cancel()
+        sectionLoadMoreJob = null
         activeHomeCatalogSection.value = null
         isHomeSectionFilterLocked.value = false
         isHomeSectionGenreLocked.value = false
@@ -1198,69 +1211,136 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         val current = sectionPageStateMap.value[stateKey] ?: HomeSectionPaginationState()
         if (current.isLoadingMore || !current.hasMore) return
 
+        val initialPoolSize = when (section) {
+            HomeCatalogSection.POPULAR -> popularHomeItems.value.size
+            HomeCatalogSection.NOW_PLAYING -> nowPlayingHomeItems.value.size
+            HomeCatalogSection.UPCOMING -> upcomingHomeItems.value.size
+            HomeCatalogSection.POPULAR_PEOPLE -> popularPeopleHomeItems.value.size
+        }
+
+        // Fast-path: expand already-cached DB/in-memory items immediately without flashing a spinner
+        if (initialPoolSize > current.visibleLimit) {
+            val expandedLimit = minOf(current.visibleLimit + 24, initialPoolSize)
+            sectionPageStateMap.value = sectionPageStateMap.value + (
+                stateKey to current.copy(
+                    visibleLimit = expandedLimit,
+                    isLoadingMore = false,
+                    hasMore = expandedLimit < initialPoolSize || current.lastTmdbPage < 15
+                )
+            )
+            // Quietly prefetch next TMDB page in background only if buffer is getting low
+            if (initialPoolSize - expandedLimit <= 12 && current.lastTmdbPage < 15) {
+                viewModelScope.launch {
+                    val tmdbKey = getActiveTmdbApiKey()
+                    val lang = userPreferences.value.languageCode
+                    val region = effectiveRegionCode.value
+                    withTimeoutOrNull(10_000L) {
+                        if (section == HomeCatalogSection.POPULAR_PEOPLE) {
+                            repository.fetchPopularPeoplePage(tmdbKey, lang, page = current.lastTmdbPage + 1)
+                        } else {
+                            repository.fetchHomeCatalogPage(section, tmdbKey, typeFilter, lang, region, page = current.lastTmdbPage + 1)
+                        }
+                    }
+                    val latest = sectionPageStateMap.value[stateKey]
+                    if (latest != null) {
+                        sectionPageStateMap.value = sectionPageStateMap.value + (
+                            stateKey to latest.copy(lastTmdbPage = current.lastTmdbPage + 1)
+                        )
+                    }
+                }
+            }
+            return
+        }
+
         sectionPageStateMap.value = sectionPageStateMap.value + (stateKey to current.copy(isLoadingMore = true))
 
-        viewModelScope.launch {
+        sectionLoadMoreJob = viewModelScope.launch {
+            var updatedState: HomeSectionPaginationState? = null
             try {
                 val tmdbKey = getActiveTmdbApiKey()
                 val lang = userPreferences.value.languageCode
                 val region = effectiveRegionCode.value
-
-                val currentPoolSize = when (section) {
-                    HomeCatalogSection.POPULAR -> popularHomeItems.value.size
-                    HomeCatalogSection.NOW_PLAYING -> nowPlayingHomeItems.value.size
-                    HomeCatalogSection.UPCOMING -> upcomingHomeItems.value.size
-                    HomeCatalogSection.POPULAR_PEOPLE -> popularPeopleHomeItems.value.size
-                }
-
                 val newVisibleLimit = current.visibleLimit + 24
                 var nextPage = current.lastTmdbPage
                 var newlyFetchedCount = 0
 
                 if (section == HomeCatalogSection.POPULAR_PEOPLE) {
-                    if (currentPoolSize <= current.visibleLimit + 12) {
-                        nextPage = current.lastTmdbPage + 1
-                        val fetchedPeople = repository.fetchPopularPeoplePage(
+                    nextPage = current.lastTmdbPage + 1
+                    val fetchedPeople = withTimeoutOrNull(10_000L) {
+                        repository.fetchPopularPeoplePage(
                             apiKey = tmdbKey,
                             language = lang,
                             page = nextPage
                         )
-                        newlyFetchedCount = fetchedPeople.size
-                        // If page 2 was already pre-cached or filtered by Movies/TV, pull one more page smoothly
-                        if (fetchedPeople.isNotEmpty() && (typeFilter != null && fetchedPeople.count { p ->
-                                p.knownFor.any { it.getMediaTypeEnum() == typeFilter }
-                            } < 6)
-                        ) {
-                            nextPage += 1
-                            newlyFetchedCount += repository.fetchPopularPeoplePage(
+                    } ?: emptyList()
+                    newlyFetchedCount = fetchedPeople.size
+                    if (fetchedPeople.isNotEmpty() && (typeFilter != null && fetchedPeople.count { p ->
+                            p.knownFor.any { it.getMediaTypeEnum() == typeFilter }
+                        } < 6) && nextPage < 15
+                    ) {
+                        nextPage += 1
+                        newlyFetchedCount += withTimeoutOrNull(8_000L) {
+                            repository.fetchPopularPeoplePage(
                                 apiKey = tmdbKey,
                                 language = lang,
                                 page = nextPage
-                            ).size
-                        }
-                        if (newlyFetchedCount == 0) {
-                            val dbMore = repository.getPagedPopularPeopleFromDb(
-                                mediaType = typeFilter,
-                                limit = 24,
-                                offset = currentPoolSize
                             )
-                            newlyFetchedCount = dbMore.size
+                        }?.size ?: 0
+                    }
+                    if (newlyFetchedCount == 0) {
+                        val dbMore = repository.getPagedPopularPeopleFromDb(
+                            mediaType = typeFilter,
+                            limit = 24,
+                            offset = initialPoolSize
+                        )
+                        newlyFetchedCount = dbMore.size
+                    }
+                } else {
+                    val beforeIds = when (section) {
+                        HomeCatalogSection.POPULAR -> popularHomeItems.value.mapTo(HashSet()) { it.id }
+                        HomeCatalogSection.NOW_PLAYING -> nowPlayingHomeItems.value.mapTo(HashSet()) { it.id }
+                        HomeCatalogSection.UPCOMING -> upcomingHomeItems.value.mapTo(HashSet()) { it.id }
+                        HomeCatalogSection.POPULAR_PEOPLE -> emptySet()
+                    }
+                    nextPage = current.lastTmdbPage + 1
+                    val fetched = withTimeoutOrNull(10_000L) {
+                        repository.fetchHomeCatalogPage(
+                            section = section,
+                            apiKey = tmdbKey,
+                            mediaType = typeFilter,
+                            language = lang,
+                            region = region,
+                            page = nextPage
+                        )
+                    } ?: emptyList()
+                    newlyFetchedCount = fetched.size
+                    var addedUnseenForFilter = fetched.count { item ->
+                        item.id !in beforeIds &&
+                            (typeFilter == null || item.getMediaTypeEnum() == typeFilter) &&
+                            (genreFilter == null || item.getGenreList().any { g -> g.equals(genreFilter, ignoreCase = true) })
+                    }
+
+                    // If page yielded results but none matched current filter or all were duplicates, pull 1 more page
+                    if (fetched.isNotEmpty() && addedUnseenForFilter == 0 && nextPage < 15) {
+                        nextPage += 1
+                        val extra = withTimeoutOrNull(8_000L) {
+                            repository.fetchHomeCatalogPage(
+                                section = section,
+                                apiKey = tmdbKey,
+                                mediaType = typeFilter,
+                                language = lang,
+                                region = region,
+                                page = nextPage
+                            )
+                        } ?: emptyList()
+                        newlyFetchedCount += extra.size
+                        addedUnseenForFilter += extra.count { item ->
+                            item.id !in beforeIds &&
+                                (typeFilter == null || item.getMediaTypeEnum() == typeFilter) &&
+                                (genreFilter == null || item.getGenreList().any { g -> g.equals(genreFilter, ignoreCase = true) })
                         }
                     }
-                } else if (currentPoolSize <= current.visibleLimit + 12) {
-                    // Populate new entries into Room DB whenever current DB slice gets close to exhausted
-                    nextPage = current.lastTmdbPage + 1
-                    val fetched = repository.fetchHomeCatalogPage(
-                        section = section,
-                        apiKey = tmdbKey,
-                        mediaType = typeFilter,
-                        language = lang,
-                        region = region,
-                        page = nextPage
-                    )
-                    newlyFetchedCount = fetched.size
 
-                    // Also query Room DB page at offset as fallback if offline or API returned 0
                     if (newlyFetchedCount == 0) {
                         val dbMore = repository.getPagedHomeCatalogFromDb(
                             section = section,
@@ -1268,13 +1348,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                             genreFilter = genreFilter,
                             languageFilter = if (userPreferences.value.filterCatalogByLanguage) lang else null,
                             limit = 24,
-                            offset = currentPoolSize
+                            offset = initialPoolSize
                         )
                         if (dbMore.isNotEmpty() && section == HomeCatalogSection.POPULAR) {
                             repository.upsertWithFeedTag(dbMore, section.feedTag)
                             newlyFetchedCount = dbMore.size
                         }
                     }
+                }
+
+                // Allow Room Flow one quick cycle to emit newly inserted rows before hiding the spinner
+                if (newlyFetchedCount > 0) {
+                    delay(80L)
                 }
 
                 val updatedPoolSize = when (section) {
@@ -1289,20 +1374,24 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     newVisibleLimit
                 }
-                val canStillLoadMore = newlyFetchedCount > 0 || updatedPoolSize > effectiveVisibleLimit
-                sectionPageStateMap.value = sectionPageStateMap.value + (
-                    stateKey to HomeSectionPaginationState(
-                        visibleLimit = effectiveVisibleLimit,
-                        lastTmdbPage = nextPage,
-                        isLoadingMore = false,
-                        hasMore = canStillLoadMore
+                val reachedPageCap = nextPage >= 15
+                val canStillLoadMore = !reachedPageCap && (
+                    updatedPoolSize > effectiveVisibleLimit ||
+                        (newlyFetchedCount > 0 && updatedPoolSize > initialPoolSize)
                     )
+                updatedState = HomeSectionPaginationState(
+                    visibleLimit = effectiveVisibleLimit,
+                    lastTmdbPage = nextPage,
+                    isLoadingMore = false,
+                    hasMore = canStillLoadMore
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 e.printStackTrace()
-                sectionPageStateMap.value = sectionPageStateMap.value + (
-                    stateKey to current.copy(isLoadingMore = false)
-                )
+            } finally {
+                val finalState = updatedState ?: (sectionPageStateMap.value[stateKey] ?: current).copy(isLoadingMore = false)
+                sectionPageStateMap.value = sectionPageStateMap.value + (stateKey to finalState.copy(isLoadingMore = false))
             }
         }
     }

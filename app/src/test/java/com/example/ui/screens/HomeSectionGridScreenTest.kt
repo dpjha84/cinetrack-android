@@ -255,4 +255,50 @@ class HomeSectionGridScreenTest {
         assertEquals("Drama", pickedGenre)
         composeTestRule.onNodeWithTag("grid_now_playing_card_tv1").assertIsDisplayed()
     }
+
+    @Test
+    fun paginationFooterNeverShowsLoadingMoreAndLoadMoreTogetherAndStopsLooping() {
+        val sampleItems = (1..12).map { idx ->
+            sampleItem(id = "np_$idx", title = "Now Playing Movie $idx", type = MediaType.MOVIE)
+        }
+        var loadMoreTriggerCount = 0
+        var isLoadingState = false
+
+        composeTestRule.setContent {
+            WatchPilotTheme {
+                AdaptiveLayoutProvider {
+                    HomeSectionGridScreen(
+                        section = HomeCatalogSection.NOW_PLAYING,
+                        regionName = "United States",
+                        items = sampleItems,
+                        totalAvailableCount = 12,
+                        selectedType = MediaType.MOVIE,
+                        selectedGenre = null,
+                        availableGenres = listOf("Action"),
+                        isLoadingMore = isLoadingState,
+                        hasMore = true,
+                        onSelectType = {},
+                        onSelectGenre = {},
+                        onLoadMore = { loadMoreTriggerCount++ },
+                        onMediaClick = {},
+                        onBack = {},
+                        isFilterLocked = true,
+                        isGenreFilterLocked = false
+                    )
+                }
+            }
+        }
+
+        composeTestRule.onNodeWithTag("section_grid_list_now_playing")
+            .performScrollToNode(hasTestTag("section_grid_load_more"))
+        composeTestRule.waitForIdle()
+        // When idle and hasMore = true, only Load More shows and Loading more is absent
+        composeTestRule.onNodeWithTag("section_grid_load_more").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("section_grid_loading_more").assertDoesNotExist()
+        // Scroll near bottom auto-triggered at most once for count=12 without infinite looping
+        assertTrue(
+            "Expected auto-load to trigger at most once for stagnant count=12, got $loadMoreTriggerCount",
+            loadMoreTriggerCount <= 1
+        )
+    }
 }
