@@ -75,7 +75,9 @@ fun HomeSectionGridScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     people: List<TmdbSearchResultItem.Person> = emptyList(),
-    onPersonClick: (TmdbSearchResultItem.Person) -> Unit = {}
+    onPersonClick: (TmdbSearchResultItem.Person) -> Unit = {},
+    isFilterLocked: Boolean = false,
+    isGenreFilterLocked: Boolean = false
 ) {
     BackHandler(onBack = onBack)
 
@@ -146,21 +148,23 @@ fun HomeSectionGridScreen(
                     Spacer(modifier = Modifier.width(4.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isPeopleSection) "Popular People" else "${section.displayPrefix} in $regionName",
+                            text = section.formattedTitle(regionName, selectedType),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.ExtraBold,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag("section_grid_title")
                         )
-                        val filterLabel = when (selectedType) {
-                            MediaType.MOVIE -> "Movies"
-                            MediaType.TV_SHOW -> "TV Shows"
-                            null -> "All Media"
+                        val countUnit = when {
+                            isPeopleSection -> "people"
+                            selectedType == MediaType.MOVIE -> "movies"
+                            selectedType == MediaType.TV_SHOW -> "shows"
+                            else -> "titles"
                         }
-                        val countUnit = if (isPeopleSection) "people" else "titles"
+                        val filterSuffix = if (!isFilterLocked && selectedType == null) " • All Media" else ""
                         val genreSuffix = if (!isPeopleSection && selectedGenre != null) " • $selectedGenre" else ""
                         Text(
-                            text = "$displayedCount $countUnit • $filterLabel$genreSuffix",
+                            text = "$displayedCount $countUnit$filterSuffix$genreSuffix",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -169,64 +173,68 @@ fun HomeSectionGridScreen(
                     }
                 }
 
-                // Media Type Filter Chips (All Media, Movies, TV Shows)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedType == null,
-                        onClick = { onSelectType(null) },
-                        label = { Text("All Media", maxLines = 1, softWrap = false) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaGold,
-                            selectedLabelColor = MaterialTheme.colorScheme.surface
-                        ),
-                        modifier = Modifier.testTag("section_filter_all")
-                    )
-                    FilterChip(
-                        selected = selectedType == MediaType.MOVIE,
-                        onClick = { onSelectType(MediaType.MOVIE) },
-                        label = { Text("Movies", maxLines = 1, softWrap = false) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Movie,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaGold,
-                            selectedLabelColor = MaterialTheme.colorScheme.surface
-                        ),
-                        modifier = Modifier.testTag("section_filter_movies")
-                    )
-                    FilterChip(
-                        selected = selectedType == MediaType.TV_SHOW,
-                        onClick = { onSelectType(MediaType.TV_SHOW) },
-                        label = { Text("TV Shows", maxLines = 1, softWrap = false) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Tv,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaCyan,
-                            selectedLabelColor = MaterialTheme.colorScheme.surface
-                        ),
-                        modifier = Modifier.testTag("section_filter_tv")
-                    )
+                // Hide Media Type filter bar when Movie/TV Show was already filtered on Home
+                if (!isFilterLocked) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = selectedType == null,
+                            onClick = { onSelectType(null) },
+                            label = { Text("All Media", maxLines = 1, softWrap = false) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CinemaGold,
+                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                            ),
+                            modifier = Modifier.testTag("section_filter_all")
+                        )
+                        FilterChip(
+                            selected = selectedType == MediaType.MOVIE,
+                            onClick = { onSelectType(MediaType.MOVIE) },
+                            label = { Text("Movies", maxLines = 1, softWrap = false) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Movie,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CinemaGold,
+                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                            ),
+                            modifier = Modifier.testTag("section_filter_movies")
+                        )
+                        FilterChip(
+                            selected = selectedType == MediaType.TV_SHOW,
+                            onClick = { onSelectType(MediaType.TV_SHOW) },
+                            label = { Text("TV Shows", maxLines = 1, softWrap = false) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Tv,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CinemaCyan,
+                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                            ),
+                            modifier = Modifier.testTag("section_filter_tv")
+                        )
+                    }
                 }
 
-                if (!isPeopleSection) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                // Show Genre filter chips whenever All Genres was active on Home (even if Movies/TV Shows is locked)
+                if (!isPeopleSection && !isGenreFilterLocked) {
+                    if (!isFilterLocked) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
 
-                    // Genre Filter Chips
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -237,7 +245,8 @@ fun HomeSectionGridScreen(
                         FilterChip(
                             selected = selectedGenre == null,
                             onClick = { onSelectGenre(null) },
-                            label = { Text("All Genres", fontSize = 12.sp) }
+                            label = { Text("All Genres", fontSize = 12.sp) },
+                            modifier = Modifier.testTag("section_genre_all")
                         )
 
                         availableGenres.forEach { genre ->
@@ -250,7 +259,8 @@ fun HomeSectionGridScreen(
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = CinemaGold.copy(alpha = 0.2f),
                                     selectedLabelColor = CinemaGold
-                                )
+                                ),
+                                modifier = Modifier.testTag("section_genre_${genre.lowercase().replace(" ", "_")}")
                             )
                         }
                     }
@@ -280,18 +290,24 @@ fun HomeSectionGridScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
+                    val canResetType = !isFilterLocked && selectedType != null
+                    val canResetGenre = !isGenreFilterLocked && selectedGenre != null
                     Text(
-                        text = "Try another filter or reset.",
+                        text = if (!canResetType && !canResetGenre && (isFilterLocked || isGenreFilterLocked)) {
+                            "Load more titles from catalog."
+                        } else {
+                            "Try another filter or reset."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (selectedType != null || selectedGenre != null) {
+                        if (canResetType || canResetGenre) {
                             OutlinedButton(
                                 onClick = {
-                                    onSelectType(null)
-                                    onSelectGenre(null)
+                                    if (canResetType) onSelectType(null)
+                                    if (canResetGenre) onSelectGenre(null)
                                 }
                             ) {
                                 Text("Reset Filters")

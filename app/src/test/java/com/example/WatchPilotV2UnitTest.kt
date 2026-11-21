@@ -164,4 +164,28 @@ class WatchPilotV2UnitTest {
         }
         assertEquals(listOf(10L, 20L, 30L), peopleSecond.map { it.id })
     }
+
+    @Test
+    fun homeCatalogSectionFormattedTitle_reflectsMediaTypeFilter() {
+        assertEquals(
+            "Now Playing in United States",
+            com.example.data.model.HomeCatalogSection.NOW_PLAYING.formattedTitle("United States", null)
+        )
+        assertEquals(
+            "Now Playing Movies in United States",
+            com.example.data.model.HomeCatalogSection.NOW_PLAYING.formattedTitle("United States", MediaType.MOVIE)
+        )
+        assertEquals(
+            "Now Playing Shows in United States",
+            com.example.data.model.HomeCatalogSection.NOW_PLAYING.formattedTitle("United States", MediaType.TV_SHOW)
+        )
+        assertEquals(
+            "Popular Movies in India",
+            com.example.data.model.HomeCatalogSection.POPULAR.formattedTitle("India", MediaType.MOVIE)
+        )
+        assertEquals(
+            "Upcoming Shows in India",
+            com.example.data.model.HomeCatalogSection.UPCOMING.formattedTitle("India", MediaType.TV_SHOW)
+        )
+    }
 }

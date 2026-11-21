@@ -705,6 +705,7 @@ fun HomeScreen(
                     HomeHorizontalCatalogSection(
                         section = section,
                         regionName = regionOption.name,
+                        selectedType = selectedType,
                         icon = sectionIcon,
                         accentColor = accentColor,
                         items = sectionItems.take(20),
@@ -723,6 +724,8 @@ fun HomeScreen(
                 span = { GridItemSpan(gridColumns) }
             ) {
                 HomeHorizontalPeopleSection(
+                    regionName = regionOption.name,
+                    selectedType = selectedType,
                     people = popularPeopleHomeItems.take(20),
                     totalCount = popularPeopleHomeItems.size,
                     isRefreshing = isHomeCatalogRefreshing,
@@ -737,6 +740,8 @@ fun HomeScreen(
 
 @Composable
 private fun HomeHorizontalPeopleSection(
+    regionName: String,
+    selectedType: MediaType?,
     people: List<TmdbSearchResultItem.Person>,
     totalCount: Int,
     isRefreshing: Boolean,
@@ -746,6 +751,7 @@ private fun HomeHorizontalPeopleSection(
 ) {
     val cardWidth = if (isCompactCardTablet) 124.dp else 104.dp
     val accentColor = CinemaGold
+    val sectionTitle = HomeCatalogSection.POPULAR_PEOPLE.formattedTitle(regionName, selectedType)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -771,7 +777,7 @@ private fun HomeHorizontalPeopleSection(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Popular People",
+                    text = sectionTitle,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -786,7 +792,7 @@ private fun HomeHorizontalPeopleSection(
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "View all Popular People",
+                        contentDescription = "View all $sectionTitle",
                         tint = accentColor,
                         modifier = Modifier.size(20.dp)
                     )
@@ -911,7 +917,7 @@ private fun HomeHorizontalPeopleSection(
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                            contentDescription = "See all Popular People",
+                                            contentDescription = "See all $sectionTitle",
                                             tint = accentColor,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -938,6 +944,7 @@ private fun HomeHorizontalPeopleSection(
 private fun HomeHorizontalCatalogSection(
     section: HomeCatalogSection,
     regionName: String,
+    selectedType: MediaType?,
     icon: ImageVector,
     accentColor: Color,
     items: List<MediaEntity>,
@@ -948,6 +955,7 @@ private fun HomeHorizontalCatalogSection(
     onMediaClick: (String) -> Unit
 ) {
     val cardWidth = if (isCompactCardTablet) 128.dp else 108.dp
+    val sectionTitle = section.formattedTitle(regionName, selectedType)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -973,7 +981,7 @@ private fun HomeHorizontalCatalogSection(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "${section.displayPrefix} in $regionName",
+                    text = sectionTitle,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -988,7 +996,7 @@ private fun HomeHorizontalCatalogSection(
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "View all ${section.displayPrefix} in $regionName",
+                        contentDescription = "View all $sectionTitle",
                         tint = accentColor,
                         modifier = Modifier.size(20.dp)
                     )

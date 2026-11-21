@@ -622,6 +622,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     val isHomeCatalogRefreshing = MutableStateFlow(false)
     val activeHomeCatalogSection = MutableStateFlow<HomeCatalogSection?>(null)
+    val isHomeSectionFilterLocked = MutableStateFlow(false)
+    val isHomeSectionGenreLocked = MutableStateFlow(false)
     private val sectionPageStateMap = MutableStateFlow<Map<String, HomeSectionPaginationState>>(emptyMap())
     private val sectionOrderedIdsCache = java.util.concurrent.ConcurrentHashMap<String, MutableList<String>>()
 
@@ -1152,9 +1154,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openHomeCatalogSection(section: HomeCatalogSection) {
-        activeHomeCatalogSection.value = section
         val typeFilter = selectedTypeFilter.value
         val genreFilter = selectedGenreFilter.value
+        isHomeSectionFilterLocked.value = (typeFilter != null)
+        isHomeSectionGenreLocked.value = (genreFilter != null)
+        activeHomeCatalogSection.value = section
         val stateKey = sectionStateKey(section, typeFilter, genreFilter)
         val existing = sectionPageStateMap.value[stateKey]
         if (existing == null) {
@@ -1175,6 +1179,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeHomeCatalogSection() {
         activeHomeCatalogSection.value = null
+        isHomeSectionFilterLocked.value = false
+        isHomeSectionGenreLocked.value = false
         synchronized(sectionOrderedIdsCache) {
             sectionOrderedIdsCache.clear()
         }

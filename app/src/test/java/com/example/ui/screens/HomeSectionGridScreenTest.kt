@@ -181,4 +181,78 @@ class HomeSectionGridScreenTest {
         composeTestRule.onNodeWithTag("icon_google_signin", useUnmergedTree = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("Sign in with Google").assertIsDisplayed()
     }
+
+    @Test
+    fun preFilteredMovieWithSpecificGenreHidesBothTypeAndGenreFilters() {
+        val movieItem = sampleItem("m1", "Only Movie", MediaType.MOVIE)
+        composeTestRule.setContent {
+            WatchPilotTheme {
+                AdaptiveLayoutProvider {
+                    HomeSectionGridScreen(
+                        section = HomeCatalogSection.NOW_PLAYING,
+                        regionName = "United States",
+                        items = listOf(movieItem),
+                        totalAvailableCount = 1,
+                        selectedType = MediaType.MOVIE,
+                        selectedGenre = "Action",
+                        availableGenres = listOf("Action", "Drama"),
+                        isLoadingMore = false,
+                        hasMore = false,
+                        onSelectType = {},
+                        onSelectGenre = {},
+                        onLoadMore = {},
+                        onMediaClick = {},
+                        onBack = {},
+                        isFilterLocked = true,
+                        isGenreFilterLocked = true
+                    )
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Now Playing Movies in United States").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("section_filter_all").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("section_filter_movies").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("section_filter_tv").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("section_genre_all").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("grid_now_playing_card_m1").assertIsDisplayed()
+    }
+
+    @Test
+    fun preFilteredShowsWithAllGenresShowsGenreFiltersAndHidesMediaTypeFilters() {
+        val showItem = sampleItem("tv1", "Only Show", MediaType.TV_SHOW)
+        var pickedGenre: String? = null
+        composeTestRule.setContent {
+            WatchPilotTheme {
+                AdaptiveLayoutProvider {
+                    HomeSectionGridScreen(
+                        section = HomeCatalogSection.NOW_PLAYING,
+                        regionName = "United States",
+                        items = listOf(showItem),
+                        totalAvailableCount = 1,
+                        selectedType = MediaType.TV_SHOW,
+                        selectedGenre = pickedGenre,
+                        availableGenres = listOf("Drama", "Sci-Fi"),
+                        isLoadingMore = false,
+                        hasMore = false,
+                        onSelectType = {},
+                        onSelectGenre = { pickedGenre = it },
+                        onLoadMore = {},
+                        onMediaClick = {},
+                        onBack = {},
+                        isFilterLocked = true,
+                        isGenreFilterLocked = false
+                    )
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Now Playing Shows in United States").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("section_filter_all").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("section_filter_tv").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("section_genre_all").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("section_genre_drama").performClick()
+        assertEquals("Drama", pickedGenre)
+        composeTestRule.onNodeWithTag("grid_now_playing_card_tv1").assertIsDisplayed()
+    }
 }

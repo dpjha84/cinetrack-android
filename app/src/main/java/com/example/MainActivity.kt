@@ -310,6 +310,8 @@ fun MovieverseApp(viewModel: MediaViewModel) {
     val selectedGenreFilter by viewModel.selectedGenreFilter.collectAsStateWithLifecycle()
     val availableGenres by viewModel.availableGenres.collectAsStateWithLifecycle()
     val activeSectionGridState by viewModel.activeSectionGridUiState.collectAsStateWithLifecycle()
+    val isHomeSectionFilterLocked by viewModel.isHomeSectionFilterLocked.collectAsStateWithLifecycle()
+    val isHomeSectionGenreLocked by viewModel.isHomeSectionGenreLocked.collectAsStateWithLifecycle()
     val favoritePeople by viewModel.favoritePeople.collectAsStateWithLifecycle()
     val selectedPerson by viewModel.selectedPersonForDetail.collectAsStateWithLifecycle()
     val personDetail by viewModel.personDetailData.collectAsStateWithLifecycle()
@@ -505,7 +507,9 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                     onMediaClick = { id -> viewModel.selectMedia(id) },
                     onBack = { viewModel.closeHomeCatalogSection() },
                     people = activeSectionGridState.people,
-                    onPersonClick = { person -> viewModel.selectPersonForDetail(person) }
+                    onPersonClick = { person -> viewModel.selectPersonForDetail(person) },
+                    isFilterLocked = isHomeSectionFilterLocked,
+                    isGenreFilterLocked = isHomeSectionGenreLocked
                 )
             } else {
                 if (currentNav != MainNavDestination.HOME) {
