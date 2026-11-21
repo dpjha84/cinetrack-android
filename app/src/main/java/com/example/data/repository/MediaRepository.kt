@@ -8,6 +8,8 @@ import com.example.data.local.FavoritePersonDao
 import com.example.data.local.FavoritePersonEntity
 import com.example.data.local.MediaDao
 import com.example.data.local.MediaEntity
+import com.example.data.local.PopularPersonDao
+import com.example.data.local.PopularPersonEntity
 import com.example.data.local.PreferencesDao
 import com.example.data.local.SampleMediaData
 import com.example.data.local.SampleTrailerData
@@ -15,6 +17,7 @@ import com.example.data.local.SearchHistoryDao
 import com.example.data.local.SearchHistoryEntity
 import com.example.data.local.UserPreferencesEntity
 import com.example.data.model.CastMemberItem
+import com.example.data.model.HomeCatalogSection
 import com.example.data.model.MediaType
 import com.example.data.model.RegionalDefaults
 import com.example.data.model.TmdbSearchResultItem
@@ -45,6 +48,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -60,7 +64,8 @@ class MediaRepository(
     private val collectionDao: CustomCollectionDao,
     private val tvProgressDao: TvProgressDao,
     private val favoritePersonDao: FavoritePersonDao,
-    private val firestoreSyncManager: FirestoreSyncManager? = null
+    private val firestoreSyncManager: FirestoreSyncManager? = null,
+    private val popularPersonDao: PopularPersonDao? = null
 ) {
 
     private val syncMutex = Mutex()
@@ -71,6 +76,7 @@ class MediaRepository(
     val continueWatching: Flow<List<MediaEntity>> = mediaDao.getContinueWatching()
     val favorites: Flow<List<MediaEntity>> = mediaDao.getFavorites()
     val favoritePeople: Flow<List<FavoritePersonEntity>> = favoritePersonDao.getAllFavoritePeople()
+    val popularPeople: Flow<List<PopularPersonEntity>> = popularPersonDao?.getAllPopularPeople() ?: flowOf(emptyList())
     val watchlistMedia: Flow<List<MediaEntity>> = mediaDao.getWatchlistMedia()
     val userPreferences: Flow<UserPreferencesEntity?> = preferencesDao.getPreferences()
     val searchHistory: Flow<List<SearchHistoryEntity>> = searchHistoryDao.getRecentSearches()
@@ -283,13 +289,31 @@ class MediaRepository(
     }
 
     suspend fun seedIfEmpty() = withContext(Dispatchers.IO) {
-        val initialCatalog = SampleMediaData.getInitialCatalog()
+        val sampleUpcomingIds = setOf("m_ramayana", "m_moana_two", "tv_house_of_dragon", "tv_squid_game")
+        val sampleNowPlayingIds = setOf(
+            "m_gladiator_two", "m_wicked", "m_moana_two", "m_singham_again",
+            "m_bb3", "m_pushpa_2", "m_wild_robot", "tv_the_penguin",
+            "tv_shogun", "tv_fallout", "tv_the_bear", "tv_queen_of_tears", "tv_severance"
+        )
+        val initialCatalog = SampleMediaData.getInitialCatalog().map { item ->
+            val tags = buildList {
+                add(HomeCatalogSection.POPULAR.feedTag)
+                if (item.id in sampleNowPlayingIds) add(HomeCatalogSection.NOW_PLAYING.feedTag)
+                if (item.id in sampleUpcomingIds) add(HomeCatalogSection.UPCOMING.feedTag)
+            }.joinToString(",")
+            item.copy(feedTags = mergeFeedTagString(item.feedTags, tags))
+        }
         if (mediaDao.countTotal() == 0) {
             mediaDao.insertAll(initialCatalog)
         } else {
-            // Synchronize verified TMDB images into existing Room database cache
+            // Synchronize verified TMDB images and baseline catalog feed tags into existing Room cache
+            val existingMap = mediaDao.getByIds(initialCatalog.map { it.id }).associateBy { it.id }
             initialCatalog.forEach { sampleItem ->
                 mediaDao.updateMediaImages(sampleItem.id, sampleItem.posterUrl, sampleItem.backdropUrl)
+                val existing = existingMap[sampleItem.id]
+                if (existing != null && existing.feedTags.isBlank()) {
+                    mediaDao.updateFeedTags(sampleItem.id, sampleItem.feedTags)
+                }
             }
         }
         if (preferencesDao.getPreferencesDirect() == null) {
@@ -338,91 +362,295 @@ class MediaRepository(
         }
     }
 
+    private fun mergeFeedTagString(existingTags: String, newTags: String): String {
+        val parts = (existingTags.split(",") + newTags.split(","))
+            .map { it.trim().uppercase() }
+            .filter { it.isNotBlank() }
+            .distinct()
+        return parts.joinToString(",")
+    }
+
+    private fun isExcludedLegacyCatalogTitle(item: MediaEntity, enforceRecentYear: Boolean = true): Boolean {
+        val titleLower = item.title.lowercase().trim()
+        val legacyTitle = titleLower.contains("panchayat") ||
+            titleLower == "rrr" ||
+            titleLower == "inception" ||
+            titleLower == "fight club" ||
+            titleLower == "parasite" ||
+            titleLower == "the dark knight" ||
+            titleLower == "pulp fiction" ||
+            titleLower == "the shawshank redemption"
+        return legacyTitle || (enforceRecentYear && item.releaseYear < 2023 && !item.isCustom)
+    }
+
+    suspend fun upsertWithFeedTag(items: List<MediaEntity>, feedTag: String) = withContext(Dispatchers.IO) {
+        if (items.isEmpty()) return@withContext
+        val cleanTag = feedTag.trim().uppercase()
+        val uniqueItems = items.distinctBy { it.id }
+        val existingMap = uniqueItems.map { it.id }
+            .chunked(400)
+            .flatMap { chunk -> mediaDao.getByIds(chunk) }
+            .associateBy { it.id }
+
+        val toInsert = mutableListOf<MediaEntity>()
+        val toUpdateTags = mutableListOf<Pair<String, String>>()
+
+        uniqueItems.forEach { item ->
+            val existing = existingMap[item.id]
+            if (existing == null) {
+                toInsert.add(item.copy(feedTags = mergeFeedTagString(item.feedTags, cleanTag)))
+            } else if (!existing.hasFeedTag(cleanTag)) {
+                toUpdateTags.add(existing.id to mergeFeedTagString(existing.feedTags, cleanTag))
+            }
+        }
+
+        if (toInsert.isNotEmpty()) {
+            mediaDao.insertAll(toInsert)
+        }
+        toUpdateTags.forEach { (id, merged) ->
+            mediaDao.updateFeedTags(id, merged)
+        }
+    }
+
+    suspend fun getPagedHomeCatalogFromDb(
+        section: HomeCatalogSection,
+        mediaType: MediaType?,
+        genreFilter: String?,
+        languageFilter: String?,
+        limit: Int,
+        offset: Int
+    ): List<MediaEntity> = withContext(Dispatchers.IO) {
+        val typeStr = mediaType?.name
+        val safeGenre = genreFilter?.takeIf { it.isNotBlank() }
+        val safeLang = languageFilter?.takeIf { it.isNotBlank() && !it.equals("all", ignoreCase = true) }
+        val feedItems = mediaDao.getPagedMediaByFeed(
+            feedTag = section.feedTag,
+            mediaType = typeStr,
+            genreFilter = safeGenre,
+            languageFilter = safeLang,
+            limit = limit,
+            offset = offset
+        )
+        if (feedItems.isNotEmpty() || section != HomeCatalogSection.POPULAR) {
+            feedItems
+        } else {
+            mediaDao.getPagedAllCatalogMedia(
+                mediaType = typeStr,
+                genreFilter = safeGenre,
+                languageFilter = safeLang,
+                limit = limit,
+                offset = offset
+            )
+        }
+    }
+
+    suspend fun fetchHomeCatalogPage(
+        section: HomeCatalogSection,
+        apiKey: String,
+        mediaType: MediaType?,
+        language: String?,
+        region: String?,
+        page: Int
+    ): List<MediaEntity> = withContext(Dispatchers.IO) {
+        if (section == HomeCatalogSection.POPULAR_PEOPLE) return@withContext emptyList()
+        if (apiKey.isBlank() || apiKey == "YOUR_TMDB_API_KEY") return@withContext emptyList()
+        val safeLanguage = if (language != null && !language.equals("all", ignoreCase = true) && language.isNotBlank()) language else null
+        val safeRegion = if (!region.isNullOrBlank() && !region.equals("AUTO", ignoreCase = true) && !region.equals("GLOBAL", ignoreCase = true)) {
+            region.uppercase()
+        } else null
+
+        val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val todayStr = dateFmt.format(Calendar.getInstance().time)
+        val tomorrowStr = dateFmt.format(Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }.time)
+
+        val wantMovies = mediaType == null || mediaType == MediaType.MOVIE
+        val wantTv = mediaType == null || mediaType == MediaType.TV_SHOW
+
+        try {
+            val (movieEntities, tvEntities) = coroutineScope {
+                val moviesDeferred = async {
+                    if (!wantMovies) return@async emptyList()
+                    when (section) {
+                        HomeCatalogSection.POPULAR -> {
+                            val list = mutableListOf<MediaEntity>()
+                            if (safeRegion == "IN" && page <= 3) {
+                                runCatching {
+                                    TmdbClient.api.discoverMovies(
+                                        apiKey = apiKey,
+                                        language = safeLanguage,
+                                        region = "IN",
+                                        watchRegion = "IN",
+                                        withOriginCountry = "IN",
+                                        sortBy = "popularity.desc",
+                                        page = page
+                                    ).results.map { TmdbClient.toMediaEntity(it).copy(originCountry = "IN") }
+                                }.getOrNull()?.let { list.addAll(it) }
+                            }
+                            runCatching {
+                                TmdbClient.api.getPopularMovies(
+                                    apiKey = apiKey,
+                                    region = safeRegion,
+                                    language = safeLanguage,
+                                    page = page
+                                ).results.map { TmdbClient.toMediaEntity(it) }
+                            }.getOrNull()?.let { list.addAll(it) }
+                            list.filter { !isExcludedLegacyCatalogTitle(it, enforceRecentYear = true) }
+                                .distinctBy { it.id }
+                        }
+
+                        HomeCatalogSection.NOW_PLAYING -> {
+                            val list = mutableListOf<MediaEntity>()
+                            runCatching {
+                                TmdbClient.api.getNowPlayingMovies(
+                                    apiKey = apiKey,
+                                    region = safeRegion,
+                                    language = safeLanguage,
+                                    page = page
+                                ).results.map { TmdbClient.toMediaEntity(it) }
+                            }.getOrNull()?.let { list.addAll(it) }
+                            if (safeRegion != null && list.size < 10) {
+                                runCatching {
+                                    TmdbClient.api.getNowPlayingMovies(
+                                        apiKey = apiKey,
+                                        region = null,
+                                        language = safeLanguage,
+                                        page = page
+                                    ).results.map { TmdbClient.toMediaEntity(it) }
+                                }.getOrNull()?.let { list.addAll(it) }
+                            }
+                            list.filter { !isExcludedLegacyCatalogTitle(it, enforceRecentYear = false) }
+                                .distinctBy { it.id }
+                        }
+
+                        HomeCatalogSection.UPCOMING -> {
+                            val list = mutableListOf<MediaEntity>()
+                            runCatching {
+                                TmdbClient.api.getUpcomingMovies(
+                                    apiKey = apiKey,
+                                    region = safeRegion,
+                                    language = safeLanguage,
+                                    page = page
+                                ).results.map { TmdbClient.toMediaEntity(it) }
+                            }.getOrNull()?.let { list.addAll(it) }
+                            if (list.size < 12 || page > 1) {
+                                runCatching {
+                                    TmdbClient.api.discoverMovies(
+                                        apiKey = apiKey,
+                                        language = safeLanguage,
+                                        region = safeRegion,
+                                        primaryReleaseDateGte = tomorrowStr,
+                                        sortBy = "popularity.desc",
+                                        page = page
+                                    ).results.map { TmdbClient.toMediaEntity(it) }
+                                }.getOrNull()?.let { list.addAll(it) }
+                            }
+                            list.filter { !isExcludedLegacyCatalogTitle(it, enforceRecentYear = true) }
+                                .distinctBy { it.id }
+                        }
+
+                        HomeCatalogSection.POPULAR_PEOPLE -> emptyList()
+                    }
+                }
+
+                val tvDeferred = async {
+                    if (!wantTv) return@async emptyList()
+                    when (section) {
+                        HomeCatalogSection.POPULAR -> {
+                            val list = mutableListOf<MediaEntity>()
+                            if (safeRegion == "IN" && page <= 3) {
+                                runCatching {
+                                    TmdbClient.api.discoverTv(
+                                        apiKey = apiKey,
+                                        language = safeLanguage,
+                                        region = "IN",
+                                        withOriginCountry = "IN",
+                                        sortBy = "popularity.desc",
+                                        page = page
+                                    ).results.map { TmdbClient.toMediaEntity(it).copy(originCountry = "IN") }
+                                }.getOrNull()?.let { list.addAll(it) }
+                            }
+                            runCatching {
+                                TmdbClient.api.getPopularTv(
+                                    apiKey = apiKey,
+                                    language = safeLanguage,
+                                    page = page
+                                ).results.map { TmdbClient.toMediaEntity(it) }
+                            }.getOrNull()?.let { list.addAll(it) }
+                            list.filter { !isExcludedLegacyCatalogTitle(it, enforceRecentYear = false) }
+                                .distinctBy { it.id }
+                        }
+
+                        HomeCatalogSection.NOW_PLAYING -> {
+                            val list = mutableListOf<MediaEntity>()
+                            runCatching {
+                                TmdbClient.api.getOnTheAirTv(
+                                    apiKey = apiKey,
+                                    language = safeLanguage,
+                                    page = page
+                                ).results.map { TmdbClient.toMediaEntity(it) }
+                            }.getOrNull()?.let { list.addAll(it) }
+                            if (page == 1) {
+                                runCatching {
+                                    TmdbClient.api.getAiringTodayTv(
+                                        apiKey = apiKey,
+                                        language = safeLanguage,
+                                        page = 1
+                                    ).results.map { TmdbClient.toMediaEntity(it) }
+                                }.getOrNull()?.let { list.addAll(it) }
+                            }
+                            list.filter { !isExcludedLegacyCatalogTitle(it, enforceRecentYear = false) }
+                                .distinctBy { it.id }
+                        }
+
+                        HomeCatalogSection.UPCOMING -> {
+                            val list = mutableListOf<MediaEntity>()
+                            runCatching {
+                                TmdbClient.api.discoverTv(
+                                    apiKey = apiKey,
+                                    language = safeLanguage,
+                                    firstAirDateGte = todayStr,
+                                    sortBy = "popularity.desc",
+                                    page = page
+                                ).results.map { TmdbClient.toMediaEntity(it) }
+                            }.getOrNull()?.let { list.addAll(it) }
+                            list.filter { !isExcludedLegacyCatalogTitle(it, enforceRecentYear = false) }
+                                .distinctBy { it.id }
+                        }
+
+                        HomeCatalogSection.POPULAR_PEOPLE -> emptyList()
+                    }
+                }
+
+                moviesDeferred.await() to tvDeferred.await()
+            }
+
+            // Interleave movies and TV evenly when All Media is selected
+            val combined = buildList {
+                val maxLen = maxOf(movieEntities.size, tvEntities.size)
+                for (i in 0 until maxLen) {
+                    if (i < movieEntities.size) add(movieEntities[i])
+                    if (i < tvEntities.size) add(tvEntities[i])
+                }
+            }.distinctBy { it.id }
+                .map { it.copy(feedTags = mergeFeedTagString(it.feedTags, section.feedTag)) }
+
+            if (combined.isNotEmpty()) {
+                upsertWithFeedTag(combined, section.feedTag)
+            }
+            combined
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     suspend fun fetchPopularMediaFromTmdb(apiKey: String, language: String?, region: String?) = withContext(Dispatchers.IO) {
         if (apiKey.isBlank() || apiKey == "YOUR_TMDB_API_KEY") return@withContext
         try {
-            val safeLanguage = if (language != null && !language.equals("all", ignoreCase = true)) language else null
-            val safeRegion = if (!region.isNullOrBlank() && !region.equals("AUTO", ignoreCase = true) && !region.equals("GLOBAL", ignoreCase = true)) region.uppercase() else null
-
-            val entities = mutableListOf<MediaEntity>()
-
-            if (safeRegion == "IN") {
-                // Fetch actual Indian popular & theatrical movies (e.g. Ramayana: Rise of a Legend, Singham Again, Bhool Bhulaiyaa 3, Pushpa 2, Kalki 2898 AD, Stree 2)
-                try {
-                    val inDiscover = TmdbClient.api.discoverMovies(
-                        apiKey = apiKey,
-                        language = safeLanguage,
-                        region = "IN",
-                        watchRegion = "IN",
-                        withOriginCountry = "IN",
-                        sortBy = "popularity.desc"
-                    ).results.map { TmdbClient.toMediaEntity(it).copy(originCountry = "IN") }
-                    entities.addAll(inDiscover)
-                } catch (e: Exception) { e.printStackTrace() }
-
-                try {
-                    val inNowPlaying = TmdbClient.api.getNowPlayingMovies(
-                        apiKey = apiKey,
-                        region = "IN",
-                        language = safeLanguage
-                    ).results.map { TmdbClient.toMediaEntity(it) }
-                    entities.addAll(inNowPlaying)
-                } catch (e: Exception) { e.printStackTrace() }
-
-                try {
-                    val inUpcoming = TmdbClient.api.getUpcomingMovies(
-                        apiKey = apiKey,
-                        region = "IN",
-                        language = safeLanguage
-                    ).results.map { TmdbClient.toMediaEntity(it) }
-                    entities.addAll(inUpcoming)
-                } catch (e: Exception) { e.printStackTrace() }
-
-                try {
-                    val inTv = TmdbClient.api.discoverTv(
-                        apiKey = apiKey,
-                        language = safeLanguage,
-                        region = "IN",
-                        withOriginCountry = "IN",
-                        sortBy = "popularity.desc"
-                    ).results.map { TmdbClient.toMediaEntity(it).copy(originCountry = "IN") }
-                    entities.addAll(inTv)
-                } catch (e: Exception) { e.printStackTrace() }
-            }
-
-            // Fetch live popular movies & series (e.g. Gladiator II, Wicked, Deadpool & Wolverine, Dune 2, The Penguin, Shōgun)
-            try {
-                val popMovies = TmdbClient.api.getPopularMovies(
-                    apiKey = apiKey,
-                    region = safeRegion,
-                    language = safeLanguage
-                ).results.map { TmdbClient.toMediaEntity(it) }
-                entities.addAll(popMovies)
-            } catch (e: Exception) { e.printStackTrace() }
-
-            try {
-                val popTv = TmdbClient.api.getPopularTv(
-                    apiKey = apiKey,
-                    language = safeLanguage
-                ).results.map { TmdbClient.toMediaEntity(it) }
-                entities.addAll(popTv)
-            } catch (e: Exception) { e.printStackTrace() }
-
-            val filteredEntities = entities.filter { item ->
-                val titleLower = item.title.lowercase().trim()
-                !titleLower.contains("panchayat") &&
-                titleLower != "rrr" &&
-                titleLower != "inception" &&
-                titleLower != "fight club" &&
-                titleLower != "parasite" &&
-                titleLower != "the dark knight" &&
-                titleLower != "pulp fiction" &&
-                titleLower != "the shawshank redemption" &&
-                item.releaseYear >= 2023
-            }.distinctBy { it.id }
-
-            if (filteredEntities.isNotEmpty()) {
-                mediaDao.insertAll(filteredEntities)
+            coroutineScope {
+                async { fetchHomeCatalogPage(HomeCatalogSection.POPULAR, apiKey, null, language, region, page = 1) }
+                async { fetchHomeCatalogPage(HomeCatalogSection.NOW_PLAYING, apiKey, null, language, region, page = 1) }
+                async { fetchHomeCatalogPage(HomeCatalogSection.UPCOMING, apiKey, null, language, region, page = 1) }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -2626,12 +2854,98 @@ class MediaRepository(
         favPeople
     }
 
+    suspend fun seedPopularPeopleIfEmpty() = withContext(Dispatchers.IO) {
+        val dao = popularPersonDao ?: return@withContext
+        if (dao.countPopularPeople() > 0) return@withContext
+        val samplePeople = SampleMediaData.getSamplePeople()
+        val entitiesToCache = samplePeople.flatMap { it.knownFor }.distinctBy { it.id }
+        if (entitiesToCache.isNotEmpty()) {
+            mediaDao.insertAll(entitiesToCache)
+        }
+        dao.insertAll(samplePeople.map { PopularPersonEntity.fromPerson(it, pageLoaded = 1) })
+    }
+
+    suspend fun cachePopularPeopleInDb(
+        people: List<TmdbSearchResultItem.Person>,
+        pageLoaded: Int
+    ) = withContext(Dispatchers.IO) {
+        val entitiesToCache = people.flatMap { it.knownFor }.distinctBy { it.id }
+        if (entitiesToCache.isNotEmpty()) {
+            mediaDao.insertAll(entitiesToCache)
+        }
+        popularPersonDao?.insertAll(
+            people.map { PopularPersonEntity.fromPerson(it, pageLoaded = pageLoaded) }
+        )
+    }
+
+    suspend fun getPagedPopularPeopleFromDb(
+        mediaType: MediaType?,
+        limit: Int,
+        offset: Int
+    ): List<PopularPersonEntity> = withContext(Dispatchers.IO) {
+        popularPersonDao?.getPagedPopularPeople(
+            mediaType = mediaType?.name,
+            limit = limit,
+            offset = offset
+        ) ?: emptyList()
+    }
+
+    suspend fun fetchPopularPeoplePage(
+        apiKey: String,
+        language: String?,
+        page: Int
+    ): List<TmdbSearchResultItem.Person> = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank() || apiKey == "YOUR_TMDB_API_KEY") {
+            if (page == 1) {
+                seedPopularPeopleIfEmpty()
+                return@withContext SampleMediaData.getSamplePeople()
+            }
+            return@withContext emptyList()
+        }
+        try {
+            val safeLanguage = if (language != null && !language.equals("all", ignoreCase = true) && language.isNotBlank()) language else null
+            val response = TmdbClient.api.getPopularPeople(apiKey = apiKey, language = safeLanguage, page = page)
+            val entitiesToCache = mutableListOf<MediaEntity>()
+            val livePeople = response.results.mapNotNull { dto ->
+                val personName = dto.name?.trim().orEmpty()
+                if (personName.isBlank()) return@mapNotNull null
+                val knownForEntities = dto.knownFor?.map { TmdbClient.knownForToEntity(it) }.orEmpty()
+                entitiesToCache.addAll(knownForEntities)
+                TmdbSearchResultItem.Person(
+                    id = dto.id,
+                    name = personName,
+                    profileUrl = dto.profilePath?.let { "https://image.tmdb.org/t/p/w500$it" },
+                    department = dto.knownForDepartment ?: "Acting",
+                    knownFor = knownForEntities,
+                    popularity = dto.popularity ?: 0.0
+                )
+            }
+            if (entitiesToCache.isNotEmpty()) {
+                mediaDao.insertAll(entitiesToCache.distinctBy { it.id })
+            }
+            if (livePeople.isNotEmpty()) {
+                popularPersonDao?.insertAll(
+                    livePeople.map { PopularPersonEntity.fromPerson(it, pageLoaded = page) }
+                )
+                return@withContext livePeople
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        if (page == 1) {
+            seedPopularPeopleIfEmpty()
+            return@withContext SampleMediaData.getSamplePeople()
+        }
+        emptyList()
+    }
+
     suspend fun fetchPopularPeople(
         apiKey: String,
         language: String?
     ): List<TmdbSearchResultItem.Person> = withContext(Dispatchers.IO) {
         val samplePeople = SampleMediaData.getSamplePeople()
         if (apiKey.isBlank() || apiKey == "YOUR_TMDB_API_KEY") {
+            seedPopularPeopleIfEmpty()
             return@withContext samplePeople
         }
         try {
@@ -2653,7 +2967,12 @@ class MediaRepository(
                 )
             }
             if (entitiesToCache.isNotEmpty()) {
-                mediaDao.insertAll(entitiesToCache)
+                mediaDao.insertAll(entitiesToCache.distinctBy { it.id })
+            }
+            if (livePeople.isNotEmpty()) {
+                popularPersonDao?.insertAll(
+                    livePeople.map { PopularPersonEntity.fromPerson(it, pageLoaded = 1) }
+                )
             }
             // Merge curated creators/stars with live popular people for rich variety
             return@withContext (samplePeople + livePeople)
@@ -2661,6 +2980,7 @@ class MediaRepository(
                 .take(24)
         } catch (e: Exception) {
             e.printStackTrace()
+            seedPopularPeopleIfEmpty()
             return@withContext samplePeople
         }
     }

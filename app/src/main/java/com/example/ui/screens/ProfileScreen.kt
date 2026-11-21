@@ -153,7 +153,7 @@ fun ProfileScreen(
                         )
                     )
                     .statusBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 20.dp)
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -168,16 +168,16 @@ fun ProfileScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Profile & Account",
+                                text = "Profile",
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Text(
                                 text = if (BuildConfig.IS_V1_EDITION) {
-                                    "WatchPilot Cloud Sync & Cinema DNA"
+                                    "Sync & Cinema DNA"
                                 } else {
-                                    "WatchPilot Cloud Sync, Pro & Cinema DNA"
+                                    "Sync, Pro & Cinema DNA"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -257,9 +257,9 @@ fun ProfileScreen(
                                 )
                                 Text(
                                     text = if (monetizationState.isPro) {
-                                        "Ad-Free • Unlimited AI Vision, Concierge & Live Rooms"
+                                        "Ad-free • AI Concierge, Vision & Rooms"
                                     } else {
-                                        "Zero ads, OTT Money-Saver, AI Vision & Live Swipe Rooms"
+                                        "Ad-free • OTT Saver, AI & Live Rooms"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -513,7 +513,7 @@ fun ProfileScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Device Storage (Local Room DB)",
+                                    text = "Saved on device",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = CinemaCyan,
                                     fontWeight = FontWeight.Medium
@@ -521,13 +521,13 @@ fun ProfileScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
                             text = if (BuildConfig.IS_V1_EDITION) {
-                                "Sign in with Google for 1-tap free cloud backup across your devices."
+                                "Sign in with Google to back up your library."
                             } else {
-                                "Sign in with Google for 1-tap free cloud backup across devices and live Swipe-to-Match rooms."
+                                "Sign in for cloud backup & live rooms."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -584,7 +584,7 @@ fun ProfileScreen(
                 ) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Smart OTT & Library Portability",
+                    text = "OTT & Data",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
@@ -631,9 +631,9 @@ fun ProfileScreen(
                                 )
                                 Text(
                                     text = if (ottSummary.subscribedCount > 0) {
-                                        "${ottSummary.subscribedCount} paid apps (~$${String.format("%.2f", ottSummary.estimatedMonthlySpendUsd)}/mo)"
+                                        "${ottSummary.subscribedCount} apps (~$${String.format("%.2f", ottSummary.estimatedMonthlySpendUsd)}/mo)"
                                     } else {
-                                        "Select your paid apps to spot unused subscriptions"
+                                        "Pick paid apps to spot savings."
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -693,16 +693,16 @@ fun ProfileScreen(
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
-                        text = "1-Tap Migration & Portable Backups",
+                        text = "Import & Backup",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = if (BuildConfig.IS_V1_EDITION) {
-                            "Import CSVs from Moviebase, IMDb, Letterboxd, or Trakt, or export full CSV/JSON backups for free."
+                            "Import from IMDb, Letterboxd, Trakt, or export backups."
                         } else {
-                            "Import CSVs from Moviebase, IMDb, Letterboxd, or Trakt for free. Export full CSV/JSON backups with WatchPilot Pro."
+                            "Free CSV import • CSV/JSON export with Pro."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -831,7 +831,7 @@ fun ProfileScreen(
             ) {
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "Preferences & Regional Catalog",
+                text = "Preferences",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
@@ -917,7 +917,7 @@ fun ProfileScreen(
                                 }
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "Controls movie & TV titles, overviews & search result localization",
+                                    text = "Titles, overviews & search language",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 11.sp
@@ -939,8 +939,8 @@ fun ProfileScreen(
                                 .weight(1f)
                                 .padding(end = 8.dp)
                         ) {
-                            Text("Show Where to Watch Providers", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("Display Netflix, Prime, Hotstar & direct app links", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Where to Watch Links", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Show streaming apps on title pages", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(
                             checked = userPrefs.showStreamingProviders,
@@ -972,9 +972,9 @@ fun ProfileScreen(
                             Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = CinemaGold)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text("Personalize Top Picks & Taste", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Personalize Taste", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 Text(
-                                    text = "Update favorite genres, stars, movies & watched titles",
+                                    text = "Update genres, stars & watched titles",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1001,7 +1001,7 @@ fun ProfileScreen(
             ) {
             Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "Cinema DNA & WatchPilot Wrapped",
+                text = "Cinema DNA & Wrapped",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
@@ -1165,7 +1165,7 @@ fun ProfileScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Cinema DNA Breakdown",
+                            text = "Cinema DNA",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -1234,7 +1234,7 @@ fun ProfileScreen(
                     } else {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Complete or log movies & series to unlock your decade & language Cinema DNA.",
+                            text = "Log titles to unlock your stats.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1410,7 +1410,7 @@ fun ProfileScreen(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Privacy Policy, Terms & Attribution",
+                                text = "Privacy, Terms & Attribution",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -1442,7 +1442,7 @@ fun ProfileScreen(
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Delete Account & Cloud Data", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Delete Account", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1454,9 +1454,9 @@ fun ProfileScreen(
     if (showDeleteAccountConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteAccountConfirm = false },
-            title = { Text("Delete Account & Cloud Data?", fontWeight = FontWeight.Bold) },
+            title = { Text("Delete Account?", fontWeight = FontWeight.Bold) },
             text = {
-                Text("This permanently deletes your WatchPilot cloud library, ratings, and account data. This action cannot be undone.")
+                Text("Permanently deletes your WatchPilot account, library, and ratings.")
             },
             confirmButton = {
                 Button(

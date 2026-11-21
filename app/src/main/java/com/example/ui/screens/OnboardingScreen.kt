@@ -225,7 +225,7 @@ fun OnboardingScreen(
                 totalSteps = 3,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
             )
 
             AnimatedContent(
@@ -293,7 +293,7 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun OnboardingProgressBar(
+internal fun OnboardingProgressBar(
     currentStep: Int,
     totalSteps: Int,
     modifier: Modifier = Modifier
@@ -316,9 +316,9 @@ private fun OnboardingProgressBar(
             )
             Text(
                 text = when (currentStep) {
-                    0 -> "Welcome & Sync"
-                    1 -> "Stars & Genres"
-                    else -> "Favorites & Watched"
+                    0 -> "Welcome"
+                    1 -> "Genres & Stars"
+                    else -> "Favorites"
                 },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -481,7 +481,7 @@ private fun WelcomeHeroAndHeadline(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (isTablet) 216.dp else 176.dp),
+                .height(if (isTablet) 196.dp else 148.dp),
             contentAlignment = Alignment.Center
         ) {
             Image(
@@ -506,7 +506,7 @@ private fun WelcomeHeroAndHeadline(
             // Breathing radial spotlight behind brand emblem
             Box(
                 modifier = Modifier
-                    .size(164.dp)
+                    .size(144.dp)
                     .scale(glowPulse)
                     .background(
                         Brush.radialGradient(
@@ -522,7 +522,7 @@ private fun WelcomeHeroAndHeadline(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(12.dp)
             ) {
                 Surface(
                     shape = CircleShape,
@@ -532,7 +532,7 @@ private fun WelcomeHeroAndHeadline(
                         Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
                     ),
                     shadowElevation = 14.dp,
-                    modifier = Modifier.size(if (isTablet) 100.dp else 88.dp)
+                    modifier = Modifier.size(if (isTablet) 92.dp else 76.dp)
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.watchpilot_aperture_icon),
@@ -544,39 +544,39 @@ private fun WelcomeHeroAndHeadline(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "YOUR PERSONAL CINEMA PILOT",
+                    text = "YOUR CINEMA GUIDE",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.6.sp,
+                    letterSpacing = 1.4.sp,
                     color = CinemaGold
                 )
             }
         }
     }
 
-    Spacer(modifier = Modifier.height(18.dp))
+    Spacer(modifier = Modifier.height(14.dp))
 
     Text(
         text = "Welcome to WatchPilot",
-        style = MaterialTheme.typography.headlineMedium,
+        style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.ExtraBold,
         color = MaterialTheme.colorScheme.onBackground,
         textAlign = TextAlign.Center
     )
 
-    Spacer(modifier = Modifier.height(6.dp))
+    Spacer(modifier = Modifier.height(4.dp))
 
     Text(
-        text = "Sign in to sync your watchlist, tell us who & what you love, and unlock tailored Top Picks in under 30 seconds.",
+        text = "Sync your watchlist and tailor your feed.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center
     )
 
-    Spacer(modifier = Modifier.height(14.dp))
+    Spacer(modifier = Modifier.height(12.dp))
 
     if (isTablet) {
         FlowRow(
@@ -586,12 +586,12 @@ private fun WelcomeHeroAndHeadline(
         ) {
             WelcomeFeaturePill(
                 icon = Icons.Filled.AutoAwesome,
-                label = "Tailored Top Picks",
+                label = "Top Picks",
                 accent = CinemaGold
             )
             WelcomeFeaturePill(
                 icon = Icons.Filled.LiveTv,
-                label = "Where to Stream",
+                label = "Streaming",
                 accent = CinemaCyan
             )
             WelcomeFeaturePill(
@@ -609,12 +609,12 @@ private fun WelcomeHeroAndHeadline(
         ) {
             WelcomeFeaturePill(
                 icon = Icons.Filled.AutoAwesome,
-                label = "Tailored Top Picks",
+                label = "Top Picks",
                 accent = CinemaGold
             )
             WelcomeFeaturePill(
                 icon = Icons.Filled.LiveTv,
-                label = "Where to Stream",
+                label = "Streaming",
                 accent = CinemaCyan
             )
             WelcomeFeaturePill(
@@ -637,40 +637,40 @@ private fun WelcomeCloudSyncBenefitCard() {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = CinemaGold.copy(alpha = 0.16f)
             ) {
                 Text(
-                    text = "RECOMMENDED • SYNC ACROSS DEVICES",
+                    text = "CLOUD SYNC",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.8.sp,
                     color = CinemaGold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                 )
             }
 
             OnboardingBenefitRow(
                 icon = Icons.Filled.CloudSync,
                 accent = CinemaGold,
-                title = "Automatic Cloud Backup",
-                subtitle = "Watched episodes, favorites & Cinema DNA follow you everywhere."
+                title = "Cloud Backup",
+                subtitle = "Sync library, ratings & progress."
             )
             OnboardingBenefitRow(
                 icon = Icons.Filled.Devices,
                 accent = CinemaCyan,
-                title = "Instant Multi-Device Restore",
-                subtitle = "Switch phones cleanly without losing a single movie or rating."
+                title = "Any Device",
+                subtitle = "Restore your history seamlessly."
             )
             OnboardingBenefitRow(
                 icon = Icons.Filled.AutoAwesome,
                 accent = CinemaGreen,
-                title = "Precision Taste Engine",
-                subtitle = "Your next two steps tune Home Top Picks around your favorite stars & classics."
+                title = "Tailored Picks",
+                subtitle = "Home picks from your stars & genres."
             )
         }
     }
@@ -724,7 +724,7 @@ private fun WelcomeAuthActionsSection(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Google Cloud Sync Active",
+                            text = "Cloud Sync Active",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = CinemaGreen
@@ -749,11 +749,11 @@ private fun WelcomeAuthActionsSection(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
+                    .height(52.dp)
                     .testTag("onboarding_btn_continue_signed_in")
             ) {
                 Text(
-                    text = "Personalize Your Taste",
+                    text = "Continue",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp
                 )
@@ -774,7 +774,7 @@ private fun WelcomeAuthActionsSection(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
+                    .height(52.dp)
                     .testTag("onboarding_btn_google_signin")
             ) {
                 if (isLoading) {
@@ -785,7 +785,7 @@ private fun WelcomeAuthActionsSection(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Signing in & syncing...",
+                        text = "Signing in...",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
@@ -811,7 +811,7 @@ private fun WelcomeAuthActionsSection(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(48.dp)
                     .testTag("onboarding_btn_guest")
             ) {
                 Text(
@@ -822,7 +822,7 @@ private fun WelcomeAuthActionsSection(
             }
 
             Text(
-                text = "Next up: pick your favorite stars, genres & watched movies.",
+                text = "2 quick steps next",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -920,7 +920,7 @@ private fun OnboardingSyncBanner(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+                    modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -935,6 +935,8 @@ private fun OnboardingSyncBanner(
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(
@@ -956,7 +958,7 @@ private fun OnboardingSyncBanner(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun OnboardingFavoritePeopleStep(
+internal fun OnboardingFavoritePeopleStep(
     syncNotice: String?,
     onDismissSyncNotice: () -> Unit,
     selectedGenres: Set<String>,
@@ -981,7 +983,7 @@ private fun OnboardingFavoritePeopleStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OnboardingSyncBanner(message = syncNotice, onDismiss = onDismissSyncNotice)
 
@@ -990,33 +992,41 @@ private fun OnboardingFavoritePeopleStep(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                ) {
                     Text(
-                        text = "Genres, actors & directors",
-                        style = MaterialTheme.typography.headlineSmall,
+                        text = "Genres & stars",
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Pick vibes & stars you love to shape your Top Picks.",
+                        text = "Shape your Top Picks.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 if (totalSelected > 0) {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = CinemaGold.copy(alpha = 0.18f),
                         border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f))
                     ) {
                         Text(
-                            text = "${selectedGenres.size} genres • ${favoritePeople.size} stars",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = "$totalSelected picked",
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = CinemaGold,
                             maxLines = 1,
                             softWrap = false,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
                 }
@@ -1026,7 +1036,7 @@ private fun OnboardingFavoritePeopleStep(
             if (adaptive.isTabletOrWide) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     ONBOARDING_GENRES.forEach { genre ->
@@ -1062,9 +1072,7 @@ private fun OnboardingFavoritePeopleStep(
                                 borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
                                 selectedBorderColor = CinemaCyan.copy(alpha = 0.7f)
                             ),
-                            modifier = Modifier
-                                .heightIn(min = 48.dp)
-                                .testTag("onboarding_genre_$genre")
+                            modifier = Modifier.testTag("onboarding_genre_$genre")
                         )
                     }
                 }
@@ -1106,9 +1114,7 @@ private fun OnboardingFavoritePeopleStep(
                                 borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
                                 selectedBorderColor = CinemaCyan.copy(alpha = 0.7f)
                             ),
-                            modifier = Modifier
-                                .heightIn(min = 48.dp)
-                                .testTag("onboarding_genre_$genre")
+                            modifier = Modifier.testTag("onboarding_genre_$genre")
                         )
                     }
                 }
@@ -1118,7 +1124,15 @@ private fun OnboardingFavoritePeopleStep(
                 value = query,
                 onValueChange = onQueryChange,
                 singleLine = true,
-                placeholder = { Text("Search actors or directors (e.g. Nolan, Zendaya)") },
+                textStyle = MaterialTheme.typography.bodyMedium,
+                placeholder = {
+                    Text(
+                        text = "Search people",
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
@@ -1171,15 +1185,14 @@ private fun OnboardingFavoritePeopleStep(
                                 selectedContainerColor = CinemaGold.copy(alpha = 0.22f),
                                 selectedLabelColor = CinemaGold,
                                 selectedTrailingIconColor = CinemaGold
-                            ),
-                            modifier = Modifier.heightIn(min = 48.dp)
+                            )
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         Box(
             modifier = Modifier
@@ -1193,7 +1206,7 @@ private fun OnboardingFavoritePeopleStep(
                 )
             } else if (people.isEmpty()) {
                 Text(
-                    text = "No matching actors or directors found. Try another name.",
+                    text = "No people found",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -1231,7 +1244,7 @@ private fun OnboardingFavoritePeopleStep(
             backTag = "onboarding_btn_back_people",
             skipTag = "onboarding_btn_skip_people",
             nextTag = "onboarding_btn_next_people",
-            nextLabel = if (totalSelected > 0) "Next ($totalSelected picked)" else "Continue to Titles",
+            nextLabel = if (totalSelected > 0) "Next ($totalSelected)" else "Next",
             onBack = onBack,
             onSkip = onSkip,
             onNext = onNext
@@ -1349,7 +1362,7 @@ private fun OnboardingPersonCard(
 }
 
 @Composable
-private fun OnboardingWatchedTitlesStep(
+internal fun OnboardingWatchedTitlesStep(
     syncNotice: String?,
     onDismissSyncNotice: () -> Unit,
     query: String,
@@ -1392,27 +1405,39 @@ private fun OnboardingWatchedTitlesStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OnboardingSyncBanner(message = syncNotice, onDismiss = onDismissSyncNotice)
 
             Text(
-                text = "Favorite & watched titles",
-                style = MaterialTheme.typography.headlineSmall,
+                text = "Titles you love",
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "Heart your favorites, mark what you've already watched, or save titles for later so we tailor Top Picks For You.",
+                text = "Heart favorites, mark watched, or save.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 singleLine = true,
-                placeholder = { Text("Search movies or series (e.g. Inception, Severance)...") },
+                textStyle = MaterialTheme.typography.bodyMedium,
+                placeholder = {
+                    Text(
+                        text = "Search titles",
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
@@ -1448,8 +1473,7 @@ private fun OnboardingWatchedTitlesStep(
                 FilterChip(
                     selected = selectedType == null,
                     onClick = { selectedType = null },
-                    label = { Text("All Mix", maxLines = 1, softWrap = false) },
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    label = { Text("All", maxLines = 1, softWrap = false) }
                 )
                 FilterChip(
                     selected = selectedType == MediaType.MOVIE,
@@ -1463,8 +1487,7 @@ private fun OnboardingWatchedTitlesStep(
                             modifier = Modifier.size(15.dp)
                         )
                     },
-                    label = { Text("Movies", maxLines = 1, softWrap = false) },
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    label = { Text("Movies", maxLines = 1, softWrap = false) }
                 )
                 FilterChip(
                     selected = selectedType == MediaType.TV_SHOW,
@@ -1478,8 +1501,7 @@ private fun OnboardingWatchedTitlesStep(
                             modifier = Modifier.size(15.dp)
                         )
                     },
-                    label = { Text("Series", maxLines = 1, softWrap = false) },
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    label = { Text("Series", maxLines = 1, softWrap = false) }
                 )
 
                 if (favoriteCount > 0 || watchedCount > 0 || watchlistCount > 0) {
@@ -1506,7 +1528,7 @@ private fun OnboardingWatchedTitlesStep(
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         Box(
             modifier = Modifier
@@ -1520,7 +1542,7 @@ private fun OnboardingWatchedTitlesStep(
                 )
             } else if (displayedTitles.isEmpty()) {
                 Text(
-                    text = "No matching movies or series found.",
+                    text = "No titles found",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -1559,7 +1581,7 @@ private fun OnboardingWatchedTitlesStep(
             backTag = "onboarding_btn_back_titles",
             skipTag = "onboarding_btn_skip_titles",
             nextTag = "onboarding_btn_finish",
-            nextLabel = if (hasAnyTasteSignal) "Build My Top Picks" else "Explore WatchPilot",
+            nextLabel = if (hasAnyTasteSignal) "Finish" else "Explore",
             onBack = onBack,
             onSkip = onSkip,
             onNext = onFinish

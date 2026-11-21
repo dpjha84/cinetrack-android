@@ -13,3 +13,10 @@ enum class WatchStatus(val label: String) {
     ON_HOLD("On Hold"),
     DROPPED("Dropped")
 }
+
+enum class HomeCatalogSection(val feedTag: String, val displayPrefix: String) {
+    POPULAR("POPULAR", "Popular"),
+    NOW_PLAYING("NOW_PLAYING", "Now Playing"),
+    UPCOMING("UPCOMING", "Upcoming"),
+    POPULAR_PEOPLE("POPULAR_PEOPLE", "Popular People")
+}

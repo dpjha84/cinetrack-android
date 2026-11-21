@@ -606,16 +606,16 @@ private fun SeasonWatchStatusCard(
                                 .padding(end = 8.dp)
                         ) {
                             Text(
-                                text = "Season Watch Status",
+                                text = "Season Status",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = when (season.watchStatus) {
-                                    TvWatchStatus.WATCHED -> "You've completed Season ${season.seasonNumber}"
-                                    TvWatchStatus.WATCHING -> "Currently watching Season ${season.seasonNumber}"
-                                    TvWatchStatus.PLAN_TO_WATCH -> "Saved to watch Season ${season.seasonNumber}"
-                                    TvWatchStatus.UNWATCHED -> "Not yet started"
+                                    TvWatchStatus.WATCHED -> "Completed"
+                                    TvWatchStatus.WATCHING -> "Watching"
+                                    TvWatchStatus.PLAN_TO_WATCH -> "Plan to watch"
+                                    TvWatchStatus.UNWATCHED -> "Unwatched"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant

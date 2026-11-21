@@ -48,7 +48,8 @@ data class MediaEntity(
     val originalLanguage: String = "en", // "en", "ja", "ko", "es", "hi", "fr", "de"
     val originCountry: String = "US", // "US", "JP", "KR", "IN", "GB", "ES", "FR", "DE"
     val streamingProviders: String = "", // formatted: "US:Netflix,Prime|GB:BBC iPlayer|..."
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val feedTags: String = "" // comma-separated catalog feeds: POPULAR,NOW_PLAYING,UPCOMING
 ) {
     fun getMediaTypeEnum(): MediaType {
         return try {
@@ -64,6 +65,11 @@ data class MediaEntity(
         } catch (_: Exception) {
             WatchStatus.NONE
         }
+    }
+
+    fun hasFeedTag(tag: String): Boolean {
+        if (feedTags.isBlank()) return false
+        return feedTags.split(",").any { it.trim().equals(tag, ignoreCase = true) }
     }
 
     fun getGenreList(): List<String> {

@@ -33,7 +33,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
@@ -79,10 +81,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.example.data.model.RegionalDefaults
 import com.example.data.model.WatchStatus
 import com.example.ui.components.AiConciergeSheet
 import com.example.ui.components.LegalComplianceDialog
@@ -91,6 +95,7 @@ import com.example.ui.components.SnapScannerSheet
 import com.example.ui.components.SwipeToMatchSheet
 import com.example.ui.components.WatchPilotProPaywallSheet
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.HomeSectionGridScreen
 import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.MediaDetailScreen
 import com.example.ui.screens.OnboardingScreen
@@ -298,6 +303,13 @@ fun MovieverseApp(viewModel: MediaViewModel) {
     val trendingItems by viewModel.trendingItems.collectAsStateWithLifecycle()
     val currentTopRatedList by viewModel.currentTopRatedList.collectAsStateWithLifecycle()
     val pickedForYouItems by viewModel.pickedForYouItems.collectAsStateWithLifecycle()
+    val popularHomeItems by viewModel.popularHomeItems.collectAsStateWithLifecycle()
+    val nowPlayingHomeItems by viewModel.nowPlayingHomeItems.collectAsStateWithLifecycle()
+    val upcomingHomeItems by viewModel.upcomingHomeItems.collectAsStateWithLifecycle()
+    val selectedTypeFilter by viewModel.selectedTypeFilter.collectAsStateWithLifecycle()
+    val selectedGenreFilter by viewModel.selectedGenreFilter.collectAsStateWithLifecycle()
+    val availableGenres by viewModel.availableGenres.collectAsStateWithLifecycle()
+    val activeSectionGridState by viewModel.activeSectionGridUiState.collectAsStateWithLifecycle()
     val favoritePeople by viewModel.favoritePeople.collectAsStateWithLifecycle()
     val selectedPerson by viewModel.selectedPersonForDetail.collectAsStateWithLifecycle()
     val personDetail by viewModel.personDetailData.collectAsStateWithLifecycle()
@@ -320,88 +332,49 @@ fun MovieverseApp(viewModel: MediaViewModel) {
     val showOttMoneySaver by viewModel.showOttMoneySaverSheet.collectAsStateWithLifecycle()
     val showLegalDialog by viewModel.showLegalComplianceDialog.collectAsStateWithLifecycle()
 
-    val selectedMedia = remember(selectedMediaId, allMedia, trendingItems, currentTopRatedList, pickedForYouItems) {
+    val selectedMedia = remember(
+        selectedMediaId,
+        allMedia,
+        popularHomeItems,
+        nowPlayingHomeItems,
+        upcomingHomeItems,
+        trendingItems,
+        currentTopRatedList,
+        pickedForYouItems
+    ) {
         allMedia.find { it.id == selectedMediaId }
+            ?: popularHomeItems.find { it.id == selectedMediaId }
+            ?: nowPlayingHomeItems.find { it.id == selectedMediaId }
+            ?: upcomingHomeItems.find { it.id == selectedMediaId }
             ?: trendingItems.find { it.id == selectedMediaId }
             ?: currentTopRatedList.find { it.id == selectedMediaId }
             ?: pickedForYouItems.find { it.id == selectedMediaId }
     }
 
+    val regionDisplayName = remember(effectiveRegion) {
+        RegionalDefaults.supportedRegions.find { it.code.equals(effectiveRegion, ignoreCase = true) }?.name
+            ?: RegionalDefaults.detectDeviceRegion().name
+    }
+
     val adaptive = LocalAdaptiveLayoutInfo.current
-    val showTopNav = selectedMedia == null && selectedPerson == null
+    val activeHomeSection = activeSectionGridState.section
+    val showTopNav = selectedMedia == null &&
+        selectedPerson == null &&
+        !(currentNav == MainNavDestination.HOME && activeHomeSection != null)
     val useNavigationRail = adaptive.isTabletOrWide
 
     Row(modifier = Modifier.fillMaxSize()) {
         if (useNavigationRail && showTopNav) {
-            NavigationRail(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                windowInsets = WindowInsets.safeDrawing.only(
-                    WindowInsetsSides.Vertical + WindowInsetsSides.Start
-                ),
-                header = {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFF0A1119),
-                            border = BorderStroke(
-                                1.5.dp,
-                                Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
-                            ),
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.watchpilot_aperture_icon),
-                                contentDescription = "WatchPilot",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                            )
-                        }
+            AdaptiveTabletNavigationRail(
+                currentNav = currentNav,
+                availableHeight = adaptive.availableHeight,
+                onSelectDestination = { destination ->
+                    if (destination == MainNavDestination.HOME) {
+                        viewModel.closeHomeCatalogSection()
                     }
-                },
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .testTag("tablet_nav_rail")
-            ) {
-                Spacer(modifier = Modifier.weight(0.25f))
-                MainNavDestination.entries.forEach { destination ->
-                    val selected = currentNav == destination
-                    NavigationRailItem(
-                        selected = selected,
-                        onClick = { currentNav = destination },
-                        alwaysShowLabel = true,
-                        icon = {
-                            Icon(
-                                imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
-                                contentDescription = destination.title
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = destination.title,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        colors = NavigationRailItemDefaults.colors(
-                            indicatorColor = CinemaGold.copy(alpha = 0.25f),
-                            selectedIconColor = CinemaGold,
-                            selectedTextColor = CinemaGold,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier.testTag(destination.testTag)
-                    )
+                    currentNav = destination
                 }
-                Spacer(modifier = Modifier.weight(1f))
-            }
+            )
         }
 
         Scaffold(
@@ -459,14 +432,19 @@ fun MovieverseApp(viewModel: MediaViewModel) {
             }
         ) { innerPadding ->
             AnimatedContent(
-                targetState = Triple(selectedPerson, selectedMedia, selectedSeasonForDetail),
-                contentKey = { (person, media, season) ->
-                    Triple(person != null, media?.id, season?.seasonNumber)
+                targetState = Pair(
+                    Triple(selectedPerson, selectedMedia, selectedSeasonForDetail),
+                    if (currentNav == MainNavDestination.HOME) activeHomeSection else null
+                ),
+                contentKey = { (detailTriple, sectionKey) ->
+                    val (person, media, season) = detailTriple
+                    "${person != null}|${media?.id}|${season?.seasonNumber}|${sectionKey?.name}"
                 },
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "screenTransition",
                 modifier = Modifier.padding(innerPadding)
-            ) { (activePerson, activeMedia, activeSeason) ->
+            ) { (detailTriple, activeSection) ->
+            val (activePerson, activeMedia, activeSeason) = detailTriple
             if (activePerson != null) {
                 val resolvedId = personDetail?.id?.takeIf { it > 0L } ?: activePerson.id
                 val resolvedName = personDetail?.name?.takeIf { it.isNotBlank() } ?: activePerson.name
@@ -510,6 +488,25 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                         onBack = { viewModel.selectMedia(null) }
                     )
                 }
+            } else if (activeSection != null && currentNav == MainNavDestination.HOME) {
+                HomeSectionGridScreen(
+                    section = activeSection,
+                    regionName = regionDisplayName,
+                    items = activeSectionGridState.items,
+                    totalAvailableCount = activeSectionGridState.totalAvailableCount,
+                    selectedType = selectedTypeFilter,
+                    selectedGenre = selectedGenreFilter,
+                    availableGenres = availableGenres,
+                    isLoadingMore = activeSectionGridState.isLoadingMore,
+                    hasMore = activeSectionGridState.hasMore,
+                    onSelectType = { type -> viewModel.selectedTypeFilter.value = type },
+                    onSelectGenre = { genre -> viewModel.selectedGenreFilter.value = genre },
+                    onLoadMore = { viewModel.loadMoreForHomeSection(activeSection) },
+                    onMediaClick = { id -> viewModel.selectMedia(id) },
+                    onBack = { viewModel.closeHomeCatalogSection() },
+                    people = activeSectionGridState.people,
+                    onPersonClick = { person -> viewModel.selectPersonForDetail(person) }
+                )
             } else {
                 if (currentNav != MainNavDestination.HOME) {
                     BackHandler {
@@ -521,7 +518,9 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                     MainNavDestination.HOME -> HomeScreen(
                         viewModel = viewModel,
                         onMediaClick = { id -> viewModel.selectMedia(id) },
-                        onNavigateToSearch = { currentNav = MainNavDestination.SEARCH }
+                        onPersonClick = { person -> viewModel.selectPersonForDetail(person) },
+                        onNavigateToSearch = { currentNav = MainNavDestination.SEARCH },
+                        onOpenSection = { section -> viewModel.openHomeCatalogSection(section) }
                     )
 
                     MainNavDestination.TRAILERS -> TrailersScreen(
@@ -537,7 +536,10 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                     MainNavDestination.LIBRARY -> LibraryScreen(
                         viewModel = viewModel,
                         onMediaClick = { id -> viewModel.selectMedia(id) },
-                        onExploreClick = { currentNav = MainNavDestination.HOME }
+                        onExploreClick = {
+                            viewModel.closeHomeCatalogSection()
+                            currentNav = MainNavDestination.HOME
+                        }
                     )
 
                     MainNavDestination.PROFILE -> ProfileScreen(
@@ -652,5 +654,104 @@ fun MovieverseApp(viewModel: MediaViewModel) {
             )
         }
     }
+    }
+}
+
+@Composable
+internal fun AdaptiveTabletNavigationRail(
+    currentNav: MainNavDestination,
+    availableHeight: Dp,
+    onSelectDestination: (MainNavDestination) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isShortLandscapeHeight = availableHeight < 540.dp
+    val isUltraShortHeight = availableHeight < 420.dp
+
+    NavigationRail(
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        windowInsets = WindowInsets.safeDrawing.only(
+            WindowInsetsSides.Vertical + WindowInsetsSides.Start
+        ),
+        header = if (isUltraShortHeight) {
+            null
+        } else {
+            {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(
+                        top = if (isShortLandscapeHeight) 2.dp else 8.dp,
+                        bottom = if (isShortLandscapeHeight) 4.dp else 12.dp
+                    )
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFF0A1119),
+                        border = BorderStroke(
+                            1.5.dp,
+                            Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
+                        ),
+                        modifier = Modifier.size(if (isShortLandscapeHeight) 32.dp else 40.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.watchpilot_aperture_icon),
+                            contentDescription = "WatchPilot",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
+                    }
+                }
+            }
+        },
+        modifier = modifier
+            .fillMaxHeight()
+            .testTag("tablet_nav_rail")
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = if (isShortLandscapeHeight) {
+                Arrangement.spacedBy(0.dp, Alignment.Top)
+            } else {
+                Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
+            }
+        ) {
+            MainNavDestination.entries.forEach { destination ->
+                val selected = currentNav == destination
+                NavigationRailItem(
+                    selected = selected,
+                    onClick = { onSelectDestination(destination) },
+                    alwaysShowLabel = true,
+                    icon = {
+                        Icon(
+                            imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
+                            contentDescription = destination.title,
+                            modifier = if (isShortLandscapeHeight) Modifier.size(20.dp) else Modifier
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = destination.title,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = if (isShortLandscapeHeight) 10.sp else 11.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    colors = NavigationRailItemDefaults.colors(
+                        indicatorColor = CinemaGold.copy(alpha = 0.25f),
+                        selectedIconColor = CinemaGold,
+                        selectedTextColor = CinemaGold,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.testTag(destination.testTag)
+                )
+            }
+        }
     }
 }

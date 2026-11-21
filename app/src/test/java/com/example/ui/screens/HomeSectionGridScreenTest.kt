@@ -1,0 +1,160 @@
+package com.example.ui.screens
+
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import com.example.data.local.MediaEntity
+import com.example.data.model.HomeCatalogSection
+import com.example.data.model.MediaType
+import com.example.ui.theme.WatchPilotTheme
+import com.example.ui.util.AdaptiveLayoutProvider
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
+class HomeSectionGridScreenTest {
+
+    @get:Rule
+    val composeTestRule = createComposeRule()
+
+    private fun sampleItem(id: String, title: String, type: MediaType): MediaEntity {
+        return MediaEntity(
+            id = id,
+            title = title,
+            mediaType = type.name,
+            releaseYear = 2025,
+            genres = "Action, Sci-Fi",
+            posterUrl = "",
+            backdropUrl = "",
+            overview = "",
+            directorOrCreator = "",
+            cast = "",
+            communityRating = 8.4f,
+            runtimeMinutes = 120,
+            feedTags = HomeCatalogSection.NOW_PLAYING.feedTag
+        )
+    }
+
+    @Test
+    fun sectionGridRendersItemsHandlesFiltersAndBack() {
+        val sampleItems = (1..6).map { idx ->
+            sampleItem(
+                id = "item_$idx",
+                title = "Cinema Title $idx",
+                type = if (idx % 2 == 0) MediaType.TV_SHOW else MediaType.MOVIE
+            )
+        }
+        var selectedType: MediaType? = null
+        var backClicked = false
+        var loadMoreClicked = false
+        var clickedMediaId: String? = null
+
+        composeTestRule.setContent {
+            WatchPilotTheme {
+                AdaptiveLayoutProvider {
+                    HomeSectionGridScreen(
+                        section = HomeCatalogSection.NOW_PLAYING,
+                        regionName = "India",
+                        items = sampleItems,
+                        totalAvailableCount = 6,
+                        selectedType = selectedType,
+                        selectedGenre = null,
+                        availableGenres = listOf("Action", "Sci-Fi"),
+                        isLoadingMore = false,
+                        hasMore = true,
+                        onSelectType = { selectedType = it },
+                        onSelectGenre = {},
+                        onLoadMore = { loadMoreClicked = true },
+                        onMediaClick = { clickedMediaId = it },
+                        onBack = { backClicked = true }
+                    )
+                }
+            }
+        }
+
+        composeTestRule.onNodeWithText("Now Playing in India").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("grid_now_playing_card_item_1").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("grid_now_playing_card_item_3").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("section_filter_movies").performClick()
+        assertEquals(MediaType.MOVIE, selectedType)
+
+        composeTestRule.onNodeWithTag("grid_now_playing_card_item_2").performClick()
+        assertEquals("item_2", clickedMediaId)
+
+        composeTestRule.onNodeWithTag("section_grid_back_button").performClick()
+        assertTrue(backClicked)
+    }
+
+    @Test
+    fun popularPeopleGridRendersRoundedCardsHandlesClickLoadMoreAndBack() {
+        val samplePeople = (1..6).map { idx ->
+            com.example.data.model.TmdbSearchResultItem.Person(
+                id = idx.toLong(),
+                name = "Actor Star $idx",
+                profileUrl = null,
+                department = if (idx % 2 == 0) "Directing" else "Acting",
+                knownFor = emptyList(),
+                popularity = 90.0 - idx
+            )
+        }
+        var clickedPerson: com.example.data.model.TmdbSearchResultItem.Person? = null
+        var backClicked = false
+        var selectedType: MediaType? = null
+        var loadMoreCount = 0
+
+        composeTestRule.setContent {
+            WatchPilotTheme {
+                AdaptiveLayoutProvider {
+                    HomeSectionGridScreen(
+                        section = HomeCatalogSection.POPULAR_PEOPLE,
+                        regionName = "India",
+                        items = emptyList(),
+                        totalAvailableCount = 6,
+                        selectedType = selectedType,
+                        selectedGenre = null,
+                        availableGenres = listOf("Action", "Drama"),
+                        isLoadingMore = false,
+                        hasMore = true,
+                        onSelectType = { selectedType = it },
+                        onSelectGenre = {},
+                        onLoadMore = { loadMoreCount++ },
+                        onMediaClick = {},
+                        onBack = { backClicked = true },
+                        people = samplePeople,
+                        onPersonClick = { clickedPerson = it }
+                    )
+                }
+            }
+        }
+
+        composeTestRule.onNodeWithText("Popular People").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("grid_popular_people_card_1").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("grid_popular_people_card_3").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("grid_popular_people_card_2").performClick()
+        assertEquals(2L, clickedPerson?.id)
+        assertEquals("Actor Star 2", clickedPerson?.name)
+
+        composeTestRule.onNodeWithTag("section_filter_tv").performClick()
+        assertEquals(MediaType.TV_SHOW, selectedType)
+
+        composeTestRule.onNodeWithTag("section_grid_list_popular_people")
+            .performScrollToNode(hasTestTag("section_grid_load_more"))
+        composeTestRule.onNodeWithTag("section_grid_load_more").performClick()
+        assertTrue(loadMoreCount >= 1)
+
+        composeTestRule.onNodeWithTag("section_grid_back_button").performClick()
+        assertTrue(backClicked)
+    }
+}

@@ -161,8 +161,14 @@ fun SearchScreen(
                     .fillMaxWidth()
                     .onFocusChanged { isSearchFocused = it.isFocused }
                     .testTag("multi_search_input"),
+                textStyle = MaterialTheme.typography.bodyMedium,
                 placeholder = {
-                    Text("Search WatchPilot...")
+                    Text(
+                        text = "Search movies, TV & people",
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 },
                 leadingIcon = {
                     Icon(
@@ -424,9 +430,9 @@ fun SearchScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = if (selectedSearchGenre != null) {
-                                    "Discovering $selectedSearchGenre titles..."
+                                    "Loading $selectedSearchGenre..."
                                 } else {
-                                    "Searching live catalog..."
+                                    "Searching..."
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -454,26 +460,26 @@ fun SearchScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = if (selectedSearchGenre != null) {
-                                    "No $selectedSearchGenre titles found"
+                                    "No $selectedSearchGenre titles"
                                 } else {
-                                    "No results found for \"$searchQuery\""
+                                    "No results"
                                 },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = if (selectedSearchGenre != null) {
-                                    "Try switching the Movies/TV filter or choose another genre."
+                                    "Try another filter or genre."
                                 } else {
-                                    "Try searching by exact actor or director name, title in English or original language, or check your API key."
+                                    "Try another title, actor, or keyword."
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
                             OutlinedButton(
                                 onClick = {
                                     viewModel.clearSearchGenre()
@@ -481,7 +487,7 @@ fun SearchScreen(
                                 },
                                 modifier = Modifier.testTag("btn_reset_search")
                             ) {
-                                Text(if (selectedSearchGenre != null) "Clear Genre Filter" else "Clear Search")
+                                Text(if (selectedSearchGenre != null) "Clear Genre" else "Clear Search")
                             }
                         }
                     }
@@ -884,7 +890,7 @@ fun SearchResultPersonCard(
                     )
 
                     Text(
-                        text = "Tap to view bio & filmography",
+                        text = "Bio & filmography",
                         style = MaterialTheme.typography.bodySmall,
                         color = CinemaCyan,
                         fontSize = 11.sp
@@ -1137,7 +1143,7 @@ fun EmptyQueryView(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Popular & Trending Searches",
+                text = "Trending Searches",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -1188,7 +1194,7 @@ fun EmptyQueryView(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Explore by Popular Genres",
+                text = "Genres",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -1264,7 +1270,7 @@ fun EmptyQueryView(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "TMDB Top Rated",
+                    text = "Top Rated",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -1272,7 +1278,7 @@ fun EmptyQueryView(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Switcher between Movies and TV Series
         Row(
@@ -1282,7 +1288,7 @@ fun EmptyQueryView(
             FilterChip(
                 selected = selectedTopRatedTab == TopRatedTab.MOVIES,
                 onClick = { onSelectTopRatedTab(TopRatedTab.MOVIES) },
-                label = { Text("Top Rated Movies", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                label = { Text("Movies", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(16.dp))
                 },
@@ -1297,7 +1303,7 @@ fun EmptyQueryView(
             FilterChip(
                 selected = selectedTopRatedTab == TopRatedTab.TV_SERIES,
                 onClick = { onSelectTopRatedTab(TopRatedTab.TV_SERIES) },
-                label = { Text("Top Rated TV Series", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                label = { Text("TV Shows", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(16.dp))
                 },

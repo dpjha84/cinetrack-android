@@ -1,0 +1,20 @@
+Asset Type,Slot / Placement,Character Limit,Copy / Filename,Count / Dimensions,Notes
+Headline,Headline 1,30,"WatchPilot: Movie & TV Tracker",30 chars,Brand + core category keyword
+Headline,Headline 2,30,"Never Lose Episode Progress",27 chars,Pain point for TV bingers
+Headline,Headline 3,30,"Find Where Movies Stream Now",28 chars,High-intent OTT discovery hook
+Headline,Headline 4,30,"Trailers, Watchlist & Sync",26 chars,Feature trio
+Headline,Headline 5,30,"Built for Android Phone & Tab",29 chars,Highlights tablet & phone adaptive UI
+Description,Description 1,90,"Track movies, seasons & episodes. Spot Netflix, Prime & Hotstar links fast. Free app!",85 chars,Core utility + streaming providers
+Description,Description 2,90,"Watch HD trailers, save watchlists & sync Cinema DNA free across Android phone & tablet.",88 chars,Multi-device cloud sync + adaptive UX
+Description,Description 3,90,"Rate what you watch, pick personalized favorites & organize custom cinema lists easily.",87 chars,Personalization + curation value
+Description,Description 4,90,"Check instant streaming availability by region, track next episodes & cloud-sync free.",86 chars,Regional JustWatch/TMDB availability
+Description,Description 5,90,"No lost progress. Adaptive tablet two-pane view, cast bios, trailers & regional guides.",87 chars,Tablet + cast/trailer depth
+Image,UAC Landscape (1.91:1),<= 5 MB,watchpilot_uac_landscape_1200x628.jpg,1200x628 px,Display / Gmail / Discover / Play promo
+Image,UAC Square (1:1),<= 5 MB,watchpilot_uac_square_1200x1200.jpg,1200x1200 px,Discovery / Native / Companion banner
+Image,UAC Portrait (4:5),<= 5 MB,watchpilot_uac_portrait_1200x1500.jpg,1200x1500 px,Mobile feed & portrait display
+Image,UAC Interstitial / Story (9:16),<= 5 MB,watchpilot_uac_story_1080x1920.jpg,1080x1920 px,Full-screen mobile interstitial & Shorts card
+Image,Play Store Feature Graphic,<= 15 MB,watchpilot_play_feature_1024x500.png,1024x500 px,Google Play Store listing banner
+Image,Tablet Showcase (16:9),<= 5 MB,watchpilot_uac_tablet_1920x1080.jpg,1920x1080 px,YouTube end-screen / Tablet campaign / Play promo
+Video,YouTube Landscape Spot (16:9),15 sec,watchpilot_promo_landscape_16x9_1920x1080.mp4,1920x1080 H.264 + AAC,YouTube In-Stream & Google Display Network
+Video,YouTube Shorts / Vertical (9:16),15 sec,watchpilot_promo_vertical_9x16_1080x1920.mp4,1080x1920 H.264 + AAC,YouTube Shorts / AdMob Rewarded / Vertical Interstitial
+Video,Discovery / Social Square (1:1),15 sec,watchpilot_promo_square_1x1_1080x1080.mp4,1080x1080 H.264 + AAC,Discovery / Performance Max / Social Square

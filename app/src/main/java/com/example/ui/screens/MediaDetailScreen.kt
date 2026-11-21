@@ -761,18 +761,18 @@ private fun MediaWhereToWatchCard(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                            Text(
-                                                text = "Episode to Open",
-                                                style = MaterialTheme.typography.labelLarge,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "Opens this episode when you tap a streaming app",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                             Text(
+                                                 text = "Target Episode",
+                                                 style = MaterialTheme.typography.labelLarge,
+                                                 fontWeight = FontWeight.Bold,
+                                                 color = MaterialTheme.colorScheme.onSurface
+                                             )
+                                             Text(
+                                                 text = "Opens in selected streaming app",
+                                                 style = MaterialTheme.typography.labelSmall,
+                                                 fontSize = 11.sp,
+                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                                             )
                                         }
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
@@ -857,7 +857,7 @@ private fun MediaWhereToWatchCard(
                                     strokeWidth = 2.dp
                                 )
                                 Text(
-                                    text = "Checking streaming availability...",
+                                    text = "Checking availability...",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -874,7 +874,7 @@ private fun MediaWhereToWatchCard(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (isMovie) "STREAM NOW (SUBSCRIPTION & FREE)" else "WATCH S$selectedSeason:E$selectedEpisode NOW",
+                                    text = if (isMovie) "STREAM NOW" else "WATCH S$selectedSeason:E$selectedEpisode NOW",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = CinemaGreen
@@ -1023,7 +1023,7 @@ private fun MediaWhereToWatchCard(
                         if (streamAndFree.isEmpty() && rentOrBuy.isEmpty() && !isLoadingWatchProviders) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Not currently streaming on subscription in ${RegionalDefaults.getRegionLabel(effectiveRegionCode)}.",
+                                text = "Not on subscription in ${RegionalDefaults.getRegionLabel(effectiveRegionCode)}.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1049,19 +1049,12 @@ private fun MediaWhereToWatchCard(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Check Digital Stores & Theaters")
+                                Text("Check Digital Stores")
                             }
-                        } else {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = "Tap any provider to watch directly in app or web.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                            )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Streaming availability powered by JustWatch • Metadata by TMDB",
+                            text = "Availability by JustWatch • Data by TMDB",
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
@@ -1475,7 +1468,7 @@ private fun MediaSeasonsSection(
                                 )
                             }
                             Text(
-                                text = "Tap any season to view all episodes & details",
+                                text = "Tap a season for episodes & details",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1572,7 +1565,7 @@ private fun MediaRatingAndReviewCard(
                             }
                         } else {
                             Text(
-                                text = "You haven't rated this title yet (1–5 Stars).",
+                                text = "Not rated yet",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1586,7 +1579,7 @@ private fun MediaRatingAndReviewCard(
                             ) {
                                 Icon(imageVector = Icons.Default.Star, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Rate Title (1–5 Stars)", fontWeight = FontWeight.Bold)
+                                Text("Rate Title", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1621,7 +1614,7 @@ private fun MediaCustomCollectionCard(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = media.customWatchlist ?: "None (Default Watchlist)",
+                                text = media.customWatchlist ?: "Default Watchlist",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = CinemaGold,
                                 fontWeight = FontWeight.Medium,

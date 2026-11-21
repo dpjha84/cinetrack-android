@@ -99,7 +99,7 @@ fun LocalizationPreferencesDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Region, Language & Catalog",
+                            text = "Region & Language",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -110,7 +110,7 @@ fun LocalizationPreferencesDialog(
                 }
 
                 Text(
-                    text = "Personalize content catalog, regional streaming providers, and live entertainment data.",
+                    text = "Set catalog language & region.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -127,12 +127,12 @@ fun LocalizationPreferencesDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Auto-Detect Country / Region",
+                            text = "Auto-Detect Region",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "Device detects: ${detected.flag} ${detected.name}",
+                            text = "Detected: ${detected.flag} ${detected.name}",
                             style = MaterialTheme.typography.bodySmall,
                             color = CinemaCyan
                         )
@@ -194,14 +194,14 @@ fun LocalizationPreferencesDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Section 2: Preferred Media Language
+                // Section 2: Media Language
                 Text(
-                    text = "Preferred Media Language",
+                    text = "Media Language",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Highlight or filter titles produced in this language",
+                    text = "Boost or filter by original language",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -254,12 +254,12 @@ fun LocalizationPreferencesDialog(
                             .padding(end = 8.dp)
                     ) {
                         Text(
-                            text = "Filter Discover to this language only",
+                            text = "Strict Language Filter",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = if (filterOnlyLanguage) "Active" else "Shows all languages with preference boost",
+                            text = if (filterOnlyLanguage) "Active" else "Boosts preferred language",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -297,7 +297,7 @@ fun LocalizationPreferencesDialog(
                         ),
                         modifier = Modifier.testTag("btn_save_localization")
                     ) {
-                        Text("Apply Settings", fontWeight = FontWeight.Bold)
+                        Text("Apply", fontWeight = FontWeight.Bold)
                     }
                 }
             }

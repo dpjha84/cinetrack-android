@@ -73,9 +73,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.BuildConfig
 import com.example.R
 import com.example.data.local.MediaEntity
+import com.example.data.model.HomeCatalogSection
 import com.example.data.model.MediaType
+import com.example.data.model.TmdbSearchResultItem
+import com.example.ui.components.CompactMediaPosterCard
+import com.example.ui.components.CompactPersonCircleCard
 import com.example.ui.components.ContinueWatchingCard
-import com.example.ui.components.MediaPosterCard
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,8 +98,12 @@ import com.example.util.PersonalizationEngine
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Upcoming
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -104,7 +111,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 fun HomeScreen(
     viewModel: MediaViewModel,
     onMediaClick: (String) -> Unit,
+    onPersonClick: (TmdbSearchResultItem.Person) -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
+    onOpenSection: (HomeCatalogSection) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val selectedType by viewModel.selectedTypeFilter.collectAsStateWithLifecycle()
@@ -112,6 +121,11 @@ fun HomeScreen(
     val availableGenres by viewModel.availableGenres.collectAsStateWithLifecycle()
     val continueWatchingList by viewModel.continueWatching.collectAsStateWithLifecycle()
     val discoverItems by viewModel.filteredDiscover.collectAsStateWithLifecycle()
+    val popularHomeItems by viewModel.popularHomeItems.collectAsStateWithLifecycle()
+    val popularPeopleHomeItems by viewModel.popularPeopleHomeItems.collectAsStateWithLifecycle()
+    val nowPlayingHomeItems by viewModel.nowPlayingHomeItems.collectAsStateWithLifecycle()
+    val upcomingHomeItems by viewModel.upcomingHomeItems.collectAsStateWithLifecycle()
+    val isHomeCatalogRefreshing by viewModel.isHomeCatalogRefreshing.collectAsStateWithLifecycle()
     val trendingList by viewModel.trendingItems.collectAsStateWithLifecycle()
     val pickedForYouItems by viewModel.pickedForYouItems.collectAsStateWithLifecycle()
     val isLoadingPickedForYou by viewModel.isLoadingPickedForYou.collectAsStateWithLifecycle()
@@ -192,7 +206,7 @@ fun HomeScreen(
                             }
                             if (!BuildConfig.IS_V1_EDITION) {
                                 Text(
-                                    text = "Track • Decide Together • Stream Smarter",
+                                    text = "Track • Decide • Stream",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -594,7 +608,7 @@ fun HomeScreen(
                                     .padding(end = 8.dp)
                             )
                             Text(
-                                text = "${continueWatchingList.size} Active",
+                                text = "${continueWatchingList.size} active",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = CinemaCyan,
                                 maxLines = 1,
@@ -663,70 +677,459 @@ fun HomeScreen(
                 }
             }
 
-            // Catalog Grid Header
-            item(span = { GridItemSpan(gridColumns) }) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            // 3 Compact Horizontal Catalog Sections: Popular, Now Playing, Upcoming
+            val catalogSections = listOf(
+                Triple(
+                    HomeCatalogSection.POPULAR,
+                    popularHomeItems,
+                    Pair(Icons.Filled.LocalFireDepartment, CinemaGold)
+                ),
+                Triple(
+                    HomeCatalogSection.NOW_PLAYING,
+                    nowPlayingHomeItems,
+                    Pair(Icons.Filled.Theaters, CinemaCyan)
+                ),
+                Triple(
+                    HomeCatalogSection.UPCOMING,
+                    upcomingHomeItems,
+                    Pair(Icons.Filled.Upcoming, CinemaGreen)
+                )
+            )
+
+            catalogSections.forEach { (section, sectionItems, badgeVisuals) ->
+                val (sectionIcon, accentColor) = badgeVisuals
+                item(
+                    key = "home_section_${section.name}",
+                    span = { GridItemSpan(gridColumns) }
                 ) {
-                    Text(
-                        text = "Popular in ${regionOption.name}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp)
-                    )
-                    Text(
-                        text = "${discoverItems.size} titles",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        softWrap = false
+                    HomeHorizontalCatalogSection(
+                        section = section,
+                        regionName = regionOption.name,
+                        icon = sectionIcon,
+                        accentColor = accentColor,
+                        items = sectionItems.take(20),
+                        totalCount = sectionItems.size,
+                        isRefreshing = isHomeCatalogRefreshing,
+                        isCompactCardTablet = adaptive.isTabletOrWide,
+                        onOpenSection = { onOpenSection(section) },
+                        onMediaClick = onMediaClick
                     )
                 }
             }
 
-            // Empty State
-            if (discoverItems.isEmpty()) {
-                item(span = { GridItemSpan(gridColumns) }) {
-                    Column(
+            // 4th Compact Horizontal Section: Popular People (Rounded cards + right arrow + infinite grid)
+            item(
+                key = "home_section_${HomeCatalogSection.POPULAR_PEOPLE.name}",
+                span = { GridItemSpan(gridColumns) }
+            ) {
+                HomeHorizontalPeopleSection(
+                    people = popularPeopleHomeItems.take(20),
+                    totalCount = popularPeopleHomeItems.size,
+                    isRefreshing = isHomeCatalogRefreshing,
+                    isCompactCardTablet = adaptive.isTabletOrWide,
+                    onOpenSection = { onOpenSection(HomeCatalogSection.POPULAR_PEOPLE) },
+                    onPersonClick = onPersonClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeHorizontalPeopleSection(
+    people: List<TmdbSearchResultItem.Person>,
+    totalCount: Int,
+    isRefreshing: Boolean,
+    isCompactCardTablet: Boolean,
+    onOpenSection: () -> Unit,
+    onPersonClick: (TmdbSearchResultItem.Person) -> Unit
+) {
+    val cardWidth = if (isCompactCardTablet) 124.dp else 104.dp
+    val accentColor = CinemaGold
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp, bottom = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenSection)
+                .padding(start = 16.dp, end = 8.dp, top = 2.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Groups,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Popular People",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                IconButton(
+                    onClick = onOpenSection,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("home_section_arrow_popular_people")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "View all Popular People",
+                        tint = accentColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            if (totalCount > 0) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = accentColor.copy(alpha = 0.14f),
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text(
+                        text = "$totalCount+",
+                        color = accentColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    )
+                }
+            }
+        }
+
+        if (people.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(48.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "No matches found",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Try adjusting your search query or genre filter",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (isRefreshing) {
+                            CircularProgressIndicator(
+                                color = accentColor,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Loading...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "No matching people",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = onOpenSection) {
+                                Text("Explore", color = accentColor, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
-            } else {
-                items(discoverItems, key = { it.id }) { media ->
-                    MediaPosterCard(
+            }
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home_section_row_popular_people")
+            ) {
+                items(
+                    items = people,
+                    key = { person -> "popular_person_${person.id}" }
+                ) { person ->
+                    CompactPersonCircleCard(
+                        person = person,
+                        onClick = { onPersonClick(person) },
+                        modifier = Modifier.width(cardWidth),
+                        testTagPrefix = "home_popular_people_card"
+                    )
+                }
+
+                if (people.size >= 4) {
+                    item(key = "popular_people_see_all") {
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                            ),
+                            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .width(92.dp)
+                                .height(if (isCompactCardTablet) 168.dp else 148.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable(onClick = onOpenSection)
+                                .testTag("home_section_see_all_popular_people")
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = accentColor.copy(alpha = 0.16f),
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = "See all Popular People",
+                                            tint = accentColor,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "View All",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = accentColor,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeHorizontalCatalogSection(
+    section: HomeCatalogSection,
+    regionName: String,
+    icon: ImageVector,
+    accentColor: Color,
+    items: List<MediaEntity>,
+    totalCount: Int,
+    isRefreshing: Boolean,
+    isCompactCardTablet: Boolean,
+    onOpenSection: () -> Unit,
+    onMediaClick: (String) -> Unit
+) {
+    val cardWidth = if (isCompactCardTablet) 128.dp else 108.dp
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp, bottom = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenSection)
+                .padding(start = 16.dp, end = 8.dp, top = 2.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "${section.displayPrefix} in $regionName",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                IconButton(
+                    onClick = onOpenSection,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("home_section_arrow_${section.name.lowercase()}")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "View all ${section.displayPrefix} in $regionName",
+                        tint = accentColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            if (totalCount > 0) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = accentColor.copy(alpha = 0.14f),
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text(
+                        text = "$totalCount+",
+                        color = accentColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    )
+                }
+            }
+        }
+
+        if (items.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(
+                                color = accentColor,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Loading...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "No matching titles",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = onOpenSection) {
+                                Text("Explore", color = accentColor, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home_section_row_${section.name.lowercase()}")
+            ) {
+                items(
+                    items = items,
+                    key = { media -> "${section.name}_${media.id}" }
+                ) { media ->
+                    CompactMediaPosterCard(
                         media = media,
                         onClick = { onMediaClick(media.id) },
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                        modifier = Modifier.width(cardWidth),
+                        testTagPrefix = "home_${section.name.lowercase()}_card"
                     )
+                }
+
+                if (items.size >= 4) {
+                    item(key = "${section.name}_see_all") {
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                            ),
+                            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .width(92.dp)
+                                .aspectRatio(2f / 3f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable(onClick = onOpenSection)
+                                .testTag("home_section_see_all_${section.name.lowercase()}")
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = accentColor.copy(alpha = 0.16f),
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = "See all ${section.displayPrefix}",
+                                            tint = accentColor,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "View All",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = accentColor,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

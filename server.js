@@ -101,6 +101,10 @@ const server = http.createServer((req, res) => {
   let reqPath = decodeURI(req.url.split('?')[0]);
   if (reqPath === '/' || reqPath === '') {
     reqPath = '/index.html';
+  } else if (reqPath === '/campaign' || reqPath === '/campaign/') {
+    reqPath = '/campaign/index.html';
+  } else if (reqPath.endsWith('/')) {
+    reqPath = reqPath + 'index.html';
   }
 
   if (reqPath === '/app-ads.txt' && fs.existsSync(ROOT_ADS_TXT)) {
@@ -168,6 +172,12 @@ const server = http.createServer((req, res) => {
     else if (ext === '.js') contentType = 'application/javascript';
     else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
     else if (ext === '.png') contentType = 'image/png';
+    else if (ext === '.webp') contentType = 'image/webp';
+    else if (ext === '.svg') contentType = 'image/svg+xml';
+    else if (ext === '.mp4') contentType = 'video/mp4';
+    else if (ext === '.csv') contentType = 'text/csv; charset=utf-8';
+    else if (ext === '.md') contentType = 'text/markdown; charset=utf-8';
+    else if (ext === '.zip') contentType = 'application/zip';
     else if (ext === '.json') contentType = 'application/json';
     else if (ext === '.txt') contentType = 'text/plain; charset=utf-8';
 

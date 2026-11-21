@@ -399,7 +399,7 @@ private fun PersonHeroBanner(
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = "Cast & Crew Profile",
+                                text = "Profile",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.White.copy(alpha = 0.9f),
@@ -549,7 +549,7 @@ private fun PersonLoadingRow() {
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
-            text = "Loading biography & filmography...",
+            text = "Loading...",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -615,7 +615,7 @@ private fun PersonFilmographyHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Filmography & Credits",
+                text = "Filmography",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -681,7 +681,7 @@ private fun PersonEmptyFilmography() {
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "No filmography credits available.",
+            text = "No credits available.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

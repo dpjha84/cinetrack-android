@@ -23,11 +23,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -51,12 +53,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
+import com.example.data.model.TmdbSearchResultItem
 import com.example.data.model.WatchStatus
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
@@ -272,6 +276,263 @@ fun MediaPosterCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun CompactMediaPosterCard(
+    media: MediaEntity,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    testTagPrefix: String = "compact_media_card"
+) {
+    val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
+    val isUserRated = media.userRating > 0f
+    val displayRating = if (isUserRated) media.getUserRatingInStars() else media.communityRating
+
+    Card(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .testTag("${testTagPrefix}_${media.id}"),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(2f / 3f)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            ) {
+                val posterSource = media.posterUrl.ifBlank { media.backdropUrl }
+                if (posterSource.isNotBlank()) {
+                    val context = LocalContext.current
+                    val imageRequest = androidx.compose.runtime.remember(posterSource, context) {
+                        ImageRequest.Builder(context)
+                            .data(posterSource)
+                            .crossfade(true)
+                            .placeholder(R.drawable.banner_cinema)
+                            .error(R.drawable.banner_cinema)
+                            .build()
+                    }
+                    AsyncImage(
+                        model = imageRequest,
+                        contentDescription = media.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = if (media.posterUrl.isNotBlank()) ContentScale.Crop else ContentScale.Fit,
+                        alignment = Alignment.Center
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(id = R.drawable.banner_cinema),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.8f)
+                                )
+                            )
+                        )
+                )
+
+                // Compact media type pill top-start
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = Color.Black.copy(alpha = 0.68f),
+                    modifier = Modifier
+                        .padding(5.dp)
+                        .align(Alignment.TopStart)
+                ) {
+                    Text(
+                        text = if (isMovie) "Film" else "TV",
+                        color = if (isMovie) CinemaGold else CinemaCyan,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
+
+                // Compact rating pill top-end
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = if (isUserRated) CinemaGold else Color.Black.copy(alpha = 0.68f),
+                    modifier = Modifier
+                        .padding(5.dp)
+                        .align(Alignment.TopEnd)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Rating",
+                            tint = if (isUserRated) Color.Black else CinemaGold,
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = if (isUserRated) "${displayRating}" else String.format("%.1f", displayRating),
+                            color = if (isUserRated) Color.Black else Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+
+                // Watch status pill at bottom-start if tracked
+                if (media.getWatchStatusEnum() != WatchStatus.NONE) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(5.dp)
+                    ) {
+                        WatchStatusPill(status = media.getWatchStatusEnum())
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = media.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(1.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (media.releaseYear > 0) "${media.releaseYear}" else "TBA",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Text(
+                        text = media.getOriginFlag(),
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CompactPersonCircleCard(
+    person: TmdbSearchResultItem.Person,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    testTagPrefix: String = "compact_person_card"
+) {
+    val context = LocalContext.current
+    val deptLabel = person.department.ifBlank { "Acting" }
+
+    Card(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .testTag("${testTagPrefix}_${person.id}"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = BorderStroke(1.5.dp, CinemaGold.copy(alpha = 0.45f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+                    .aspectRatio(1f)
+            ) {
+                if (!person.profileUrl.isNullOrBlank()) {
+                    val imageRequest = androidx.compose.runtime.remember(person.profileUrl, context) {
+                        ImageRequest.Builder(context)
+                            .data(person.profileUrl)
+                            .crossfade(true)
+                            .build()
+                    }
+                    AsyncImage(
+                        model = imageRequest,
+                        contentDescription = person.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        alignment = Alignment.TopCenter
+                    )
+                } else {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = person.name,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = person.name,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = deptLabel,
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 10.sp,
+                color = CinemaGold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

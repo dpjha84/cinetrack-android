@@ -70,6 +70,50 @@ interface MediaDao {
     @Query("UPDATE media_items SET status = 'NONE', isFavorite = 0, userRating = 0.0, userReview = '', watchedEpisodes = 0, watchedSeasons = 0, customWatchlist = NULL, lastWatchedDate = NULL")
     suspend fun resetAllTrackingData()
 
+    @Query("SELECT * FROM media_items WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<String>): List<MediaEntity>
+
+    @Query("UPDATE media_items SET feedTags = :feedTags WHERE id = :id")
+    suspend fun updateFeedTags(id: String, feedTags: String)
+
+    @Query(
+        """
+        SELECT * FROM media_items
+        WHERE feedTags LIKE '%' || :feedTag || '%'
+          AND (:mediaType IS NULL OR mediaType = :mediaType)
+          AND (:genreFilter IS NULL OR genres LIKE '%' || :genreFilter || '%')
+          AND (:languageFilter IS NULL OR originalLanguage = :languageFilter)
+        ORDER BY releaseYear DESC, communityRating DESC
+        LIMIT :limit OFFSET :offset
+        """
+    )
+    suspend fun getPagedMediaByFeed(
+        feedTag: String,
+        mediaType: String?,
+        genreFilter: String?,
+        languageFilter: String?,
+        limit: Int,
+        offset: Int
+    ): List<MediaEntity>
+
+    @Query(
+        """
+        SELECT * FROM media_items
+        WHERE (:mediaType IS NULL OR mediaType = :mediaType)
+          AND (:genreFilter IS NULL OR genres LIKE '%' || :genreFilter || '%')
+          AND (:languageFilter IS NULL OR originalLanguage = :languageFilter)
+        ORDER BY releaseYear DESC, communityRating DESC
+        LIMIT :limit OFFSET :offset
+        """
+    )
+    suspend fun getPagedAllCatalogMedia(
+        mediaType: String?,
+        genreFilter: String?,
+        languageFilter: String?,
+        limit: Int,
+        offset: Int
+    ): List<MediaEntity>
+
     @Query("DELETE FROM media_items WHERE isCustom = 1")
     suspend fun deleteCustomMedia()
 

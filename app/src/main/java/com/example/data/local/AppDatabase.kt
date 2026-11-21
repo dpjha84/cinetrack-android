@@ -14,9 +14,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SearchHistoryEntity::class,
         CustomCollectionEntity::class,
         TvProgressEntity::class,
-        FavoritePersonEntity::class
+        FavoritePersonEntity::class,
+        PopularPersonEntity::class
     ],
-    version = 12,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun customCollectionDao(): CustomCollectionDao
     abstract fun tvProgressDao(): TvProgressDao
     abstract fun favoritePersonDao(): FavoritePersonDao
+    abstract fun popularPersonDao(): PopularPersonDao
 
     companion object {
         @Volatile
@@ -58,6 +60,34 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `media_items` ADD COLUMN `feedTags` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `popular_people` (
+                        `personId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `profileUrl` TEXT NOT NULL,
+                        `department` TEXT NOT NULL,
+                        `popularity` REAL NOT NULL,
+                        `knownForTypes` TEXT NOT NULL,
+                        `knownForIds` TEXT NOT NULL,
+                        `knownForTitles` TEXT NOT NULL,
+                        `pageLoaded` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`personId`)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -65,7 +95,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "cinetrack_database"
                 )
-                    .addMigrations(MIGRATION_10_11, MIGRATION_11_12)
+                    .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

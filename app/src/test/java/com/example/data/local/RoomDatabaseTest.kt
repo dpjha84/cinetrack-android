@@ -43,13 +43,15 @@ class RoomDatabaseTest {
         customCollectionDao = db.customCollectionDao()
         val tvProgressDao = db.tvProgressDao()
         val favoritePersonDao = db.favoritePersonDao()
+        val popularPersonDao = db.popularPersonDao()
         repository = MediaRepository(
             mediaDao,
             preferencesDao,
             searchHistoryDao,
             customCollectionDao,
             tvProgressDao,
-            favoritePersonDao
+            favoritePersonDao,
+            popularPersonDao = popularPersonDao
         )
     }
 
@@ -450,5 +452,187 @@ class RoomDatabaseTest {
         assertEquals(WatchStatus.NONE.name, afterUndo0.status)
         val seasonsAfterUndo0 = repository.getSeasonsForTvShow(afterUndo0, "")
         assertEquals(0, seasonsAfterUndo0.first { it.seasonNumber == 1 }.watchedEpisodesCount)
+    }
+
+    @Test
+    fun homeSectionFeedTagUpsertAndPagedDbFiltering() = runTest {
+        val trackedMovie = MediaEntity(
+            id = "tmdb_m_101",
+            title = "Tracked Blockbuster",
+            mediaType = MediaType.MOVIE.name,
+            releaseYear = 2025,
+            genres = "Action, Sci-Fi",
+            posterUrl = "",
+            backdropUrl = "",
+            overview = "",
+            directorOrCreator = "",
+            cast = "",
+            communityRating = 8.9f,
+            runtimeMinutes = 130,
+            status = WatchStatus.WATCHING.name,
+            userRating = 9.0f,
+            isFavorite = true,
+            feedTags = com.example.data.model.HomeCatalogSection.POPULAR.feedTag
+        )
+        mediaDao.insertOrUpdate(trackedMovie)
+
+        // Now upsert the same movie as NOW_PLAYING with untracked default state -> user tracking MUST survive and tag MUST merge
+        val incomingNowPlaying = trackedMovie.copy(
+            status = WatchStatus.NONE.name,
+            userRating = 0f,
+            isFavorite = false,
+            feedTags = ""
+        )
+        val freshUpcomingTv = MediaEntity(
+            id = "tmdb_tv_202",
+            title = "Upcoming Galaxy Show",
+            mediaType = MediaType.TV_SHOW.name,
+            releaseYear = 2026,
+            genres = "Sci-Fi",
+            posterUrl = "",
+            backdropUrl = "",
+            overview = "",
+            directorOrCreator = "",
+            cast = "",
+            communityRating = 8.4f,
+            runtimeMinutes = 48,
+            feedTags = ""
+        )
+
+        repository.upsertWithFeedTag(
+            items = listOf(incomingNowPlaying, freshUpcomingTv),
+            feedTag = com.example.data.model.HomeCatalogSection.NOW_PLAYING.feedTag
+        )
+        repository.upsertWithFeedTag(
+            items = listOf(freshUpcomingTv),
+            feedTag = com.example.data.model.HomeCatalogSection.UPCOMING.feedTag
+        )
+
+        val mergedMovie = mediaDao.getMediaByIdDirect("tmdb_m_101")!!
+        assertEquals(WatchStatus.WATCHING.name, mergedMovie.status)
+        assertTrue(mergedMovie.isFavorite)
+        assertTrue(mergedMovie.hasFeedTag(com.example.data.model.HomeCatalogSection.POPULAR.feedTag))
+        assertTrue(mergedMovie.hasFeedTag(com.example.data.model.HomeCatalogSection.NOW_PLAYING.feedTag))
+
+        // Verify section + mediaType paged queries
+        val nowPlayingAll = repository.getPagedHomeCatalogFromDb(
+            section = com.example.data.model.HomeCatalogSection.NOW_PLAYING,
+            mediaType = null,
+            genreFilter = null,
+            languageFilter = null,
+            limit = 10,
+            offset = 0
+        )
+        assertEquals(2, nowPlayingAll.size)
+
+        val nowPlayingTvOnly = repository.getPagedHomeCatalogFromDb(
+            section = com.example.data.model.HomeCatalogSection.NOW_PLAYING,
+            mediaType = MediaType.TV_SHOW,
+            genreFilter = null,
+            languageFilter = null,
+            limit = 10,
+            offset = 0
+        )
+        assertEquals(1, nowPlayingTvOnly.size)
+        assertEquals("tmdb_tv_202", nowPlayingTvOnly.first().id)
+
+        val upcomingMoviesOnly = repository.getPagedHomeCatalogFromDb(
+            section = com.example.data.model.HomeCatalogSection.UPCOMING,
+            mediaType = MediaType.MOVIE,
+            genreFilter = null,
+            languageFilter = null,
+            limit = 10,
+            offset = 0
+        )
+        assertTrue(upcomingMoviesOnly.isEmpty())
+
+        // Verify offset paging
+        val page2Single = repository.getPagedHomeCatalogFromDb(
+            section = com.example.data.model.HomeCatalogSection.NOW_PLAYING,
+            mediaType = null,
+            genreFilter = null,
+            languageFilter = null,
+            limit = 1,
+            offset = 1
+        )
+        assertEquals(1, page2Single.size)
+    }
+
+    @Test
+    fun popularPeopleRoomCachingAndPaging() = runTest {
+        val movieEntity = MediaEntity(
+            id = "tmdb_m_901",
+            title = "Space Horizon",
+            mediaType = MediaType.MOVIE.name,
+            releaseYear = 2025,
+            genres = "Sci-Fi",
+            posterUrl = "",
+            backdropUrl = "",
+            overview = "",
+            directorOrCreator = "",
+            cast = "",
+            communityRating = 8.3f,
+            runtimeMinutes = 130
+        )
+        val tvEntity = MediaEntity(
+            id = "tmdb_tv_902",
+            title = "City Detectives",
+            mediaType = MediaType.TV_SHOW.name,
+            releaseYear = 2025,
+            genres = "Crime",
+            posterUrl = "",
+            backdropUrl = "",
+            overview = "",
+            directorOrCreator = "",
+            cast = "",
+            communityRating = 8.6f,
+            runtimeMinutes = 45
+        )
+        val starOne = com.example.data.model.TmdbSearchResultItem.Person(
+            id = 1001L,
+            name = "Aria Vance",
+            profileUrl = null,
+            department = "Acting",
+            knownFor = listOf(movieEntity),
+            popularity = 95.0
+        )
+        val starTwo = com.example.data.model.TmdbSearchResultItem.Person(
+            id = 1002L,
+            name = "Marcus Hale",
+            profileUrl = null,
+            department = "Directing",
+            knownFor = listOf(tvEntity),
+            popularity = 82.0
+        )
+
+        repository.cachePopularPeopleInDb(listOf(starOne, starTwo), pageLoaded = 1)
+
+        val allPeople = repository.popularPeople.first()
+        assertEquals(2, allPeople.size)
+        assertEquals("Aria Vance", allPeople.first().name)
+
+        val moviePeople = repository.getPagedPopularPeopleFromDb(
+            mediaType = MediaType.MOVIE,
+            limit = 10,
+            offset = 0
+        )
+        assertEquals(1, moviePeople.size)
+        assertEquals(1001L, moviePeople.first().personId)
+
+        val tvPeople = repository.getPagedPopularPeopleFromDb(
+            mediaType = MediaType.TV_SHOW,
+            limit = 10,
+            offset = 0
+        )
+        assertEquals(1, tvPeople.size)
+        assertEquals(1002L, tvPeople.first().personId)
+
+        val pageOffset = repository.getPagedPopularPeopleFromDb(
+            mediaType = null,
+            limit = 1,
+            offset = 1
+        )
+        assertEquals(1, pageOffset.size)
+        assertEquals(1002L, pageOffset.first().personId)
     }
 }

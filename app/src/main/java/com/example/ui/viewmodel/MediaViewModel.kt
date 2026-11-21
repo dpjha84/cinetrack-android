@@ -17,6 +17,8 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.FavoritePersonEntity
 import com.example.data.local.MediaEntity
 import com.example.data.local.OnboardingPreferences
+import com.example.data.local.PopularPersonEntity
+import com.example.data.local.SampleMediaData
 import com.example.data.local.SearchHistoryEntity
 import com.example.data.local.UserPreferencesEntity
 import com.example.data.model.CastMemberItem
@@ -24,6 +26,7 @@ import com.example.data.model.ConciergePick
 import com.example.data.model.ConciergeUiState
 import com.example.data.model.DecadeStat
 import com.example.data.model.GenreStat
+import com.example.data.model.HomeCatalogSection
 import com.example.data.model.MatchCandidateCard
 import com.example.data.model.MatchRoomUiState
 import com.example.data.model.MediaType
@@ -108,6 +111,22 @@ enum class TopRatedTab(val label: String) {
     TV_SERIES("Top Rated Series")
 }
 
+data class HomeSectionPaginationState(
+    val visibleLimit: Int = 24,
+    val lastTmdbPage: Int = 1,
+    val isLoadingMore: Boolean = false,
+    val hasMore: Boolean = true
+)
+
+data class HomeSectionGridUiState(
+    val section: HomeCatalogSection? = null,
+    val items: List<MediaEntity> = emptyList(),
+    val people: List<TmdbSearchResultItem.Person> = emptyList(),
+    val totalAvailableCount: Int = 0,
+    val isLoadingMore: Boolean = false,
+    val hasMore: Boolean = true
+)
+
 @OptIn(FlowPreview::class)
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -122,7 +141,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             db.customCollectionDao(),
             db.tvProgressDao(),
             db.favoritePersonDao(),
-            firestoreSyncManager
+            firestoreSyncManager,
+            db.popularPersonDao()
         )
     }
 
@@ -420,50 +440,63 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         SearchFilters(query, type, genre)
     }
 
-    // Filtered Discover list respecting search, type, genre, and regional language preferences
-    val filteredDiscover: StateFlow<List<MediaEntity>> = combine(
-        allMedia,
-        searchFilters,
-        userPreferences,
-        effectiveRegionCode
-    ) { items, filters, prefs, regionCode ->
+    private fun filterHomeSectionList(
+        items: List<MediaEntity>,
+        section: HomeCatalogSection?,
+        filters: SearchFilters,
+        prefs: UserPreferencesEntity,
+        regionCode: String
+    ): List<MediaEntity> {
         val query = filters.query.trim()
         val typeFilter = filters.type
         val genreFilter = filters.genre
 
-        items.filter { item ->
+        return items.filter { item ->
+            val matchesSection = when (section) {
+                null -> true
+                HomeCatalogSection.POPULAR -> item.hasFeedTag(HomeCatalogSection.POPULAR.feedTag) || item.feedTags.isBlank()
+                HomeCatalogSection.NOW_PLAYING -> item.hasFeedTag(HomeCatalogSection.NOW_PLAYING.feedTag)
+                HomeCatalogSection.UPCOMING -> item.hasFeedTag(HomeCatalogSection.UPCOMING.feedTag)
+                HomeCatalogSection.POPULAR_PEOPLE -> false
+            }
+
             val matchesQuery = query.isBlank() ||
-                    item.title.contains(query, ignoreCase = true) ||
-                    item.cast.contains(query, ignoreCase = true) ||
-                    item.directorOrCreator.contains(query, ignoreCase = true) ||
-                    item.genres.contains(query, ignoreCase = true) ||
-                    item.overview.contains(query, ignoreCase = true)
+                item.title.contains(query, ignoreCase = true) ||
+                item.cast.contains(query, ignoreCase = true) ||
+                item.directorOrCreator.contains(query, ignoreCase = true) ||
+                item.genres.contains(query, ignoreCase = true) ||
+                item.overview.contains(query, ignoreCase = true)
 
             val matchesType = typeFilter == null || item.getMediaTypeEnum() == typeFilter
 
             val matchesGenre = genreFilter == null ||
-                    item.getGenreList().any { it.equals(genreFilter, ignoreCase = true) }
+                item.getGenreList().any { it.equals(genreFilter, ignoreCase = true) }
 
-            // When user types a specific search query, don't hide matching items by language
             val matchesLanguage = if (query.isBlank() && prefs.filterCatalogByLanguage && !prefs.languageCode.equals("all", ignoreCase = true)) {
                 item.originalLanguage.equals(prefs.languageCode, ignoreCase = true)
             } else {
                 true
             }
 
-            val isExcludedLegacy = query.isBlank() && (
-                item.releaseYear < 2023 ||
-                item.title.equals("inception", ignoreCase = true) ||
-                item.title.equals("fight club", ignoreCase = true) ||
-                item.title.equals("parasite", ignoreCase = true) ||
-                item.title.equals("the dark knight", ignoreCase = true) ||
-                item.title.equals("pulp fiction", ignoreCase = true) ||
-                item.title.equals("the shawshank redemption", ignoreCase = true) ||
-                item.title.contains("panchayat", ignoreCase = true) ||
-                item.title.equals("rrr", ignoreCase = true)
-            )
+            val allowPre2023LiveSeries = section != HomeCatalogSection.UPCOMING &&
+                item.getMediaTypeEnum() == MediaType.TV_SHOW &&
+                item.id.startsWith("tmdb_tv_")
 
-            matchesQuery && matchesType && matchesGenre && matchesLanguage && !isExcludedLegacy
+            val allowTbaUpcoming = section == HomeCatalogSection.UPCOMING && item.releaseYear == 0
+
+            val isExcludedLegacy = query.isBlank() && (
+                (!allowPre2023LiveSeries && !allowTbaUpcoming && item.releaseYear < 2023) ||
+                    item.title.equals("inception", ignoreCase = true) ||
+                    item.title.equals("fight club", ignoreCase = true) ||
+                    item.title.equals("parasite", ignoreCase = true) ||
+                    item.title.equals("the dark knight", ignoreCase = true) ||
+                    item.title.equals("pulp fiction", ignoreCase = true) ||
+                    item.title.equals("the shawshank redemption", ignoreCase = true) ||
+                    item.title.contains("panchayat", ignoreCase = true) ||
+                    item.title.equals("rrr", ignoreCase = true)
+                )
+
+            matchesSection && matchesQuery && matchesType && matchesGenre && matchesLanguage && !isExcludedLegacy
         }.groupBy { item ->
             val normTitle = item.title.lowercase().replace(Regex("[^a-z0-9]"), "")
             "${normTitle}_${item.mediaType}"
@@ -484,14 +517,145 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.sortedWith(
             compareByDescending<MediaEntity> {
-                // Boost content matching the user's localized region or language
                 if (it.originCountry.equals(regionCode, ignoreCase = true) ||
                     (!prefs.languageCode.equals("all", ignoreCase = true) && it.originalLanguage.equals(prefs.languageCode, ignoreCase = true))
                 ) 1 else 0
-            }.thenByDescending { it.releaseYear } // Prioritize current 2024-2026 releases!
-            .thenByDescending { it.communityRating }
+            }.thenByDescending { it.releaseYear }
+                .thenByDescending { it.communityRating }
         )
+    }
+
+    // Filtered Discover list respecting search, type, genre, and regional language preferences
+    val filteredDiscover: StateFlow<List<MediaEntity>> = combine(
+        allMedia,
+        searchFilters,
+        userPreferences,
+        effectiveRegionCode
+    ) { items, filters, prefs, regionCode ->
+        filterHomeSectionList(items, HomeCatalogSection.POPULAR, filters, prefs, regionCode)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val popularHomeItems: StateFlow<List<MediaEntity>> = filteredDiscover
+
+    val nowPlayingHomeItems: StateFlow<List<MediaEntity>> = combine(
+        allMedia,
+        searchFilters,
+        userPreferences,
+        effectiveRegionCode
+    ) { items, filters, prefs, regionCode ->
+        filterHomeSectionList(items, HomeCatalogSection.NOW_PLAYING, filters, prefs, regionCode)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val upcomingHomeItems: StateFlow<List<MediaEntity>> = combine(
+        allMedia,
+        searchFilters,
+        userPreferences,
+        effectiveRegionCode
+    ) { items, filters, prefs, regionCode ->
+        filterHomeSectionList(items, HomeCatalogSection.UPCOMING, filters, prefs, regionCode)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val popularPeopleHomeItems: StateFlow<List<TmdbSearchResultItem.Person>> = combine(
+        repository.popularPeople,
+        allMedia,
+        searchFilters
+    ) { entities, mediaList, filters ->
+        val query = filters.query.trim()
+        val typeFilter = filters.type
+        val mediaById = mediaList.associateBy { it.id }
+        val sourceEntities = if (entities.isEmpty()) {
+            SampleMediaData.getSamplePeople().map { PopularPersonEntity.fromPerson(it, pageLoaded = 1) }
+        } else {
+            entities
+        }
+        sourceEntities
+            .filter { entity ->
+                val matchesType = entity.supportsMediaType(typeFilter)
+                val matchesQuery = query.isBlank() ||
+                    entity.name.contains(query, ignoreCase = true) ||
+                    entity.department.contains(query, ignoreCase = true) ||
+                    entity.knownForTitles.contains(query, ignoreCase = true)
+                matchesType && matchesQuery
+            }
+            .map { entity ->
+                val knownFor = entity.knownForIds.split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .mapNotNull { id ->
+                        mediaById[id] ?: SampleMediaData.getSamplePeople()
+                            .flatMap { it.knownFor }
+                            .find { it.id == id }
+                    }
+                TmdbSearchResultItem.Person(
+                    id = entity.personId,
+                    name = entity.name,
+                    profileUrl = entity.profileUrl.ifBlank { null },
+                    department = entity.department.ifBlank { "Acting" },
+                    knownFor = knownFor,
+                    popularity = entity.popularity
+                )
+            }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val isHomeCatalogRefreshing = MutableStateFlow(false)
+    val activeHomeCatalogSection = MutableStateFlow<HomeCatalogSection?>(null)
+    private val sectionPageStateMap = MutableStateFlow<Map<String, HomeSectionPaginationState>>(emptyMap())
+
+    private fun sectionStateKey(section: HomeCatalogSection, typeFilter: MediaType?): String =
+        "${section.name}_${typeFilter?.name ?: "ALL"}"
+
+    val activeSectionGridUiState: StateFlow<HomeSectionGridUiState> = combine(
+        activeHomeCatalogSection,
+        selectedTypeFilter,
+        popularHomeItems,
+        nowPlayingHomeItems,
+        upcomingHomeItems,
+        popularPeopleHomeItems,
+        sectionPageStateMap
+    ) { args ->
+        val section = args[0] as HomeCatalogSection?
+        val typeFilter = args[1] as MediaType?
+        @Suppress("UNCHECKED_CAST")
+        val popular = args[2] as List<MediaEntity>
+        @Suppress("UNCHECKED_CAST")
+        val nowPlaying = args[3] as List<MediaEntity>
+        @Suppress("UNCHECKED_CAST")
+        val upcoming = args[4] as List<MediaEntity>
+        @Suppress("UNCHECKED_CAST")
+        val peopleList = args[5] as List<TmdbSearchResultItem.Person>
+        @Suppress("UNCHECKED_CAST")
+        val pageMap = args[6] as Map<String, HomeSectionPaginationState>
+
+        if (section == null) {
+            HomeSectionGridUiState()
+        } else {
+            val key = sectionStateKey(section, typeFilter)
+            val paging = pageMap[key] ?: HomeSectionPaginationState()
+            if (section == HomeCatalogSection.POPULAR_PEOPLE) {
+                HomeSectionGridUiState(
+                    section = section,
+                    people = peopleList.take(paging.visibleLimit),
+                    totalAvailableCount = peopleList.size,
+                    isLoadingMore = paging.isLoadingMore,
+                    hasMore = paging.hasMore
+                )
+            } else {
+                val fullList = when (section) {
+                    HomeCatalogSection.POPULAR -> popular
+                    HomeCatalogSection.NOW_PLAYING -> nowPlaying
+                    HomeCatalogSection.UPCOMING -> upcoming
+                    HomeCatalogSection.POPULAR_PEOPLE -> emptyList()
+                }
+                HomeSectionGridUiState(
+                    section = section,
+                    items = fullList.take(paging.visibleLimit),
+                    totalAvailableCount = fullList.size,
+                    isLoadingMore = paging.isLoadingMore,
+                    hasMore = paging.hasMore
+                )
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeSectionGridUiState())
 
     // OTT Subscription Money-Saver Radar Summary
     val ottMoneySaverSummary: StateFlow<OttMoneySaverSummary> = combine(
@@ -779,12 +943,60 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 }
         }
 
-        // Listen to region changes to refresh regional popular, trending and trailers
+        // Listen to region changes to refresh regional popular, now playing, upcoming, trending and trailers
         viewModelScope.launch {
             effectiveRegionCode.collect {
+                sectionPageStateMap.value = emptyMap()
                 fetchPopularMedia()
                 fetchTrendingNow()
                 fetchTrailers()
+            }
+        }
+
+        // Prefetch page 1 per media type when switching top filter chips so Movies/TV tabs are rich for all 3 lists
+        viewModelScope.launch {
+            selectedTypeFilter.collect { typeFilter ->
+                val key = getActiveTmdbApiKey()
+                if (key.isNotBlank() && key != "YOUR_TMDB_API_KEY") {
+                    val lang = userPreferences.value.languageCode
+                    val reg = effectiveRegionCode.value
+                    listOf(
+                        HomeCatalogSection.POPULAR,
+                        HomeCatalogSection.NOW_PLAYING,
+                        HomeCatalogSection.UPCOMING
+                    ).forEach { section ->
+                        val currentList = when (section) {
+                            HomeCatalogSection.POPULAR -> popularHomeItems.value
+                            HomeCatalogSection.NOW_PLAYING -> nowPlayingHomeItems.value
+                            HomeCatalogSection.UPCOMING -> upcomingHomeItems.value
+                            HomeCatalogSection.POPULAR_PEOPLE -> emptyList()
+                        }
+                        if (currentList.size < 12) {
+                            launch {
+                                repository.fetchHomeCatalogPage(section, key, typeFilter, lang, reg, page = 1)
+                            }
+                        }
+                    }
+                    if (popularPeopleHomeItems.value.size < 12) {
+                        launch {
+                            repository.fetchPopularPeoplePage(key, lang, page = 1)
+                            if (popularPeopleHomeItems.value.size < 12) {
+                                repository.fetchPopularPeoplePage(key, lang, page = 2)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Reset section pagination availability whenever genre filter changes so clearing a narrow genre re-enables infinite scroll
+        viewModelScope.launch {
+            selectedGenreFilter.collect {
+                if (sectionPageStateMap.value.isNotEmpty()) {
+                    sectionPageStateMap.value = sectionPageStateMap.value.mapValues { (_, state) ->
+                        state.copy(visibleLimit = 24, hasMore = true)
+                    }
+                }
             }
         }
 
@@ -855,17 +1067,169 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun fetchPopularMedia() {
         viewModelScope.launch {
+            isHomeCatalogRefreshing.value = true
             try {
                 val key = getActiveTmdbApiKey()
-                if (key.isNotBlank() && key != "YOUR_TMDB_API_KEY") {
-                    repository.fetchPopularMediaFromTmdb(
-                        apiKey = key,
-                        language = userPreferences.value.languageCode,
-                        region = effectiveRegionCode.value
-                    )
+                val lang = userPreferences.value.languageCode
+                val reg = effectiveRegionCode.value
+                coroutineScope {
+                    if (key.isNotBlank() && key != "YOUR_TMDB_API_KEY") {
+                        launch {
+                            repository.fetchPopularMediaFromTmdb(
+                                apiKey = key,
+                                language = lang,
+                                region = reg
+                            )
+                        }
+                    }
+                    launch {
+                        repository.fetchPopularPeoplePage(
+                            apiKey = key,
+                            language = lang,
+                            page = 1
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                isHomeCatalogRefreshing.value = false
+            }
+        }
+    }
+
+    fun openHomeCatalogSection(section: HomeCatalogSection) {
+        activeHomeCatalogSection.value = section
+        val typeFilter = selectedTypeFilter.value
+        val stateKey = sectionStateKey(section, typeFilter)
+        val existing = sectionPageStateMap.value[stateKey]
+        if (existing == null) {
+            sectionPageStateMap.value = sectionPageStateMap.value + (stateKey to HomeSectionPaginationState())
+        } else if (existing.visibleLimit < 24) {
+            sectionPageStateMap.value = sectionPageStateMap.value + (stateKey to existing.copy(visibleLimit = 24, hasMore = true))
+        }
+        val currentCount = when (section) {
+            HomeCatalogSection.POPULAR -> popularHomeItems.value.size
+            HomeCatalogSection.NOW_PLAYING -> nowPlayingHomeItems.value.size
+            HomeCatalogSection.UPCOMING -> upcomingHomeItems.value.size
+            HomeCatalogSection.POPULAR_PEOPLE -> popularPeopleHomeItems.value.size
+        }
+        if (currentCount < 18) {
+            loadMoreForHomeSection(section)
+        }
+    }
+
+    fun closeHomeCatalogSection() {
+        activeHomeCatalogSection.value = null
+    }
+
+    fun loadMoreForHomeSection(section: HomeCatalogSection) {
+        val typeFilter = selectedTypeFilter.value
+        val stateKey = sectionStateKey(section, typeFilter)
+        val current = sectionPageStateMap.value[stateKey] ?: HomeSectionPaginationState()
+        if (current.isLoadingMore || !current.hasMore) return
+
+        sectionPageStateMap.value = sectionPageStateMap.value + (stateKey to current.copy(isLoadingMore = true))
+
+        viewModelScope.launch {
+            try {
+                val tmdbKey = getActiveTmdbApiKey()
+                val lang = userPreferences.value.languageCode
+                val region = effectiveRegionCode.value
+                val genreFilter = selectedGenreFilter.value
+
+                val currentPoolSize = when (section) {
+                    HomeCatalogSection.POPULAR -> popularHomeItems.value.size
+                    HomeCatalogSection.NOW_PLAYING -> nowPlayingHomeItems.value.size
+                    HomeCatalogSection.UPCOMING -> upcomingHomeItems.value.size
+                    HomeCatalogSection.POPULAR_PEOPLE -> popularPeopleHomeItems.value.size
+                }
+
+                val newVisibleLimit = current.visibleLimit + 24
+                var nextPage = current.lastTmdbPage
+                var newlyFetchedCount = 0
+
+                if (section == HomeCatalogSection.POPULAR_PEOPLE) {
+                    if (currentPoolSize <= current.visibleLimit + 12) {
+                        nextPage = current.lastTmdbPage + 1
+                        val fetchedPeople = repository.fetchPopularPeoplePage(
+                            apiKey = tmdbKey,
+                            language = lang,
+                            page = nextPage
+                        )
+                        newlyFetchedCount = fetchedPeople.size
+                        // If a Movies/TV filter narrowed page results, fetch one more page smoothly
+                        if (typeFilter != null && fetchedPeople.count { p ->
+                                p.knownFor.any { it.getMediaTypeEnum() == typeFilter }
+                            } < 6
+                        ) {
+                            nextPage += 1
+                            newlyFetchedCount += repository.fetchPopularPeoplePage(
+                                apiKey = tmdbKey,
+                                language = lang,
+                                page = nextPage
+                            ).size
+                        }
+                        if (newlyFetchedCount == 0) {
+                            val dbMore = repository.getPagedPopularPeopleFromDb(
+                                mediaType = typeFilter,
+                                limit = 24,
+                                offset = currentPoolSize
+                            )
+                            newlyFetchedCount = dbMore.size
+                        }
+                    }
+                } else if (currentPoolSize <= current.visibleLimit + 12) {
+                    // Populate new entries into Room DB whenever current DB slice gets close to exhausted
+                    nextPage = current.lastTmdbPage + 1
+                    val fetched = repository.fetchHomeCatalogPage(
+                        section = section,
+                        apiKey = tmdbKey,
+                        mediaType = typeFilter,
+                        language = lang,
+                        region = region,
+                        page = nextPage
+                    )
+                    newlyFetchedCount = fetched.size
+
+                    // Also query Room DB page at offset as fallback if offline or API returned 0
+                    if (newlyFetchedCount == 0) {
+                        val dbMore = repository.getPagedHomeCatalogFromDb(
+                            section = section,
+                            mediaType = typeFilter,
+                            genreFilter = genreFilter,
+                            languageFilter = if (userPreferences.value.filterCatalogByLanguage) lang else null,
+                            limit = 24,
+                            offset = currentPoolSize
+                        )
+                        if (dbMore.isNotEmpty() && section == HomeCatalogSection.POPULAR) {
+                            repository.upsertWithFeedTag(dbMore, section.feedTag)
+                            newlyFetchedCount = dbMore.size
+                        }
+                    }
+                }
+
+                val updatedPoolSize = when (section) {
+                    HomeCatalogSection.POPULAR -> popularHomeItems.value.size
+                    HomeCatalogSection.NOW_PLAYING -> nowPlayingHomeItems.value.size
+                    HomeCatalogSection.UPCOMING -> upcomingHomeItems.value.size
+                    HomeCatalogSection.POPULAR_PEOPLE -> popularPeopleHomeItems.value.size
+                }
+
+                val canStillLoadMore = newlyFetchedCount > 0 || updatedPoolSize > current.visibleLimit
+                sectionPageStateMap.value = sectionPageStateMap.value + (
+                    stateKey to HomeSectionPaginationState(
+                        visibleLimit = minOf(maxOf(newVisibleLimit, current.visibleLimit), maxOf(updatedPoolSize, newVisibleLimit)),
+                        lastTmdbPage = nextPage,
+                        isLoadingMore = false,
+                        hasMore = canStillLoadMore
+                    )
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+                sectionPageStateMap.value = sectionPageStateMap.value + (
+                    stateKey to current.copy(isLoadingMore = false)
+                )
             }
         }
     }
@@ -1178,8 +1542,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 firestoreSyncManager.uploadMonetizationEntitlement(uid, monetizationState.value)
                 syncStatusMessage.value = "Synced with cloud successfully"
                 if (!_hasCompletedOnboarding.value && repository.hasAnyUserTrackedData()) {
-                    onboardingSyncNotice.value =
-                        "Cloud library synced! Review your favorite stars & watched titles or add more."
+                    onboardingSyncNotice.value = "Cloud synced — review or add picks"
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -1270,13 +1633,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                         firestoreSyncManager.uploadMonetizationEntitlement(user.uid, monetizationState.value)
                         val hasExistingData = repository.hasAnyUserTrackedData()
                         onboardingSyncNotice.value = if (hasExistingData) {
-                            "Cloud library restored! Confirm or add your favorite actors, movies & watched titles."
+                            "Cloud restored — review or add picks"
                         } else {
-                            "Google Cloud Sync active! Tell us your favorite stars & titles to build Top Picks."
+                            "Sync active — pick your favorites"
                         }
                         onboardingStep.value = 1
                     } catch (e: Exception) {
-                        onboardingAuthError.value = e.localizedMessage ?: "Cloud sync warning — continuing setup."
+                        onboardingAuthError.value = e.localizedMessage ?: "Sync delayed — continuing setup"
                         onboardingStep.value = 1
                     } finally {
                         onboardingAuthLoading.value = false
@@ -1525,6 +1888,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun findKnownMedia(id: String): MediaEntity? {
         return allMedia.value.find { it.id == id }
+            ?: popularHomeItems.value.find { it.id == id }
+            ?: nowPlayingHomeItems.value.find { it.id == id }
+            ?: upcomingHomeItems.value.find { it.id == id }
             ?: trendingItems.value.find { it.id == id }
             ?: currentTopRatedList.value.find { it.id == id }
             ?: pickedForYouItems.value.find { it.id == id }

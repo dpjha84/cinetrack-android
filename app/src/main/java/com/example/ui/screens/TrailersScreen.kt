@@ -294,7 +294,7 @@ fun TrailersScreen(
                         CircularProgressIndicator(color = CinemaGold)
                         Spacer(modifier = Modifier.height(14.dp))
                         Text(
-                            text = "Finding playable trailers...",
+                            text = "Loading trailers...",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -318,7 +318,7 @@ fun TrailersScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "No trailers found in this category",
+                            text = "No trailers found",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -327,7 +327,7 @@ fun TrailersScreen(
                             onClick = { viewModel.setTrailerCategory(TrailerCategory.ALL) },
                             colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black)
                         ) {
-                            Text("Show All Trailers")
+                            Text("Show All")
                         }
                     }
                 }

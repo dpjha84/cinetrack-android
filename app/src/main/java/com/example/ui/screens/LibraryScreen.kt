@@ -148,9 +148,9 @@ fun LibraryScreen(
         val filterSuffix = if (monetizationState.streamOnMyAppsOnly) " • On My Apps" else ""
         if (selectedTab == LibraryTab.FAVORITES && visibleFavoritePeople.isNotEmpty()) {
             val total = libraryItems.size + visibleFavoritePeople.size
-            "$total favorites (${libraryItems.size} titles • ${visibleFavoritePeople.size} people)$filterSuffix"
+            "$total favorites$filterSuffix"
         } else {
-            "${libraryItems.size} titles logged$filterSuffix"
+            "${libraryItems.size} titles$filterSuffix"
         }
     }
 
@@ -241,7 +241,7 @@ fun LibraryScreen(
                 ) {
                     Text(
                         text = if (isImportingCsv) {
-                            "Importing & enriching your watchlist via TMDB..."
+                            "Importing watchlist..."
                         } else {
                             csvImportMessage.orEmpty()
                         },
@@ -445,9 +445,9 @@ fun LibraryScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = if (monetizationState.streamOnMyAppsOnly) {
-                            "No ${selectedTab.label} titles on your selected apps"
+                            "No ${selectedTab.label} on your apps"
                         } else {
-                            "No items in ${selectedTab.label}"
+                            "Nothing in ${selectedTab.label}"
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
@@ -455,18 +455,18 @@ fun LibraryScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = if (monetizationState.streamOnMyAppsOnly) {
-                            "Try turning off 'On My Apps' or add more streaming apps in OTT Money-Saver."
+                            "Turn off 'On My Apps' or add more streaming apps."
                         } else if (selectedTab == LibraryTab.FAVORITES) {
-                            "Favorite movies, TV series, or people to find them quickly here."
+                            "Heart titles or people to save them here."
                         } else if (BuildConfig.IS_V1_EDITION) {
-                            "Discover trending movies & TV shows and track what you watch."
+                            "Find titles to track your progress."
                         } else {
-                            "Discover titles or import your existing Moviebase, IMDb, Letterboxd, or Trakt CSV for free."
+                            "Explore titles or import a CSV watchlist."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = onExploreClick,
                         colors = ButtonDefaults.buttonColors(
@@ -493,7 +493,7 @@ fun LibraryScreen(
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Import Moviebase / IMDb CSV (Free)")
+                            Text("Import CSV")
                         }
                     }
                 }
@@ -730,7 +730,7 @@ fun FavoritePersonLibraryCard(
                     )
                 } else {
                     Text(
-                        text = "Tap to view profile & filmography",
+                        text = "Profile & filmography",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
