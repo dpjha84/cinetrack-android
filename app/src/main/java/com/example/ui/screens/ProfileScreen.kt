@@ -108,6 +108,7 @@ fun ProfileScreen(
     val syncMessage by viewModel.syncStatusMessage.collectAsStateWithLifecycle()
     val userPrefs by viewModel.userPreferences.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
+    val analyticsEnabled by viewModel.analyticsEnabled.collectAsStateWithLifecycle()
     val stats by viewModel.stats.collectAsStateWithLifecycle()
     val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
     val ottSummary by viewModel.ottMoneySaverSummary.collectAsStateWithLifecycle()
@@ -945,6 +946,34 @@ fun ProfileScreen(
                             checked = userPrefs.showStreamingProviders,
                             onCheckedChange = { viewModel.toggleStreamingProviders(it) },
                             colors = SwitchDefaults.colors(checkedThumbColor = CinemaGold, checkedTrackColor = CinemaGold.copy(alpha = 0.5f))
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
+                            Text("Usage Analytics", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Anonymous insights to improve app features", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = analyticsEnabled,
+                            onCheckedChange = { viewModel.setAnalyticsEnabled(it) },
+                            colors = SwitchDefaults.colors(checkedThumbColor = CinemaGold, checkedTrackColor = CinemaGold.copy(alpha = 0.5f)),
+                            modifier = Modifier.testTag("switch_analytics_enabled")
                         )
                     }
 

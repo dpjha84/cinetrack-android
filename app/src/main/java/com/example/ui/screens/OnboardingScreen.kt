@@ -793,138 +793,83 @@ private fun WelcomeAmbientCinemaShowcase(
                 )
         )
 
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (fillStage) Modifier.fillMaxHeight() else Modifier)
+                .then(
+                    if (fillStage) Modifier.fillMaxHeight()
+                    else Modifier.height(if (isTablet) 290.dp else 250.dp)
+                )
                 .padding(vertical = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            contentAlignment = Alignment.Center
         ) {
-            // Rotating full-width giant 3-poster depth-of-field deck
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (fillStage) Modifier.weight(1f)
-                        else Modifier.height(if (isTablet) 260.dp else 220.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                val desiredCenterHeight = (maxHeight - 8.dp).coerceIn(190.dp, 390.dp)
-                val maxAllowedCenterWidth = (maxWidth * 0.54f).coerceAtLeast(150.dp)
-                val centerCardWidth = (desiredCenterHeight * (2f / 3f)).coerceAtMost(maxAllowedCenterWidth)
-                val sideCardWidth = centerCardWidth * 0.78f
-                val sideHorizontalSpread = maxWidth * 0.30f
+            val desiredCenterHeight = (maxHeight - 4.dp).coerceIn(210.dp, 440.dp)
+            val maxAllowedCenterWidth = (maxWidth * 0.62f).coerceAtLeast(170.dp)
+            val centerCardWidth = (desiredCenterHeight * (2f / 3f)).coerceAtMost(maxAllowedCenterWidth)
+            val sideCardWidth = centerCardWidth * 0.78f
+            val sideHorizontalSpread = maxWidth * 0.30f
 
-                if (prevIndex != null) {
-                    val leftItem = items[prevIndex]
-                    WelcomeShowcasePosterCard(
-                        media = leftItem,
-                        isFocused = false,
-                        onClick = { onSelectIndex(prevIndex) },
-                        modifier = Modifier
-                            .width(sideCardWidth)
-                            .aspectRatio(2f / 3f)
-                            .graphicsLayer {
-                                translationX = -sideHorizontalSpread.toPx() + driftOffset
-                                rotationZ = -8f
-                                scaleX = 0.94f
-                                scaleY = 0.94f
-                            }
-                            .then(sideBlur)
-                            .alpha(0.62f)
-                    )
-                }
-
-                if (nextIndex != null) {
-                    val rightItem = items[nextIndex]
-                    WelcomeShowcasePosterCard(
-                        media = rightItem,
-                        isFocused = false,
-                        onClick = { onSelectIndex(nextIndex) },
-                        modifier = Modifier
-                            .width(sideCardWidth)
-                            .aspectRatio(2f / 3f)
-                            .graphicsLayer {
-                                translationX = sideHorizontalSpread.toPx() - driftOffset
-                                rotationZ = 8f
-                                scaleX = 0.94f
-                                scaleY = 0.94f
-                            }
-                            .then(sideBlur)
-                            .alpha(0.62f)
-                    )
-                }
-
-                if (activeItem != null) {
-                    AnimatedContent(
-                        targetState = activeItem,
-                        transitionSpec = {
-                            fadeIn(tween(450)) togetherWith fadeOut(tween(350))
-                        },
-                        label = "welcomeCenterPoster"
-                    ) { centerMedia ->
-                        WelcomeShowcasePosterCard(
-                            media = centerMedia,
-                            isFocused = true,
-                            onClick = {
-                                if (items.size > 1) {
-                                    onSelectIndex((activeIndex + 1) % items.size)
-                                }
-                            },
-                            modifier = Modifier
-                                .width(centerCardWidth)
-                                .aspectRatio(2f / 3f)
-                                .testTag("welcome_center_poster")
-                        )
-                    }
-                }
+            if (prevIndex != null) {
+                val leftItem = items[prevIndex]
+                WelcomeShowcasePosterCard(
+                    media = leftItem,
+                    isFocused = false,
+                    onClick = { onSelectIndex(prevIndex) },
+                    modifier = Modifier
+                        .width(sideCardWidth)
+                        .aspectRatio(2f / 3f)
+                        .graphicsLayer {
+                            translationX = -sideHorizontalSpread.toPx() + driftOffset
+                            rotationZ = -8f
+                            scaleX = 0.94f
+                            scaleY = 0.94f
+                        }
+                        .then(sideBlur)
+                        .alpha(0.62f)
+                )
             }
 
-            // Minimal spotlight title & indicator dots (no low-level details)
+            if (nextIndex != null) {
+                val rightItem = items[nextIndex]
+                WelcomeShowcasePosterCard(
+                    media = rightItem,
+                    isFocused = false,
+                    onClick = { onSelectIndex(nextIndex) },
+                    modifier = Modifier
+                        .width(sideCardWidth)
+                        .aspectRatio(2f / 3f)
+                        .graphicsLayer {
+                            translationX = sideHorizontalSpread.toPx() - driftOffset
+                            rotationZ = 8f
+                            scaleX = 0.94f
+                            scaleY = 0.94f
+                        }
+                        .then(sideBlur)
+                        .alpha(0.62f)
+                )
+            }
+
             if (activeItem != null) {
-                Spacer(modifier = Modifier.height(8.dp))
                 AnimatedContent(
                     targetState = activeItem,
                     transitionSpec = {
-                        fadeIn(tween(320)) togetherWith fadeOut(tween(220))
+                        fadeIn(tween(450)) togetherWith fadeOut(tween(350))
                     },
-                    label = "welcomeSpotlightCaption",
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                ) { spotlight ->
-                    Text(
-                        text = spotlight.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.testTag("welcome_showcase_title")
+                    label = "welcomeCenterPoster"
+                ) { centerMedia ->
+                    WelcomeShowcasePosterCard(
+                        media = centerMedia,
+                        isFocused = true,
+                        onClick = {
+                            if (items.size > 1) {
+                                onSelectIndex((activeIndex + 1) % items.size)
+                            }
+                        },
+                        modifier = Modifier
+                            .width(centerCardWidth)
+                            .aspectRatio(2f / 3f)
+                            .testTag("welcome_center_poster")
                     )
-                }
-
-                if (items.size > 1) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val dotCount = items.size.coerceAtMost(6)
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        for (i in 0 until dotCount) {
-                            val selected = i == (activeIndex % dotCount)
-                            Box(
-                                modifier = Modifier
-                                    .height(5.dp)
-                                    .width(if (selected) 16.dp else 5.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (selected) CinemaGold
-                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                                    )
-                            )
-                        }
-                    }
                 }
             }
         }

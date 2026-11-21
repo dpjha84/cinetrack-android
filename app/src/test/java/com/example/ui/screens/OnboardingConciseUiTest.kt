@@ -6,8 +6,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -163,9 +164,11 @@ class OnboardingConciseUiTest {
         val centerPosterNode = composeTestRule.onNodeWithTag("welcome_center_poster").assertIsDisplayed()
         val googleBtnNode = composeTestRule.onNodeWithTag("onboarding_btn_google_signin").assertIsDisplayed()
 
-        composeTestRule.onNodeWithTag("welcome_showcase_title")
-            .assertIsDisplayed()
-            .assertTextEquals(showcase[0].title)
+        composeTestRule.onNodeWithTag("welcome_showcase_title").assertDoesNotExist()
+        composeTestRule.onNodeWithText(showcase[0].title).assertDoesNotExist()
+        composeTestRule.onNode(
+            hasTestTag("welcome_center_poster") and hasContentDescription(showcase[0].title)
+        ).assertIsDisplayed()
         composeTestRule.onNodeWithTag("icon_google_onboarding_signin", useUnmergedTree = true).assertIsDisplayed()
 
         // Confirm low-level header and poster badges were removed for pure immersion
@@ -199,8 +202,8 @@ class OnboardingConciseUiTest {
             showcaseBounds.width >= 410.dp
         )
         assertTrue(
-            "Expected large center poster (width >= 180.dp), was ${posterBounds.width}",
-            posterBounds.width >= 180.dp
+            "Expected expanded center poster (width >= 200.dp), was ${posterBounds.width}",
+            posterBounds.width >= 200.dp
         )
         val gapAboveButton = googleBounds.top - showcaseBounds.bottom
         assertTrue(
@@ -208,12 +211,12 @@ class OnboardingConciseUiTest {
             gapAboveButton <= 24.dp
         )
 
-        // Advance past 3.2s auto-rotation interval and confirm spotlight advances
+        // Advance past 3.2s auto-rotation interval and confirm carousel keeps advancing continuously
         composeTestRule.mainClock.advanceTimeBy(3400L)
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("welcome_showcase_title")
-            .assertIsDisplayed()
-            .assertTextEquals(showcase[1].title)
+        composeTestRule.onNode(
+            hasTestTag("welcome_center_poster") and hasContentDescription(showcase[1].title)
+        ).assertIsDisplayed()
     }
 
     @Test

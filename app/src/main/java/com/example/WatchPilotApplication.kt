@@ -6,9 +6,15 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.example.util.AnalyticsTracker
 import com.example.util.TrailerInterstitialAdManager
 
 class WatchPilotApplication : Application(), ImageLoaderFactory {
+
+    override fun onCreate() {
+        super.onCreate()
+        AnalyticsTracker.init(this)
+    }
 
     private var cachedImageLoader: ImageLoader? = null
 

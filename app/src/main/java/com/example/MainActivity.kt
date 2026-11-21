@@ -109,6 +109,7 @@ import com.example.ui.theme.WatchPilotTheme
 import com.example.ui.util.AdaptiveLayoutProvider
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
+import com.example.util.AnalyticsTracker
 import com.example.util.TrailerInterstitialAdManager
 import com.example.util.configureAppCheck
 import com.google.android.gms.ads.MobileAds
@@ -154,6 +155,22 @@ class MainActivity : ComponentActivity() {
                 AdaptiveLayoutProvider {
                     var showLaunchSplash by rememberSaveable { mutableStateOf(true) }
                     val hasCompletedOnboarding by viewModel.hasCompletedOnboarding.collectAsStateWithLifecycle()
+                    val onboardingStep by viewModel.onboardingStep.collectAsStateWithLifecycle()
+                    LaunchedEffect(hasCompletedOnboarding, onboardingStep) {
+                        if (!hasCompletedOnboarding) {
+                            val stepScreen = when (onboardingStep) {
+                                0 -> "onboarding_welcome"
+                                1 -> "onboarding_genres_stars"
+                                else -> "onboarding_watched"
+                            }
+                            AnalyticsTracker.logScreenView(stepScreen)
+                            if (onboardingStep == 0) {
+                                AnalyticsTracker.logOnboardingBegin()
+                            } else {
+                                AnalyticsTracker.logOnboardingStep(onboardingStep, stepScreen)
+                            }
+                        }
+                    }
                     LaunchedEffect(Unit) {
                         if (showLaunchSplash) {
                             delay(780)
@@ -364,6 +381,36 @@ fun MovieverseApp(viewModel: MediaViewModel) {
         selectedPerson == null &&
         !(currentNav == MainNavDestination.HOME && activeHomeSection != null)
     val useNavigationRail = adaptive.isTabletOrWide
+
+    val activeScreenName = remember(
+        currentNav,
+        activeHomeSection,
+        selectedPerson,
+        selectedMedia,
+        selectedSeasonForDetail,
+        showPaywall,
+        showSnapScanner,
+        showAiConcierge,
+        showSwipeMatch,
+        showOttMoneySaver
+    ) {
+        when {
+            showPaywall -> "sheet_paywall"
+            showSnapScanner -> "sheet_snap_scanner"
+            showAiConcierge -> "sheet_ai_concierge"
+            showSwipeMatch -> "sheet_swipe_match"
+            showOttMoneySaver -> "sheet_ott_money_saver"
+            selectedPerson != null -> "person_detail"
+            selectedMedia != null && selectedSeasonForDetail != null -> "season_detail"
+            selectedMedia != null -> "media_detail"
+            currentNav == MainNavDestination.HOME && activeHomeSection != null ->
+                "section_${activeHomeSection.name.lowercase()}"
+            else -> currentNav.name.lowercase()
+        }
+    }
+    LaunchedEffect(activeScreenName) {
+        AnalyticsTracker.logScreenView(activeScreenName)
+    }
 
     Row(modifier = Modifier.fillMaxSize()) {
         if (useNavigationRail && showTopNav) {

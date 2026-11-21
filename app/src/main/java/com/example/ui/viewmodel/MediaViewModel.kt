@@ -49,6 +49,7 @@ import com.example.data.remote.firebase.FirestoreSyncManager
 import com.example.data.remote.firebase.MatchRoomRepository
 import com.example.data.remote.tmdb.TmdbPersonDetailDto
 import com.example.data.repository.MediaRepository
+import com.example.util.AnalyticsTracker
 import com.example.util.CsvLibraryPorter
 import com.example.util.OttMoneySaverCalculator
 import com.example.util.WrappedCardExporter
@@ -72,6 +73,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -228,6 +230,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         OnboardingPreferences.hasCompletedOnboarding(application)
     )
     val hasCompletedOnboarding: StateFlow<Boolean> = _hasCompletedOnboarding.asStateFlow()
+    private val _analyticsEnabled = MutableStateFlow(
+        OnboardingPreferences.isAnalyticsEnabled(application)
+    )
+    val analyticsEnabled: StateFlow<Boolean> = _analyticsEnabled.asStateFlow()
     val onboardingStep = MutableStateFlow(0)
     val onboardingAuthLoading = MutableStateFlow(false)
     val onboardingAuthError = MutableStateFlow<String?>(null)
@@ -1059,6 +1065,31 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // Track home/section filter selections after initial launch
+        viewModelScope.launch {
+            combine(selectedTypeFilter, selectedGenreFilter) { typeFilter, genreFilter ->
+                typeFilter to genreFilter
+            }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { (typeFilter, genreFilter) ->
+                    val surface = if (activeHomeCatalogSection.value != null) "section_grid" else "home"
+                    AnalyticsTracker.logCatalogFilterChanged(typeFilter, genreFilter, surface)
+                }
+        }
+
+        // Keep auth mode & region user properties synced for Firebase Analytics segmentation
+        viewModelScope.launch {
+            currentUser.collect { user ->
+                AnalyticsTracker.setAuthModeUserProperty(user != null)
+            }
+        }
+        viewModelScope.launch {
+            effectiveRegionCode.collect { region ->
+                AnalyticsTracker.setRegionUserProperty(region)
+            }
+        }
+
         // Live TMDB Search Debounce
         viewModelScope.launch {
             searchQuery
@@ -1500,6 +1531,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         multiSearchQuery.value = trimmed
         if (trimmed.isNotBlank()) {
             selectedSearchGenre.value = null
+            AnalyticsTracker.logSearch(
+                query = trimmed,
+                category = selectedSearchCategory.value.name
+            )
             performMultiSearch(trimmed)
             recordCompletedSearch(trimmed)
         } else if (selectedSearchGenre.value == null) {
@@ -1513,6 +1548,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         selectedSearchGenre.value = trimmed
         multiSearchQuery.value = ""
         selectedSearchCategory.value = MultiSearchCategory.ALL
+        AnalyticsTracker.logSearch(
+            query = "",
+            category = "genre",
+            genre = trimmed
+        )
         viewModelScope.launch {
             isMultiSearching.value = true
             try {
@@ -1572,6 +1612,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         personDetailJob?.cancel()
         selectedPersonForDetail.value = person
         personDetailData.value = null
+        if (person != null) {
+            AnalyticsTracker.logPersonOpened(person.id, person.name)
+        }
         if (person != null && person.id > 0L) {
             personDetailJob = viewModelScope.launch {
                 isLoadingPersonDetail.value = true
@@ -1648,6 +1691,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleWatchlistQuick(entity: MediaEntity) {
         viewModelScope.launch {
+            val existing = allMedia.value.find { it.id == entity.id } ?: entity
+            val nextStatus = if (existing.getWatchStatusEnum() == WatchStatus.NONE) {
+                WatchStatus.PLAN_TO_WATCH
+            } else {
+                WatchStatus.NONE
+            }
+            AnalyticsTracker.logWatchStatusChanged(
+                mediaId = entity.id,
+                mediaType = entity.getMediaTypeEnum(),
+                status = nextStatus,
+                source = "quick_toggle"
+            )
             repository.toggleWatchlistForEntity(entity)
         }
     }
@@ -1662,6 +1717,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     WatchStatus.NONE
                 }
+                AnalyticsTracker.logWatchStatusChanged(
+                    mediaId = mediaId,
+                    mediaType = current.getMediaTypeEnum(),
+                    status = nextStatus,
+                    source = "quick_toggle"
+                )
                 repository.updateStatus(mediaId, nextStatus)
             }
         }
@@ -1731,6 +1792,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             activity = activity,
             scope = viewModelScope,
             onSuccess = { user ->
+                AnalyticsTracker.logSignInChoice(method = "google", isOnboarding = false)
+                AnalyticsTracker.setAuthModeUserProperty(true)
                 syncWithCloud(force = false)
                 onSuccess(user)
             },
@@ -1780,6 +1843,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             activity = activity,
             scope = viewModelScope,
             onSuccess = { user ->
+                AnalyticsTracker.logSignInChoice(method = "google", isOnboarding = true)
+                AnalyticsTracker.setAuthModeUserProperty(true)
                 viewModelScope.launch {
                     try {
                         signOutJob?.join()
@@ -1820,6 +1885,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun continueAsGuestDuringOnboarding() {
         continueAsGuest()
+        AnalyticsTracker.logSignInChoice(method = "guest", isOnboarding = true)
+        AnalyticsTracker.setAuthModeUserProperty(false)
         onboardingAuthError.value = null
         onboardingSyncNotice.value = null
         if (onboardingPopularPeople.value.isEmpty() || onboardingPopularTitles.value.isEmpty()) {
@@ -1948,6 +2015,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
         val currentPeople = favoritePeople.value
         val currentGenres = _onboardingSelectedGenres.value
+        AnalyticsTracker.logOnboardingComplete(
+            genresCount = currentGenres.size,
+            starsCount = currentPeople.size,
+            authMode = if (currentUser.value != null) "google" else "guest"
+        )
         val region = effectiveRegionCode.value
         if (currentTracked.isNotEmpty() || currentPeople.isNotEmpty() || currentGenres.isNotEmpty()) {
             viewModelScope.launch {
@@ -2092,6 +2164,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         currentSeasonEpisodes.value = emptyList()
         if (id != null) {
             val media = findKnownMedia(id)
+            if (media != null) {
+                AnalyticsTracker.logTitleOpened(media.id, media.title, media.getMediaTypeEnum())
+            } else {
+                val inferredType = if (id.startsWith("tmdb_tv_")) MediaType.TV_SHOW else MediaType.MOVIE
+                AnalyticsTracker.logTitleOpened(id, id, inferredType)
+            }
             val region = effectiveRegionCode.value
             val initialNames = media?.getCastList().orEmpty()
             if (media != null) {
@@ -2212,6 +2290,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setEpisodeWatchStatus(media: MediaEntity, seasonNumber: Int, episodeNumber: Int, status: TvWatchStatus) {
+        AnalyticsTracker.logEpisodeLogged(
+            mediaId = media.id,
+            seasonNumber = seasonNumber,
+            episodeNumber = episodeNumber,
+            watched = status == TvWatchStatus.WATCHED
+        )
         viewModelScope.launch {
             repository.setEpisodeWatchStatus(media, seasonNumber, episodeNumber, status)
             val apiKey = getActiveTmdbApiKey()
@@ -2271,6 +2355,14 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun updateStatus(id: String, status: WatchStatus) {
         viewModelScope.launch {
             ensureMediaInDb(id)
+            val resolvedType = findKnownMedia(id)?.getMediaTypeEnum()
+                ?: if (id.startsWith("tmdb_tv_")) MediaType.TV_SHOW else MediaType.MOVIE
+            AnalyticsTracker.logWatchStatusChanged(
+                mediaId = id,
+                mediaType = resolvedType,
+                status = status,
+                source = "status_action"
+            )
             repository.updateStatus(id, status, getActiveTmdbApiKey())
             refreshActiveTvSeasonsIfSelected(id)
         }
@@ -2302,6 +2394,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleFavorite(id: String, current: Boolean) {
         viewModelScope.launch {
             ensureMediaInDb(id)
+            val resolvedType = findKnownMedia(id)?.getMediaTypeEnum()
+                ?: if (id.startsWith("tmdb_tv_")) MediaType.TV_SHOW else MediaType.MOVIE
+            AnalyticsTracker.logFavoriteToggled(
+                mediaId = id,
+                mediaType = resolvedType,
+                isFavorite = !current
+            )
             repository.toggleFavorite(id, current)
         }
     }
@@ -2434,6 +2533,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 current.copy(showStreamingProviders = enabled)
             )
         }
+    }
+
+    fun setAnalyticsEnabled(enabled: Boolean) {
+        AnalyticsTracker.setCollectionEnabled(getApplication(), enabled)
+        _analyticsEnabled.value = enabled
     }
 
     fun updatePreferences(prefs: UserPreferencesEntity) {
@@ -2695,9 +2799,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                             }.awaitAll()
                         }
                         monetizationManager.recordSnapScanUsed()
+                        AnalyticsTracker.logSnapScanResult(itemsCount = candidates.size, success = true)
                         _snapScanState.value = SnapScanUiState.Success(candidates)
                     },
                     onFailure = { err ->
+                        AnalyticsTracker.logSnapScanResult(itemsCount = 0, success = false)
                         _snapScanState.value = SnapScanUiState.Error(
                             err.message ?: "Failed to analyze screenshot."
                         )
@@ -2706,6 +2812,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                AnalyticsTracker.logSnapScanResult(itemsCount = 0, success = false)
                 _snapScanState.value = SnapScanUiState.Error(
                     e.localizedMessage ?: "Screenshot analysis failed."
                 )
@@ -2813,6 +2920,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                         }.awaitAll()
                     }
                     monetizationManager.recordConciergeUsed()
+                    AnalyticsTracker.logAiConciergeResult(
+                        mood = mood,
+                        timeBudget = timeBudget,
+                        picksCount = enriched.size,
+                        success = true
+                    )
                     _conciergeState.value = ConciergeUiState.Success(
                         mood = mood,
                         timeBudget = timeBudget,
@@ -2820,6 +2933,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 },
                 onFailure = { err ->
+                    AnalyticsTracker.logAiConciergeResult(
+                        mood = mood,
+                        timeBudget = timeBudget,
+                        picksCount = 0,
+                        success = false
+                    )
                     _conciergeState.value = ConciergeUiState.Error(
                         err.message ?: "Failed to generate Tonight's Picks."
                     )
@@ -2889,6 +3008,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             res.fold(
                 onSuccess = { room ->
                     monetizationManager.recordMatchRoomHosted()
+                    AnalyticsTracker.logMatchRoomCreated(providersCount = canonicalSelected.size)
                     _matchRoomState.value = MatchRoomUiState.Active(room)
                     startObservingMatchRoom(room.roomCode)
                 },
@@ -2912,6 +3032,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val res = matchRoomRepo.joinRoom(rawCode)
             res.fold(
                 onSuccess = { room ->
+                    AnalyticsTracker.logMatchRoomJoined()
                     _matchRoomState.value = MatchRoomUiState.Active(room)
                     startObservingMatchRoom(room.roomCode)
                 },
@@ -2946,11 +3067,24 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         val active = (_matchRoomState.value as? MatchRoomUiState.Active)?.room ?: return
         if (!liked) {
             skippedMatchCandidateIds.value = skippedMatchCandidateIds.value + candidate.id
+            AnalyticsTracker.logMatchCardSwiped(
+                mediaId = candidate.id,
+                mediaType = candidate.mediaType,
+                liked = false,
+                isMutualMatch = false
+            )
             return
         }
         viewModelScope.launch {
             matchRoomRepo.recordRightSwipe(active.roomCode, candidate).fold(
                 onSuccess = { updatedRoom ->
+                    val isMutual = updatedRoom.matchedMediaId == candidate.id
+                    AnalyticsTracker.logMatchCardSwiped(
+                        mediaId = candidate.id,
+                        mediaType = candidate.mediaType,
+                        liked = true,
+                        isMutualMatch = isMutual
+                    )
                     _matchRoomState.value = MatchRoomUiState.Active(updatedRoom)
                 },
                 onFailure = { err ->
