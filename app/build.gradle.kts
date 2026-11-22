@@ -21,8 +21,8 @@ android {
     applicationId = "com.dpjha.moviebuddy"
     minSdk = 24
     targetSdk = 36
-    versionCode = if (isV1Edition) 1002 else 2000
-    versionName = if (isV1Edition) "5.0.1" else "6.0.0"
+    versionCode = if (isV1Edition) 1003 else 2000
+    versionName = if (isV1Edition) "5.0.2" else "6.0.0"
     buildConfigField("boolean", "IS_V1_EDITION", isV1Edition.toString())
     buildConfigField("String", "EDITION_NAME", "\"${if (isV1Edition) "v1.0" else "v2.0"}\"")
 
