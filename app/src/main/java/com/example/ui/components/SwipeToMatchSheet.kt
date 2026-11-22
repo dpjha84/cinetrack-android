@@ -87,7 +87,8 @@ fun SwipeToMatchSheet(
     onJoinRoom: (String) -> Unit,
     onSwipeCandidate: (MatchCandidateCard, Boolean) -> Unit,
     onLeaveOrCloseRoom: () -> Unit,
-    onOpenMatchedMedia: (mediaId: String, title: String, year: Int, mediaType: String) -> Unit
+    onOpenMatchedMedia: (mediaId: String, title: String, year: Int, mediaType: String) -> Unit,
+    onWatchRewardedTrialAd: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -237,7 +238,12 @@ fun SwipeToMatchSheet(
                                         .padding(end = 8.dp)
                                 )
                                 Text(
-                                    text = if (monetizationState.isPro) "PRO UNLIMITED" else "${monetizationState.remainingFreeHostedRooms} Free Host Left",
+                                    text = when {
+                                        monetizationState.isPro -> "PRO UNLIMITED"
+                                        monetizationState.rewardedTrialCredits > 0 ->
+                                            "${monetizationState.remainingFreeHostedRooms}/mo Free • ${monetizationState.rewardedTrialCredits} Ad Pass"
+                                        else -> "${monetizationState.remainingFreeHostedRooms} Free / mo"
+                                    },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = CinemaGold,
@@ -270,6 +276,13 @@ fun SwipeToMatchSheet(
                                     )
                                 }
                             }
+                            if (!monetizationState.isPro && monetizationState.remainingFreeHostedRooms == 0) {
+                                RewardedTrialPassBanner(
+                                    monetizationState = monetizationState,
+                                    sourceTag = "swipe_match",
+                                    onRewardEarned = onWatchRewardedTrialAd
+                                )
+                            }
                             Button(
                                 onClick = { onCreateRoom(selectedProviders.toList()) },
                                 modifier = Modifier
@@ -282,7 +295,10 @@ fun SwipeToMatchSheet(
                                     contentColor = DarkBackground
                                 )
                             ) {
-                                Text("Create 6-Digit Room Code", fontWeight = FontWeight.ExtraBold)
+                                Text(
+                                    text = if (monetizationState.canHostMatchRoom) "Create 6-Digit Room Code" else "Unlock Unlimited Rooms (Pro)",
+                                    fontWeight = FontWeight.ExtraBold
+                                )
                             }
                         }
                     }

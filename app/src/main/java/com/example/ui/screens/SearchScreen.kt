@@ -238,28 +238,26 @@ fun SearchScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (!BuildConfig.IS_V1_EDITION) {
-                    FilterChip(
-                        selected = false,
-                        onClick = { viewModel.openSnapScanner() },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.PhotoCamera,
-                                contentDescription = "Scan Screenshot",
-                                tint = CinemaCyan,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = "Scan Screenshot",
-                                color = CinemaCyan,
-                                fontWeight = FontWeight.Bold
-                            )
-                        },
-                        modifier = Modifier.testTag("search_btn_snap_scan")
-                    )
-                }
+                FilterChip(
+                    selected = false,
+                    onClick = { viewModel.openSnapScanner() },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Scan Screenshot",
+                            tint = CinemaCyan,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = "Scan Screenshot",
+                            color = CinemaCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    modifier = Modifier.testTag("search_btn_snap_scan")
+                )
 
                 MultiSearchCategory.entries.forEach { category ->
                     val selected = selectedCategory == category

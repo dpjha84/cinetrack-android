@@ -185,44 +185,42 @@ fun LibraryScreen(
                 )
             }
 
-            if (!BuildConfig.IS_V1_EDITION) {
-                FilledTonalButton(
-                    onClick = launchCsvImport,
-                    enabled = !isImportingCsv,
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = CinemaGold.copy(alpha = 0.16f),
-                        contentColor = CinemaGold
-                    ),
-                    modifier = Modifier.testTag("btn_import_csv_library")
-                ) {
-                    if (isImportingCsv) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            color = CinemaGold,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.FileUpload,
-                            contentDescription = "Import CSV",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isImportingCsv) "Importing..." else "Import CSV",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        softWrap = false
+            FilledTonalButton(
+                onClick = launchCsvImport,
+                enabled = !isImportingCsv,
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = CinemaGold.copy(alpha = 0.16f),
+                    contentColor = CinemaGold
+                ),
+                modifier = Modifier.testTag("btn_import_csv_library")
+            ) {
+                if (isImportingCsv) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        color = CinemaGold,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.FileUpload,
+                        contentDescription = "Import CSV",
+                        modifier = Modifier.size(16.dp)
                     )
                 }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isImportingCsv) "Importing..." else "Import CSV",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
+                )
             }
         }
 
-        if (!BuildConfig.IS_V1_EDITION && (isImportingCsv || !csvImportMessage.isNullOrBlank())) {
+        if (isImportingCsv || !csvImportMessage.isNullOrBlank()) {
             Card(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
@@ -324,58 +322,56 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (!BuildConfig.IS_V1_EDITION) {
-                FilterChip(
-                    selected = monetizationState.streamOnMyAppsOnly,
-                    onClick = { viewModel.setStreamOnMyAppsOnly(!monetizationState.streamOnMyAppsOnly) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Subscriptions,
-                            contentDescription = null,
-                            tint = if (monetizationState.streamOnMyAppsOnly) CinemaCyan else CinemaGold,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = if (monetizationState.isPro) "On My Apps" else "On My Apps • PRO",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = CinemaCyan.copy(alpha = 0.2f),
-                        selectedLabelColor = CinemaCyan
-                    ),
-                    modifier = Modifier.testTag("chip_on_my_apps")
-                )
+            FilterChip(
+                selected = monetizationState.streamOnMyAppsOnly,
+                onClick = { viewModel.setStreamOnMyAppsOnly(!monetizationState.streamOnMyAppsOnly) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Subscriptions,
+                        contentDescription = null,
+                        tint = if (monetizationState.streamOnMyAppsOnly) CinemaCyan else CinemaGold,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                label = {
+                    Text(
+                        text = if (monetizationState.isPro) "On My Apps" else "On My Apps • PRO",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = CinemaCyan.copy(alpha = 0.2f),
+                    selectedLabelColor = CinemaCyan
+                ),
+                modifier = Modifier.testTag("chip_on_my_apps")
+            )
 
-                FilterChip(
-                    selected = false,
-                    onClick = { viewModel.openOttMoneySaver() },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Savings,
-                            contentDescription = null,
-                            tint = CinemaGreen,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = "OTT Money-Saver",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CinemaGreen,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    },
-                    modifier = Modifier.testTag("chip_ott_money_saver")
-                )
-            }
+            FilterChip(
+                selected = false,
+                onClick = { viewModel.openOttMoneySaver() },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Savings,
+                        contentDescription = null,
+                        tint = CinemaGreen,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                label = {
+                    Text(
+                        text = "OTT Money-Saver",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CinemaGreen,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                },
+                modifier = Modifier.testTag("chip_ott_money_saver")
+            )
 
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Sort,
@@ -459,8 +455,6 @@ fun LibraryScreen(
                             "Turn off 'On My Apps' or add more streaming apps."
                         } else if (selectedTab == LibraryTab.FAVORITES) {
                             "Heart titles or people to save them here."
-                        } else if (BuildConfig.IS_V1_EDITION) {
-                            "Find titles to track your progress."
                         } else {
                             "Explore titles or import a CSV watchlist."
                         },
@@ -480,22 +474,20 @@ fun LibraryScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Explore Titles", fontWeight = FontWeight.Bold)
                     }
-                    if (!BuildConfig.IS_V1_EDITION) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        OutlinedButton(
-                            onClick = launchCsvImport,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.testTag("btn_import_csv_empty_state")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FileUpload,
-                                contentDescription = null,
-                                tint = CinemaGold,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Import CSV")
-                        }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = launchCsvImport,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.testTag("btn_import_csv_empty_state")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileUpload,
+                            contentDescription = null,
+                            tint = CinemaGold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Import CSV")
                     }
                 }
             }

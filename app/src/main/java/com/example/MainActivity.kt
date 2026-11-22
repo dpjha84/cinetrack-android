@@ -591,103 +591,105 @@ fun MovieverseApp(viewModel: MediaViewModel) {
             }
         }
 
-        // WatchPilot v2.0 Global Modal Bottom Sheets
-        if (!BuildConfig.IS_V1_EDITION) {
-            if (showPaywall) {
-                WatchPilotProPaywallSheet(
-                    monetizationState = monetizationState,
-                    triggerReason = paywallReason,
-                    onDismiss = { viewModel.dismissPaywall() },
-                    onPurchaseSku = { act, sku -> viewModel.purchasePro(act, sku) },
-                    onRestorePurchases = { viewModel.restorePurchases() },
-                    onActivateSandboxPro = { viewModel.activateSandboxPro() },
-                    onDeactivateSandboxPro = { viewModel.deactivateSandboxPro() }
-                )
-            }
+        // WatchPilot Global Modal Bottom Sheets
+        if (showPaywall) {
+            WatchPilotProPaywallSheet(
+                monetizationState = monetizationState,
+                triggerReason = paywallReason,
+                onDismiss = { viewModel.dismissPaywall() },
+                onPurchaseSku = { act, sku -> viewModel.purchasePro(act, sku) },
+                onRestorePurchases = { viewModel.restorePurchases() },
+                onActivateSandboxPro = { viewModel.activateSandboxPro() },
+                onDeactivateSandboxPro = { viewModel.deactivateSandboxPro() },
+                onWatchRewardedTrialAd = { viewModel.grantRewardedTrialPass("paywall") }
+            )
+        }
 
-            if (showSnapScanner) {
-                SnapScannerSheet(
-                    scanState = snapScanState,
-                    monetizationState = monetizationState,
-                    trackedMedia = trackedMedia,
-                    effectiveRegionCode = effectiveRegion,
-                    onDismiss = { viewModel.closeSnapScanner() },
-                    onPickScreenshotUri = { uri -> viewModel.scanScreenshotUri(context, uri) },
-                    onAddCandidate = { cand -> viewModel.addScannedCandidateToWatchlist(cand) },
-                    onAddAllToWatchlist = { viewModel.addAllScannedToWatchlist() },
-                    onOpenMedia = { entity ->
-                        viewModel.closeSnapScanner()
-                        viewModel.openMediaFromSearch(entity)
-                    },
-                    onUpgradePro = {
-                        viewModel.closeSnapScanner()
-                        viewModel.openPaywall("Unlock unlimited Snap-to-Watchlist Vision Scans with WatchPilot Pro.")
-                    }
-                )
-            }
+        if (showSnapScanner) {
+            SnapScannerSheet(
+                scanState = snapScanState,
+                monetizationState = monetizationState,
+                trackedMedia = trackedMedia,
+                effectiveRegionCode = effectiveRegion,
+                onDismiss = { viewModel.closeSnapScanner() },
+                onPickScreenshotUri = { uri -> viewModel.scanScreenshotUri(context, uri) },
+                onAddCandidate = { cand -> viewModel.addScannedCandidateToWatchlist(cand) },
+                onAddAllToWatchlist = { viewModel.addAllScannedToWatchlist() },
+                onOpenMedia = { entity ->
+                    viewModel.closeSnapScanner()
+                    viewModel.openMediaFromSearch(entity)
+                },
+                onUpgradePro = {
+                    viewModel.closeSnapScanner()
+                    viewModel.openPaywall("Unlock unlimited Snap-to-Watchlist Vision Scans with WatchPilot Pro.")
+                },
+                onWatchRewardedTrialAd = { viewModel.grantRewardedTrialPass("snap_scanner") }
+            )
+        }
 
-            if (showAiConcierge) {
-                AiConciergeSheet(
-                    conciergeState = conciergeState,
-                    monetizationState = monetizationState,
-                    trackedMedia = trackedMedia,
-                    effectiveRegionCode = effectiveRegion,
-                    onDismiss = { viewModel.closeAiConcierge() },
-                    onGeneratePicks = { mood, budget, aud -> viewModel.askAiConcierge(mood, budget, aud) },
-                    onAddPickToWatchlist = { pick ->
-                        val entity = pick.matchedEntity
-                        if (entity != null) {
-                            viewModel.updateStatus(entity.id, WatchStatus.PLAN_TO_WATCH)
-                        }
-                    },
-                    onOpenMedia = { entity ->
-                        viewModel.closeAiConcierge()
-                        viewModel.openMediaFromSearch(entity)
-                    },
-                    onUpgradePro = {
-                        viewModel.closeAiConcierge()
-                        viewModel.openPaywall("Unlock unlimited Tonight's AI Concierge picks with WatchPilot Pro.")
+        if (showAiConcierge) {
+            AiConciergeSheet(
+                conciergeState = conciergeState,
+                monetizationState = monetizationState,
+                trackedMedia = trackedMedia,
+                effectiveRegionCode = effectiveRegion,
+                onDismiss = { viewModel.closeAiConcierge() },
+                onGeneratePicks = { mood, budget, aud -> viewModel.askAiConcierge(mood, budget, aud) },
+                onAddPickToWatchlist = { pick ->
+                    val entity = pick.matchedEntity
+                    if (entity != null) {
+                        viewModel.updateStatus(entity.id, WatchStatus.PLAN_TO_WATCH)
                     }
-                )
-            }
+                },
+                onOpenMedia = { entity ->
+                    viewModel.closeAiConcierge()
+                    viewModel.openMediaFromSearch(entity)
+                },
+                onUpgradePro = {
+                    viewModel.closeAiConcierge()
+                    viewModel.openPaywall("Unlock unlimited Tonight's AI Concierge picks with WatchPilot Pro.")
+                },
+                onWatchRewardedTrialAd = { viewModel.grantRewardedTrialPass("ai_concierge") }
+            )
+        }
 
-            if (showSwipeMatch) {
-                SwipeToMatchSheet(
-                    currentUser = currentUser,
-                    matchRoomState = matchRoomState,
-                    skippedIds = skippedMatchIds,
-                    monetizationState = monetizationState,
-                    onDismiss = { viewModel.closeSwipeMatch() },
-                    onSignInWithGoogle = { act ->
-                        viewModel.signInWithGoogle(
-                            activity = act,
-                            onError = { err -> viewModel.reportMatchRoomAuthError(err) }
-                        )
-                    },
-                    onCreateRoom = { providers -> viewModel.createMatchRoom(providers) },
-                    onJoinRoom = { code -> viewModel.joinMatchRoom(code) },
-                    onSwipeCandidate = { cand, liked -> viewModel.swipeMatchCard(cand, liked) },
-                    onLeaveOrCloseRoom = { viewModel.leaveOrCloseMatchRoom() },
-                    onOpenMatchedMedia = { id, title, yr, type ->
-                        viewModel.openMatchedMediaFromRoom(id, title, yr, type)
-                    }
-                )
-            }
+        if (showSwipeMatch) {
+            SwipeToMatchSheet(
+                currentUser = currentUser,
+                matchRoomState = matchRoomState,
+                skippedIds = skippedMatchIds,
+                monetizationState = monetizationState,
+                onDismiss = { viewModel.closeSwipeMatch() },
+                onSignInWithGoogle = { act ->
+                    viewModel.signInWithGoogle(
+                        activity = act,
+                        onError = { err -> viewModel.reportMatchRoomAuthError(err) }
+                    )
+                },
+                onCreateRoom = { providers -> viewModel.createMatchRoom(providers) },
+                onJoinRoom = { code -> viewModel.joinMatchRoom(code) },
+                onSwipeCandidate = { cand, liked -> viewModel.swipeMatchCard(cand, liked) },
+                onLeaveOrCloseRoom = { viewModel.leaveOrCloseMatchRoom() },
+                onOpenMatchedMedia = { id, title, yr, type ->
+                    viewModel.openMatchedMediaFromRoom(id, title, yr, type)
+                },
+                onWatchRewardedTrialAd = { viewModel.grantRewardedTrialPass("swipe_match") }
+            )
+        }
 
-            if (showOttMoneySaver) {
-                OttMoneySaverSheet(
-                    monetizationState = monetizationState,
-                    summary = ottMoneySaverSummary,
-                    effectiveRegionCode = effectiveRegion,
-                    onDismiss = { viewModel.closeOttMoneySaver() },
-                    onToggleProvider = { name -> viewModel.toggleSubscribedProvider(name) },
-                    onToggleStreamOnMyAppsOnly = { enabled -> viewModel.setStreamOnMyAppsOnly(enabled) },
-                    onUpgradePro = {
-                        viewModel.closeOttMoneySaver()
-                        viewModel.openPaywall("Unlock the full OTT Money-Saver Radar & 'On My Apps' Library filter with WatchPilot Pro.")
-                    }
-                )
-            }
+        if (showOttMoneySaver) {
+            OttMoneySaverSheet(
+                monetizationState = monetizationState,
+                summary = ottMoneySaverSummary,
+                effectiveRegionCode = effectiveRegion,
+                onDismiss = { viewModel.closeOttMoneySaver() },
+                onToggleProvider = { name -> viewModel.toggleSubscribedProvider(name) },
+                onToggleStreamOnMyAppsOnly = { enabled -> viewModel.setStreamOnMyAppsOnly(enabled) },
+                onUpgradePro = {
+                    viewModel.closeOttMoneySaver()
+                    viewModel.openPaywall("Unlock the full OTT Money-Saver Radar & 'On My Apps' Library filter with WatchPilot Pro.")
+                }
+            )
         }
 
         if (showLegalDialog) {

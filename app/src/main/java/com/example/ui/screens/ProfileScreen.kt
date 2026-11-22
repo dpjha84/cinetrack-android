@@ -1,8 +1,12 @@
 package com.example.ui.screens
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -30,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DeleteForever
@@ -38,9 +43,12 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Share
@@ -112,11 +120,25 @@ fun ProfileScreen(
     val stats by viewModel.stats.collectAsStateWithLifecycle()
     val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
     val ottSummary by viewModel.ottMoneySaverSummary.collectAsStateWithLifecycle()
+    val watchAlerts by viewModel.watchAlerts.collectAsStateWithLifecycle()
     val isImportingCsv by viewModel.isImportingCsv.collectAsStateWithLifecycle()
     val csvImportMessage by viewModel.csvImportMessage.collectAsStateWithLifecycle()
 
     var showRegionDialog by remember { mutableStateOf(false) }
     var showDeleteAccountConfirm by remember { mutableStateOf(false) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.setProAlertsEnabled(true)
+        if (!granted) {
+            Toast.makeText(
+                context,
+                "In-app alerts enabled. Allow notifications in Settings for lock-screen push alerts.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
     val csvPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -174,11 +196,7 @@ fun ProfileScreen(
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Text(
-                                text = if (BuildConfig.IS_V1_EDITION) {
-                                    "Sync & Cinema DNA"
-                                } else {
-                                    "Sync, Pro & Cinema DNA"
-                                },
+                                text = "Sync, Pro & Cinema DNA",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -203,9 +221,8 @@ fun ProfileScreen(
             }
         }
 
-        // WatchPilot Pro Membership Card (v2+ only)
-        if (!BuildConfig.IS_V1_EDITION) {
-            item {
+        // WatchPilot Pro Membership Card
+        item {
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
@@ -378,7 +395,6 @@ fun ProfileScreen(
                 }
             }
         }
-        }
 
         // Account Status Card
         item {
@@ -524,11 +540,7 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = if (BuildConfig.IS_V1_EDITION) {
-                                "Sign in with Google to back up your library."
-                            } else {
-                                "Sign in for cloud backup & live rooms."
-                            },
+                            text = "Sign in for cloud backup & live rooms.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -574,10 +586,9 @@ fun ProfileScreen(
             }
         }
 
-        // OTT Subscription Money-Saver Radar & Library Portability Card (v2+ only)
-        if (!BuildConfig.IS_V1_EDITION) {
-            item {
-                Column(
+        // OTT Subscription Money-Saver Radar, Alerts & Library Portability
+        item {
+            Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(sectionWidthMod)
@@ -680,72 +691,242 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-            // Import & Export Library Card
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp)
-                    .testTag("card_library_portability")
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text(
-                        text = "Import & Backup",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = if (BuildConfig.IS_V1_EDITION) {
-                            "Import from IMDb, Letterboxd, Trakt, or export backups."
-                        } else {
-                            "Free CSV import • CSV/JSON export with Pro."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Button(
-                        onClick = {
-                            csvPickerLauncher.launch(
-                                arrayOf(
-                                    "text/*",
-                                    "text/comma-separated-values",
-                                    "application/csv",
-                                    "application/octet-stream"
-                                )
-                            )
-                        },
-                        enabled = !isImportingCsv,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = CinemaGold,
-                            contentColor = Color.Black
-                        ),
-                        shape = RoundedCornerShape(12.dp),
+                    // Streaming & New-Season Alerts (Pro)
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("btn_profile_import_csv")
+                            .padding(horizontal = 20.dp, vertical = 4.dp)
+                            .testTag("card_pro_alerts")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FileUpload,
-                            contentDescription = null,
-                            modifier = Modifier.size(17.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = when {
-                                isImportingCsv -> "Importing CSV..."
-                                BuildConfig.IS_V1_EDITION -> "Import Watchlist CSV"
-                                else -> "Import Watchlist CSV (Free)"
-                            },
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column(modifier = Modifier.padding(18.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = CinemaCyan.copy(alpha = 0.16f),
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.NotificationsActive,
+                                            contentDescription = null,
+                                            tint = CinemaCyan,
+                                            modifier = Modifier.padding(9.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Streaming & Season Alerts",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            if (!monetizationState.isPro) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = CinemaGold.copy(alpha = 0.18f)
+                                                ) {
+                                                    Text(
+                                                        text = "PRO",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        color = CinemaGold,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Text(
+                                            text = if (monetizationState.proAlertsEnabled) {
+                                                "Watching for new seasons & titles landing on your OTT apps"
+                                            } else {
+                                                "Get alerted when Watchlist items hit your subscribed apps"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Switch(
+                                    checked = monetizationState.proAlertsEnabled,
+                                    onCheckedChange = { wantEnabled ->
+                                        if (!wantEnabled) {
+                                            viewModel.setProAlertsEnabled(false)
+                                        } else if (!monetizationState.isPro) {
+                                            viewModel.openPaywall("Unlock Streaming Availability & New-Season Alerts with WatchPilot Pro.")
+                                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        } else {
+                                            viewModel.setProAlertsEnabled(true)
+                                        }
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.Black,
+                                        checkedTrackColor = CinemaCyan
+                                    ),
+                                    modifier = Modifier.testTag("switch_pro_alerts")
+                                )
+                            }
+
+                            if (monetizationState.isPro && monetizationState.proAlertsEnabled) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (watchAlerts.isEmpty()) {
+                                            "No new updates yet — tap Check Now to scan"
+                                        } else {
+                                            "${watchAlerts.size} active watchlist update(s)"
+                                        },
+                                        fontSize = 12.sp,
+                                        color = CinemaCyan,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(
+                                        onClick = { viewModel.refreshWatchAlertsNow() },
+                                        modifier = Modifier.testTag("btn_refresh_watch_alerts")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "Check Alerts Now",
+                                            tint = CinemaCyan,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Check Now", fontSize = 12.sp, color = CinemaCyan, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                watchAlerts.take(4).forEach { alert ->
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { viewModel.selectMedia(alert.mediaId) }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                                Text(
+                                                    text = alert.title,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = "${alert.alertType.badgeLabel} • ${alert.detailMessage}",
+                                                    fontSize = 11.sp,
+                                                    color = CinemaGreen,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            androidx.compose.material3.IconButton(
+                                                onClick = { viewModel.dismissWatchAlert(alert.id) }
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Dismiss alert",
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Import & Export Library Card
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 4.dp)
+                            .testTag("card_library_portability")
+                    ) {
+                        Column(modifier = Modifier.padding(18.dp)) {
+                            Text(
+                                text = "Import & Backup",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Free CSV import • CSV/JSON export with Pro.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Button(
+                                onClick = {
+                                    csvPickerLauncher.launch(
+                                        arrayOf(
+                                            "text/*",
+                                            "text/comma-separated-values",
+                                            "application/csv",
+                                            "application/octet-stream"
+                                        )
+                                    )
+                                },
+                                enabled = !isImportingCsv,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = CinemaGold,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("btn_profile_import_csv")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FileUpload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isImportingCsv) "Importing CSV..." else "Import Watchlist CSV (Free)",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -819,7 +1000,6 @@ fun ProfileScreen(
                 }
             }
             }
-        }
         }
 
         // Preferences & Region Section
@@ -1171,12 +1351,13 @@ fun ProfileScreen(
             }
         }
 
-        // Cinema DNA (Completion Rate, Favorite Era / Decades & Top Language)
+        // Cinema DNA (Completion Rate, Favorite Era / Decades & Top Language — Pro Insights)
         item {
             Spacer(modifier = Modifier.height(8.dp))
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                border = if (!monetizationState.isPro) BorderStroke(1.dp, CinemaGold.copy(alpha = 0.28f)) else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(sectionWidthMod)
@@ -1184,88 +1365,151 @@ fun ProfileScreen(
                     .testTag("card_cinema_dna")
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Timeline,
-                            contentDescription = null,
-                            tint = CinemaCyan,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Cinema DNA",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = CinemaCyan.copy(alpha = 0.14f)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "${stats.completionRatePercent}% Completion • ${stats.topOriginLanguage}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = CinemaCyan,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    if (stats.decadeBreakdown.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        stats.decadeBreakdown.take(4).forEach { decadeStat ->
-                            val countText = if (decadeStat.count == 1) "1 title" else "${decadeStat.count} titles"
-                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Timeline,
+                                contentDescription = null,
+                                tint = CinemaCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Cinema DNA Insights",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (!monetizationState.isPro) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = CinemaGold.copy(alpha = 0.18f)
+                            ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                 ) {
-                                    Text(
-                                        text = decadeStat.decadeLabel,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .padding(end = 8.dp)
+                                    Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = null,
+                                        tint = CinemaGold,
+                                        modifier = Modifier.size(11.dp)
                                     )
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = countText,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = CinemaCyan,
-                                        maxLines = 1,
-                                        softWrap = false
+                                        text = "PRO",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = CinemaGold
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(3.dp))
-                                LinearProgressIndicator(
-                                    progress = { decadeStat.percentage },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(6.dp)
-                                        .clip(CircleShape),
-                                    color = CinemaCyan,
-                                    trackColor = MaterialTheme.colorScheme.surface
-                                )
                             }
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (monetizationState.isPro) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = CinemaCyan.copy(alpha = 0.14f)
+                        ) {
+                            Text(
+                                text = "${stats.completionRatePercent}% Completion • ${stats.topOriginLanguage}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = CinemaCyan,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        if (stats.decadeBreakdown.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            stats.decadeBreakdown.take(4).forEach { decadeStat ->
+                                val countText = if (decadeStat.count == 1) "1 title" else "${decadeStat.count} titles"
+                                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = decadeStat.decadeLabel,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 8.dp)
+                                        )
+                                        Text(
+                                            text = countText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = CinemaCyan,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    LinearProgressIndicator(
+                                        progress = { decadeStat.percentage },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(CircleShape),
+                                        color = CinemaCyan,
+                                        trackColor = MaterialTheme.colorScheme.surface
+                                    )
+                                }
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Log titles to unlock your stats.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     } else {
-                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Log titles to unlock your stats.",
+                            text = "Unlock your Completion Rate %, Top Origin Language, and Favorite Decade & Era Breakdown with WatchPilot Pro.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        FilledTonalButton(
+                            onClick = {
+                                viewModel.openPaywall("Unlock deep Cinema DNA Insights (Completion Rate, Era Breakdown & Language DNA) with WatchPilot Pro.")
+                            },
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = CinemaGold.copy(alpha = 0.2f),
+                                contentColor = CinemaGold
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_unlock_cinema_dna_pro")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WorkspacePremium,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Unlock Cinema DNA Insights", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

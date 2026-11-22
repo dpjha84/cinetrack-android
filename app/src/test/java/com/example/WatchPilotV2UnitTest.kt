@@ -1,11 +1,17 @@
 package com.example
 
+import com.example.data.billing.MonetizationQuotaPolicy
 import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
+import com.example.data.model.MonetizationState
 import com.example.data.model.OttRecommendation
+import com.example.data.model.ProFeatureQuotaType
+import com.example.data.model.WatchAlertType
 import com.example.data.model.WatchStatus
 import com.example.util.CsvLibraryPorter
 import com.example.util.OttMoneySaverCalculator
+import com.example.util.WatchAlertSnapshot
+import com.example.util.WatchAlertsManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -19,11 +25,14 @@ class WatchPilotV2UnitTest {
         status: WatchStatus = WatchStatus.PLAN_TO_WATCH,
         providers: String = "US:Netflix,Max|IN:JioCinema",
         rating: Float = 0f,
-        isFavorite: Boolean = false
+        isFavorite: Boolean = false,
+        mediaType: MediaType = MediaType.MOVIE,
+        totalSeasons: Int = 0,
+        totalEpisodes: Int = 1
     ): MediaEntity = MediaEntity(
         id = id,
         title = title,
-        mediaType = MediaType.MOVIE.name,
+        mediaType = mediaType.name,
         releaseYear = 2024,
         genres = "Sci-Fi, Thriller",
         posterUrl = "https://example.com/p.jpg",
@@ -33,8 +42,8 @@ class WatchPilotV2UnitTest {
         cast = "Actor",
         communityRating = 8.1f,
         runtimeMinutes = 120,
-        totalSeasons = 0,
-        totalEpisodes = 1,
+        totalSeasons = totalSeasons,
+        totalEpisodes = totalEpisodes,
         status = status.name,
         userRating = rating,
         isFavorite = isFavorite,
@@ -188,4 +197,147 @@ class WatchPilotV2UnitTest {
             com.example.data.model.HomeCatalogSection.UPCOMING.formattedTitle("India", MediaType.TV_SHOW)
         )
     }
+
+    @Test
+    fun monetizationQuotaPolicy_resetsMonthlyAndEnforcesRewardedAdAntiAbuseCaps() {
+        val exhaustedNov = MonetizationState(
+            snapScansUsed = 3,
+            aiConciergeUsed = 3,
+            matchRoomsHosted = 1,
+            aiRecapsUsed = 1,
+            quotaYearMonth = "2026-11",
+            rewardedTrialCredits = 1,
+            rewardedAdsWatchedToday = 1,
+            rewardedLastDayKey = "2026-11-30",
+            rewardedAdsWatchedThisMonth = 3,
+            rewardedMonthKey = "2026-11"
+        )
+
+        // Same day & month: cannot watch another rewarded ad
+        assertFalse(exhaustedNov.canWatchRewardedTrialAd)
+        val blockedSameDay = MonetizationQuotaPolicy.recordRewardedAdEarned(
+            state = exhaustedNov,
+            dayKey = "2026-11-30",
+            monthKey = "2026-11"
+        )
+        assertEquals(1, blockedSameDay.rewardedTrialCredits)
+        assertEquals(3, blockedSameDay.rewardedAdsWatchedThisMonth)
+
+        // Calendar month rolls over -> all monthly free quotas & monthly rewarded counter reset; banked pass retained
+        val rolledDec = MonetizationQuotaPolicy.normalizeForDate(
+            state = exhaustedNov,
+            dayKey = "2026-12-01",
+            monthKey = "2026-12"
+        )
+        assertEquals(0, rolledDec.snapScansUsed)
+        assertEquals(0, rolledDec.aiConciergeUsed)
+        assertEquals(0, rolledDec.matchRoomsHosted)
+        assertEquals(0, rolledDec.aiRecapsUsed)
+        assertEquals(0, rolledDec.rewardedAdsWatchedToday)
+        assertEquals(0, rolledDec.rewardedAdsWatchedThisMonth)
+        assertEquals(1, rolledDec.rewardedTrialCredits)
+        assertTrue(rolledDec.canWatchRewardedTrialAd)
+
+        // Earn 1 ad on Dec 1 -> reaches MAX_BANKED_TRIAL_CREDITS (2) & daily cap (1/day)
+        val afterDay1Ad = MonetizationQuotaPolicy.recordRewardedAdEarned(
+            state = rolledDec,
+            dayKey = "2026-12-01",
+            monthKey = "2026-12"
+        )
+        assertEquals(2, afterDay1Ad.rewardedTrialCredits)
+        assertEquals(1, afterDay1Ad.rewardedAdsWatchedToday)
+        assertEquals(1, afterDay1Ad.rewardedAdsWatchedThisMonth)
+        assertFalse(afterDay1Ad.canWatchRewardedTrialAd)
+
+        // Even on Dec 2, cannot bank above MAX_BANKED_TRIAL_CREDITS (2)
+        val nextDayNormalized = MonetizationQuotaPolicy.normalizeForDate(
+            state = afterDay1Ad,
+            dayKey = "2026-12-02",
+            monthKey = "2026-12"
+        )
+        assertFalse(nextDayNormalized.canWatchRewardedTrialAd)
+
+        // Consume AI Recap: uses free monthly quota first (1/1), keeping banked ad passes intact
+        val afterFreeRecap = MonetizationQuotaPolicy.consumeFeatureUse(
+            state = afterDay1Ad,
+            feature = ProFeatureQuotaType.AI_RECAP,
+            dayKey = "2026-12-02",
+            monthKey = "2026-12"
+        )
+        assertEquals(1, afterFreeRecap.aiRecapsUsed)
+        assertEquals(2, afterFreeRecap.rewardedTrialCredits)
+
+        // Second AI Recap uses 1 banked rewarded trial pass
+        val afterPassRecap = MonetizationQuotaPolicy.consumeFeatureUse(
+            state = afterFreeRecap,
+            feature = ProFeatureQuotaType.AI_RECAP,
+            dayKey = "2026-12-02",
+            monthKey = "2026-12"
+        )
+        assertEquals(1, afterPassRecap.rewardedTrialCredits)
+        assertTrue(afterPassRecap.canWatchRewardedTrialAd) // bank dropped below 2 & Dec 2 daily count is 0
+
+        // Pro users never consume monthly quotas or trial credits
+        val proUser = afterFreeRecap.copy(isPro = true)
+        val proAfterRecap = MonetizationQuotaPolicy.consumeFeatureUse(
+            state = proUser,
+            feature = ProFeatureQuotaType.AI_RECAP,
+            dayKey = "2026-12-02",
+            monthKey = "2026-12"
+        )
+        assertEquals(1, proAfterRecap.aiRecapsUsed)
+        assertEquals(2, proAfterRecap.rewardedTrialCredits)
+    }
+
+    @Test
+    fun watchAlertsManager_detectsStreamingArrivalAndNewSeasonWithoutDuplicates() {
+        val movieOnNetflix = sampleMedia(
+            id = "tmdb_m_701",
+            title = "Arrival Movie",
+            status = WatchStatus.PLAN_TO_WATCH,
+            providers = "US:Netflix,Max"
+        )
+        val showNewSeason = sampleMedia(
+            id = "tmdb_tv_802",
+            title = "Severance",
+            status = WatchStatus.WATCHING,
+            providers = "US:Apple TV+",
+            mediaType = MediaType.TV_SHOW,
+            totalSeasons = 2,
+            totalEpisodes = 19
+        )
+
+        val prevSnapshots = mapOf(
+            "tmdb_m_701" to WatchAlertSnapshot(knownSeasons = 0, wasOnMyApps = false),
+            "tmdb_tv_802" to WatchAlertSnapshot(knownSeasons = 1, wasOnMyApps = true)
+        )
+
+        val (alerts, updatedSnapshots) = WatchAlertsManager.detectWatchAlerts(
+            trackedMedia = listOf(movieOnNetflix, showNewSeason),
+            previousSnapshots = prevSnapshots,
+            subscribedProviders = setOf("Netflix", "Apple TV+"),
+            regionCode = "US",
+            nowMs = 1_700_000_000_000L
+        )
+
+        assertEquals(2, alerts.size)
+        val streamAlert = alerts.first { it.mediaId == "tmdb_m_701" }
+        assertEquals(WatchAlertType.NOW_ON_MY_APPS, streamAlert.alertType)
+        assertTrue(streamAlert.detailMessage.contains("Netflix"))
+
+        val seasonAlert = alerts.first { it.mediaId == "tmdb_tv_802" }
+        assertEquals(WatchAlertType.NEW_SEASON, seasonAlert.alertType)
+        assertTrue(seasonAlert.detailMessage.contains("Season 2"))
+
+        // Re-evaluating unchanged state must NOT fire duplicate alerts
+        val (secondPassAlerts, _) = WatchAlertsManager.detectWatchAlerts(
+            trackedMedia = listOf(movieOnNetflix, showNewSeason),
+            previousSnapshots = updatedSnapshots,
+            subscribedProviders = setOf("Netflix", "Apple TV+"),
+            regionCode = "US",
+            nowMs = 1_700_000_005_000L
+        )
+        assertTrue(secondPassAlerts.isEmpty())
+    }
 }
+

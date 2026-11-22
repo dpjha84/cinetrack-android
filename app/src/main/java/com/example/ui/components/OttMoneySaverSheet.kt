@@ -47,7 +47,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.BuildConfig
 import com.example.R
 import com.example.data.model.MonetizationState
 import com.example.data.model.OttMoneySaverSummary
@@ -385,27 +384,19 @@ fun LegalComplianceDialog(
                     fontSize = 13.sp
                 )
                 Text(
-                    text = if (BuildConfig.IS_V1_EDITION) {
-                        "Your watchlist, episode progress, ratings, and custom collections are stored locally on your device and optionally synced to your private Google Cloud account when signed in with Google. You can permanently delete your account and cloud data anytime from Profile."
-                    } else {
-                        "Your watchlist, episode progress, ratings, and custom collections are stored locally on your device and optionally synced to your private Google Cloud account when signed in with Google. You can export your data or permanently delete your account and cloud data anytime from Profile."
-                    },
+                    text = "Your watchlist, episode progress, ratings, and custom collections are stored locally on your device and optionally synced to your private Google Cloud account when signed in with Google. You can export your data or permanently delete your account and cloud data anytime from Profile.",
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = if (BuildConfig.IS_V1_EDITION) "Advertising" else "Subscriptions & Advertising",
+                    text = "Subscriptions & Advertising",
                     fontWeight = FontWeight.Bold,
                     color = CinemaGold,
                     fontSize = 13.sp
                 )
                 Text(
-                    text = if (BuildConfig.IS_V1_EDITION) {
-                        "WatchPilot displays clearly labeled inline banner ads and periodic (time-capped) trailer interstitial ads via Google AdMob so all core movie & series tracking features remain 100% free."
-                    } else {
-                        "WatchPilot Free displays clearly labeled inline sponsored banners via Google AdMob. WatchPilot Pro subscriptions are billed and managed through Google Play and can be canceled anytime in Google Play Subscriptions."
-                    },
+                    text = "WatchPilot Free displays clearly labeled inline sponsored banners, periodic time-capped trailer interstitials, and optional rewarded video passes via Google AdMob so core tracking remains free. WatchPilot Pro removes all ads and is billed through Google Play.",
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

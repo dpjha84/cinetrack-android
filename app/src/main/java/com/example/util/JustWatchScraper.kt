@@ -3,7 +3,7 @@ package com.example.util
 import java.net.URLDecoder
 
 /**
- * WatchPilot v2.0 Policy-Compliant Link Helper.
+ * WatchPilot Policy-Compliant Link Helper.
  * Never scrapes third-party HTML pages; streaming availability is sourced strictly
  * via the official TMDB watch/providers API (powered by JustWatch) and launched
  * via WatchProviderLauncher intent / deep-link resolution.

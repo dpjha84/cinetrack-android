@@ -2,7 +2,9 @@ package com.example.data.ai
 
 import android.graphics.Bitmap
 import android.util.Log
+import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
+import com.example.data.model.TitleAiBrief
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.Schema
@@ -83,6 +85,17 @@ class WatchPilotAiService {
         )
     }
 
+    private val titleBriefSchema by lazy {
+        Schema.obj(
+            properties = mapOf(
+                "personalMatchScore" to Schema.integer(description = "Personalized match score from 75 to 99"),
+                "watchPriorityTag" to Schema.string(description = "Short 2-3 word label like Must-Watch Tonight, Weekend Binge, or Slow-Burn Gem"),
+                "fitSummary" to Schema.string(description = "1-2 concise sentences explaining why this title fits the user's personal taste, favorites, and vibe."),
+                "seasonRecap" to Schema.string(description = "Strictly spoiler-free premise hook or catch-up summary up to the user's current progress without spoiling twists or future seasons.")
+            )
+        )
+    }
+
     // Lazy initialization per Firebase AI Logic contract (never evaluate at construction time)
     private val visionScannerModel by lazy {
         Firebase.ai.generativeModel(
@@ -100,6 +113,16 @@ class WatchPilotAiService {
             generationConfig = generationConfig {
                 responseMimeType = "application/json"
                 responseSchema = conciergeSchema
+            }
+        )
+    }
+
+    private val titleBriefModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = MODEL_NAME,
+            generationConfig = generationConfig {
+                responseMimeType = "application/json"
+                responseSchema = titleBriefSchema
             }
         )
     }
@@ -227,6 +250,84 @@ class WatchPilotAiService {
         } catch (e: Exception) {
             Log.e(TAG, "AI Concierge failed", e)
             Result.failure(IllegalStateException(e.localizedMessage ?: "AI Concierge request failed."))
+        }
+    }
+
+    suspend fun generateTitleAiBrief(
+        media: MediaEntity,
+        favoriteAndTopRatedTitles: List<String>,
+        subscribedProviders: Set<String>
+    ): Result<TitleAiBrief> {
+        return try {
+            val isTv = media.getMediaTypeEnum() == MediaType.TV_SHOW
+            val watchedSeasonsCount = media.watchedSeasons.coerceAtLeast(0)
+            val progressInstruction = if (isTv) {
+                when {
+                    watchedSeasonsCount > 0 ->
+                        "The user has finished $watchedSeasonsCount season(s) of ${media.totalSeasons.coerceAtLeast(1)}. Give a crisp spoiler-free 'Previously On...' catch-up summarizing Season 1 to Season $watchedSeasonsCount ONLY so they can jump straight into the next season. NEVER spoil Season ${watchedSeasonsCount + 1} or later endings."
+                    media.watchedEpisodes > 0 ->
+                        "The user has watched ${media.watchedEpisodes} of ${media.totalEpisodes} episodes. Give a strictly spoiler-free early-series refresher covering the premise and main characters without spoiling later twists."
+                    else ->
+                        "The user has not started this series yet. Give an atmospheric, strictly spoiler-free Season 1 setup & pacing preview."
+                }
+            } else {
+                "Give a strictly spoiler-free tone, pacing, and mood setup for this movie without revealing plot twists or the ending."
+            }
+
+            val tasteLine = if (favoriteAndTopRatedTitles.isNotEmpty()) {
+                "User's favorite/top-rated titles: ${favoriteAndTopRatedTitles.take(8).joinToString(", ")}."
+            } else {
+                "User enjoys engaging storytelling, strong performances, and high production value."
+            }
+
+            val prompt = buildString {
+                appendLine("You are WatchPilot's Spoiler-Free AI Companion.")
+                appendLine("Target Title: ${media.title} (${media.releaseYear}) [${media.mediaType}]")
+                appendLine("Genres: ${media.genres.ifBlank { "Drama" }}")
+                if (media.overview.isNotBlank()) {
+                    appendLine("Overview: ${media.overview.take(350)}")
+                }
+                appendLine(tasteLine)
+                if (subscribedProviders.isNotEmpty()) {
+                    appendLine("User's streaming subscriptions: ${subscribedProviders.joinToString(", ")}.")
+                }
+                appendLine(progressInstruction)
+            }
+
+            val response = withTimeout(AI_TIMEOUT_MS) {
+                titleBriefModel.generateContent(prompt)
+            }
+
+            val jsonText = response.text ?: return Result.failure(
+                IllegalStateException("AI Companion returned an empty response.")
+            )
+            val obj = JSONObject(jsonText)
+            val score = obj.optInt("personalMatchScore", 91).coerceIn(70, 99)
+            val tag = obj.optString("watchPriorityTag", "Strong Taste Match").trim().ifBlank { "Taste Match" }
+            val fit = obj.optString("fitSummary", "").trim()
+            val recap = obj.optString("seasonRecap", "").trim()
+
+            if (fit.isBlank() && recap.isBlank()) {
+                Result.failure(IllegalStateException("Could not build an AI brief for this title."))
+            } else {
+                Result.success(
+                    TitleAiBrief(
+                        mediaId = media.id,
+                        personalMatchScore = score,
+                        watchPriorityTag = tag,
+                        fitSummary = fit.ifBlank { "Strong thematic match with your favorite genres." },
+                        seasonRecap = recap.ifBlank { "Spoiler-free premise ready whenever you hit play." }
+                    )
+                )
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "AI title brief timed out", e)
+            Result.failure(IllegalStateException("AI brief timed out after 60 seconds. Please try again."))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "AI title brief failed", e)
+            Result.failure(IllegalStateException(e.localizedMessage ?: "Could not generate AI recap."))
         }
     }
 

@@ -36,9 +36,11 @@ import com.example.data.model.OttMoneySaverSummary
 import com.example.data.model.RegionalDefaults
 import com.example.data.model.ScannedMediaCandidate
 import com.example.data.model.SnapScanUiState
+import com.example.data.model.TitleAiBriefUiState
 import com.example.data.model.TmdbSearchResultItem
 import com.example.data.model.TrailerItem
 import com.example.data.model.ViewingStats
+import com.example.data.model.WatchAlertEvent
 import com.example.data.model.WatchProvidersInfo
 import com.example.data.model.WatchStatus
 import com.example.data.model.SeasonItem
@@ -52,6 +54,8 @@ import com.example.data.repository.MediaRepository
 import com.example.util.AnalyticsTracker
 import com.example.util.CsvLibraryPorter
 import com.example.util.OttMoneySaverCalculator
+import com.example.util.RewardedTrialAdManager
+import com.example.util.WatchAlertsManager
 import com.example.util.WrappedCardExporter
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
@@ -77,6 +81,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -183,7 +188,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private var activeSyncUid: String? = null
     private var signOutJob: kotlinx.coroutines.Job? = null
 
-    // WatchPilot v2.0 Monetization, AI & Live Match Room Services
+    // WatchPilot Monetization, AI & Live Match Room Services
     val monetizationManager = MonetizationManager(
         context = application,
         scope = viewModelScope,
@@ -210,6 +215,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _conciergeState = MutableStateFlow<ConciergeUiState>(ConciergeUiState.Idle)
     val conciergeState: StateFlow<ConciergeUiState> = _conciergeState.asStateFlow()
+
+    private val _titleAiBriefs = MutableStateFlow<Map<String, TitleAiBriefUiState>>(emptyMap())
+    val titleAiBriefs: StateFlow<Map<String, TitleAiBriefUiState>> = _titleAiBriefs.asStateFlow()
+
+    private val _watchAlerts = MutableStateFlow(WatchAlertsManager.loadRecentAlerts(application))
+    val watchAlerts: StateFlow<List<WatchAlertEvent>> = _watchAlerts.asStateFlow()
 
     private val _matchRoomState = MutableStateFlow<MatchRoomUiState>(MatchRoomUiState.Idle)
     val matchRoomState: StateFlow<MatchRoomUiState> = _matchRoomState.asStateFlow()
@@ -2536,8 +2547,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         val existingList = customCollections.value
         val starterDefaults = setOf("Weekend Binge", "Mind-Bending Sci-Fi", "Must-Watch Classics", "Date Night", "Award Winners")
         val userCreatedCount = existingList.count { it !in starterDefaults }
-        if (!BuildConfig.IS_V1_EDITION &&
-            !monetizationState.value.isPro &&
+        if (!monetizationState.value.isPro &&
             !existingList.any { it.equals(clean, ignoreCase = true) } &&
             userCreatedCount >= MonetizationState.FREE_CUSTOM_COLLECTIONS_LIMIT
         ) {
@@ -2677,11 +2687,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // =========================================================================
-    // WatchPilot v2.0: Paywall, Billing, OTT Money-Saver, AI & Live Match Rooms
+    // WatchPilot 5.1.0: Paywall, Billing, Rewarded Trial Passes, OTT Alerts & AI
     // =========================================================================
 
     fun openPaywall(reason: String? = null) {
-        if (BuildConfig.IS_V1_EDITION) return
+        monetizationManager.refreshQuotasIfRolledOver()
+        RewardedTrialAdManager.preload(getApplication(), monetizationState.value.isPro)
         paywallTriggerReason.value = reason
         showPaywallSheet.value = true
     }
@@ -2693,7 +2704,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openSnapScanner() {
-        if (BuildConfig.IS_V1_EDITION) return
+        monetizationManager.refreshQuotasIfRolledOver()
+        RewardedTrialAdManager.preload(getApplication(), monetizationState.value.isPro)
         showSnapScannerSheet.value = true
     }
 
@@ -2702,7 +2714,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openAiConcierge() {
-        if (BuildConfig.IS_V1_EDITION) return
+        monetizationManager.refreshQuotasIfRolledOver()
+        RewardedTrialAdManager.preload(getApplication(), monetizationState.value.isPro)
         showAiConciergeSheet.value = true
     }
 
@@ -2711,7 +2724,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openSwipeMatch() {
-        if (BuildConfig.IS_V1_EDITION) return
+        monetizationManager.refreshQuotasIfRolledOver()
+        RewardedTrialAdManager.preload(getApplication(), monetizationState.value.isPro)
         showSwipeMatchSheet.value = true
     }
 
@@ -2724,7 +2738,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openOttMoneySaver() {
-        if (BuildConfig.IS_V1_EDITION) return
         showOttMoneySaverSheet.value = true
         refreshOttAuditProviders()
     }
@@ -2757,6 +2770,90 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         monetizationManager.deactivateSandboxPro()
     }
 
+    fun grantRewardedTrialPass(source: String = "sheet"): Boolean {
+        val granted = monetizationManager.grantRewardedTrialPass()
+        if (granted) {
+            AnalyticsTracker.logRewardedTrialEarned(source)
+        }
+        return granted
+    }
+
+    fun reportBillingOrAdNotice(message: String) {
+        monetizationManager.clearBillingMessage()
+        syncStatusMessage.value = message
+    }
+
+    fun setProAlertsEnabled(enabled: Boolean) {
+        if (enabled && !monetizationState.value.isPro) {
+            openPaywall("Streaming Availability & New-Season Alerts are a WatchPilot Pro feature.")
+            return
+        }
+        monetizationManager.setProAlertsEnabled(enabled)
+        if (enabled) {
+            refreshWatchAlertsNow()
+        }
+    }
+
+    fun refreshWatchAlertsNow() {
+        val mon = monetizationState.value
+        if (!mon.isPro) return
+        viewModelScope.launch {
+            val key = getActiveTmdbApiKey()
+            val region = effectiveRegionCode.value
+            repository.refreshWatchlistProvidersForAudit(region, key)
+            val updatedAlerts = withContext(Dispatchers.IO) {
+                WatchAlertsManager.evaluateAndDispatch(
+                    context = getApplication(),
+                    trackedMedia = trackedMedia.value,
+                    subscribedProviders = mon.subscribedProviders,
+                    regionCode = region,
+                    alertsEnabled = mon.proAlertsEnabled
+                )
+            }
+            _watchAlerts.value = updatedAlerts
+        }
+    }
+
+    fun dismissWatchAlert(alertId: String) {
+        _watchAlerts.value = WatchAlertsManager.dismissAlert(getApplication(), alertId)
+    }
+
+    fun generateTitleAiBrief(media: MediaEntity) {
+        monetizationManager.refreshQuotasIfRolledOver()
+        val mon = monetizationState.value
+        if (!mon.canUseAiRecap) {
+            openPaywall(
+                "You've used this month's free Spoiler-Free AI Recap. Upgrade to WatchPilot Pro or watch 1 short ad (when available) to try Pro once!"
+            )
+            return
+        }
+        viewModelScope.launch {
+            _titleAiBriefs.update { it + (media.id to TitleAiBriefUiState.Loading) }
+            val favs = trackedMedia.value
+                .filter { it.isFavorite || it.userRating >= 4.0f }
+                .sortedByDescending { it.userRating }
+                .map { "${it.title} (${it.releaseYear})" }
+            val res = aiService.generateTitleAiBrief(
+                media = media,
+                favoriteAndTopRatedTitles = favs,
+                subscribedProviders = mon.subscribedProviders
+            )
+            res.fold(
+                onSuccess = { brief ->
+                    monetizationManager.recordAiRecapUsed()
+                    AnalyticsTracker.logAiRecapGenerated(media.id, media.getMediaTypeEnum(), true)
+                    _titleAiBriefs.update { it + (media.id to TitleAiBriefUiState.Success(brief)) }
+                },
+                onFailure = { err ->
+                    AnalyticsTracker.logAiRecapGenerated(media.id, media.getMediaTypeEnum(), false)
+                    _titleAiBriefs.update {
+                        it + (media.id to TitleAiBriefUiState.Error(err.message ?: "Failed to build AI recap."))
+                    }
+                }
+            )
+        }
+    }
+
     fun toggleSubscribedProvider(providerName: String) {
         monetizationManager.toggleSubscribedProvider(providerName)
         refreshOttAuditProviders()
@@ -2782,13 +2879,27 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val key = getActiveTmdbApiKey()
             val region = effectiveRegionCode.value
             repository.refreshWatchlistProvidersForAudit(region, key)
+            val mon = monetizationState.value
+            if (mon.isPro && mon.proAlertsEnabled) {
+                val updated = withContext(Dispatchers.IO) {
+                    WatchAlertsManager.evaluateAndDispatch(
+                        context = getApplication(),
+                        trackedMedia = trackedMedia.value,
+                        subscribedProviders = mon.subscribedProviders,
+                        regionCode = region,
+                        alertsEnabled = true
+                    )
+                }
+                _watchAlerts.value = updated
+            }
         }
     }
 
     fun scanScreenshotUri(context: Context, uri: Uri) {
+        monetizationManager.refreshQuotasIfRolledOver()
         if (!monetizationState.value.canUseSnapScan) {
             showSnapScannerSheet.value = false
-            openPaywall("You've used all ${MonetizationState.FREE_SNAP_SCANS_LIMIT} free AI Screenshot Scans! Unlock unlimited Reels/TikTok/Top-10 vision imports with WatchPilot Pro.")
+            openPaywall("You've used all ${MonetizationState.FREE_SNAP_SCANS_LIMIT} free AI Vision Scans this month! Upgrade to WatchPilot Pro or watch a short ad for 1 trial pass.")
             return
         }
 
@@ -2933,9 +3044,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun askAiConcierge(mood: String, timeBudget: String, audience: String) {
+        monetizationManager.refreshQuotasIfRolledOver()
         if (!monetizationState.value.canUseConcierge) {
             showAiConciergeSheet.value = false
-            openPaywall("You've used all ${MonetizationState.FREE_CONCIERGE_LIMIT} free AI Concierge sessions! Upgrade to WatchPilot Pro for unlimited 'Tonight's Pick' recommendations.")
+            openPaywall("You've used all ${MonetizationState.FREE_CONCIERGE_LIMIT} free AI Concierge sessions this month! Upgrade to WatchPilot Pro or watch a short ad for 1 trial pass.")
             return
         }
 
@@ -3019,13 +3131,14 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createMatchRoom(selectedProviders: List<String>) {
+        monetizationManager.refreshQuotasIfRolledOver()
         if (currentUser.value == null) {
             _matchRoomState.value = MatchRoomUiState.Error("Sign in with Google first to host a live Swipe-to-Match room.")
             return
         }
         if (!monetizationState.value.canHostMatchRoom) {
             showSwipeMatchSheet.value = false
-            openPaywall("Free tier includes ${MonetizationState.FREE_MATCH_ROOMS_LIMIT} hosted Swipe-to-Match room (joining a friend's code is always free!). Upgrade to WatchPilot Pro to host unlimited rooms.")
+            openPaywall("Free tier includes ${MonetizationState.FREE_MATCH_ROOMS_LIMIT} hosted room this month (joining a friend's code is always free!). Upgrade to Pro or watch 1 short ad for a trial pass.")
             return
         }
 
@@ -3234,7 +3347,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         asJson: Boolean,
         onShareIntentReady: (Intent) -> Unit
     ) {
-        if (!BuildConfig.IS_V1_EDITION && !monetizationState.value.isPro) {
+        if (!monetizationState.value.isPro) {
             openPaywall("Portable CSV & JSON backup export is included with WatchPilot Pro (importing from Moviebase/IMDb/Letterboxd/Trakt is always 100% free!).")
             return
         }

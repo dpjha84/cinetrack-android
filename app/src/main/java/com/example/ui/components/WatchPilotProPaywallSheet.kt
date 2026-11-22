@@ -78,7 +78,8 @@ fun WatchPilotProPaywallSheet(
     onPurchaseSku: (Activity, String) -> Unit,
     onRestorePurchases: () -> Unit,
     onActivateSandboxPro: () -> Unit,
-    onDeactivateSandboxPro: () -> Unit
+    onDeactivateSandboxPro: () -> Unit,
+    onWatchRewardedTrialAd: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -182,8 +183,8 @@ fun WatchPilotProPaywallSheet(
                 ) {
                     ProBenefitRow(
                         icon = Icons.Filled.Savings,
-                        title = "OTT Subscription Money-Saver Radar",
-                        subtitle = "See which paid streaming apps have 0 watchlist matches & filter Library to 'On My Apps'."
+                        title = "OTT Money-Saver Radar & Streaming Alerts",
+                        subtitle = "Spot idle paid apps, filter Library to 'On My Apps', and get New Season & streaming arrival alerts."
                     )
                     ProBenefitRow(
                         icon = Icons.Filled.PhotoCamera,
@@ -197,18 +198,18 @@ fun WatchPilotProPaywallSheet(
                     )
                     ProBenefitRow(
                         icon = Icons.Filled.AutoAwesome,
-                        title = "Unlimited Tonight's AI Watchlist Concierge",
-                        subtitle = "Tailored 3-pick recommendations for your mood, time budget & streaming apps."
+                        title = "Unlimited AI Concierge & Spoiler-Free Recaps",
+                        subtitle = "Get Tonight's Pick plus personalized Watch-Fit & spoiler-free 'Previously On...' recaps."
                     )
                     ProBenefitRow(
                         icon = Icons.Filled.Insights,
                         title = "Cinema DNA Insights + CSV/JSON Backup",
-                        subtitle = "Unlimited custom collections, Decade DNA stats & portable backups."
+                        subtitle = "Unlock Completion Rate, Era DNA breakdown, unlimited collections & portable backups."
                     )
                     ProBenefitRow(
                         icon = Icons.Filled.Block,
                         title = "100% Ad-Free Experience",
-                        subtitle = "Zero sponsored banners across Home and Library."
+                        subtitle = "Zero sponsored banners or trailer interstitials across WatchPilot."
                     )
                 }
             }
@@ -281,6 +282,16 @@ fun WatchPilotProPaywallSheet(
                     text = if (monetizationState.isPro) "Active: ${monetizationState.planType.displayLabel}" else "Continue with Google Play",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp
+                )
+            }
+
+            if (!monetizationState.isPro) {
+                RewardedTrialPassBanner(
+                    monetizationState = monetizationState,
+                    sourceTag = "paywall",
+                    onRewardEarned = {
+                        onWatchRewardedTrialAd()
+                    }
                 )
             }
 

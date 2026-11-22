@@ -79,7 +79,8 @@ fun SnapScannerSheet(
     onAddCandidate: (ScannedMediaCandidate) -> Unit,
     onAddAllToWatchlist: () -> Unit,
     onOpenMedia: (MediaEntity) -> Unit,
-    onUpgradePro: () -> Unit
+    onUpgradePro: () -> Unit,
+    onWatchRewardedTrialAd: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -137,10 +138,12 @@ fun SnapScannerSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val badgeText = if (monetizationState.isPro) {
-                    "PRO • UNLIMITED VISION SCANS"
-                } else {
-                    "${monetizationState.remainingFreeSnapScans} OF ${MonetizationState.FREE_SNAP_SCANS_LIMIT} FREE SCANS LEFT"
+                val badgeText = when {
+                    monetizationState.isPro -> "PRO • UNLIMITED VISION SCANS"
+                    monetizationState.rewardedTrialCredits > 0 ->
+                        "${monetizationState.remainingFreeSnapScans}/${MonetizationState.FREE_SNAP_SCANS_LIMIT} FREE/MO • ${monetizationState.rewardedTrialCredits} AD PASS"
+                    else ->
+                        "${monetizationState.remainingFreeSnapScans} OF ${MonetizationState.FREE_SNAP_SCANS_LIMIT} FREE THIS MONTH"
                 }
                 Box(
                     modifier = Modifier
@@ -176,6 +179,14 @@ fun SnapScannerSheet(
                 }
             }
 
+            if (!monetizationState.isPro && monetizationState.remainingFreeSnapScans == 0) {
+                RewardedTrialPassBanner(
+                    monetizationState = monetizationState,
+                    sourceTag = "snap_scanner",
+                    onRewardEarned = onWatchRewardedTrialAd
+                )
+            }
+
             Button(
                 onClick = {
                     if (monetizationState.canUseSnapScan) {
@@ -200,7 +211,11 @@ fun SnapScannerSheet(
                 Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (scanState is SnapScanUiState.Idle) "Choose Screenshot" else "Scan Another Screenshot",
+                    text = when {
+                        !monetizationState.canUseSnapScan -> "Unlock Unlimited with Pro"
+                        scanState is SnapScanUiState.Idle -> "Choose Screenshot"
+                        else -> "Scan Another Screenshot"
+                    },
                     fontWeight = FontWeight.Bold
                 )
             }

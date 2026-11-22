@@ -159,7 +159,7 @@ fun HomeScreen(
                 .fillMaxSize()
                 .testTag("home_screen_grid")
         ) {
-            // WatchPilot v2.0 Brand Header & Signature Quick Actions
+            // WatchPilot Brand Header & Signature Quick Actions
             item(span = { GridItemSpan(gridColumns) }) {
                 Column(
                     modifier = Modifier
@@ -177,112 +177,87 @@ fun HomeScreen(
                                 .weight(1f)
                                 .padding(end = 10.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "WatchPilot",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Text(
+                                text = "Track • Decide • Stream",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (monetizationState.isPro) CinemaGold else CinemaGold.copy(alpha = 0.16f),
+                            border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { viewModel.openPaywall() }
+                                .testTag("home_pro_badge_button")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.WorkspacePremium,
+                                    contentDescription = "WatchPilot Pro",
+                                    tint = if (monetizationState.isPro) DarkBackground else CinemaGold,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    text = "WatchPilot",
-                                    style = MaterialTheme.typography.headlineSmall,
+                                    text = if (monetizationState.isPro) "PRO ACTIVE" else "GO PRO",
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onBackground,
+                                    color = if (monetizationState.isPro) DarkBackground else CinemaGold,
                                     maxLines = 1,
                                     softWrap = false
                                 )
-                                if (!BuildConfig.IS_V1_EDITION) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = CinemaCyan.copy(alpha = 0.16f)
-                                    ) {
-                                        Text(
-                                            text = BuildConfig.EDITION_NAME,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = CinemaCyan,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                            }
-                            if (!BuildConfig.IS_V1_EDITION) {
-                                Text(
-                                    text = "Track • Decide • Stream",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        if (!BuildConfig.IS_V1_EDITION) {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = if (monetizationState.isPro) CinemaGold else CinemaGold.copy(alpha = 0.16f),
-                                border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.6f)),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .clickable { viewModel.openPaywall() }
-                                    .testTag("home_pro_badge_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.WorkspacePremium,
-                                        contentDescription = "WatchPilot Pro",
-                                        tint = if (monetizationState.isPro) DarkBackground else CinemaGold,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text(
-                                        text = if (monetizationState.isPro) "PRO ACTIVE" else "GO PRO",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = if (monetizationState.isPro) DarkBackground else CinemaGold,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                }
                             }
                         }
                     }
 
-                    if (!BuildConfig.IS_V1_EDITION) {
-                        // 3 Signature WatchPilot v2.0 Action Cards
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            HomeQuickFeatureChip(
-                                icon = Icons.Filled.AutoAwesome,
-                                title = "Tonight's Pick",
-                                subtitle = "AI Concierge",
-                                accent = CinemaGold,
-                                onClick = { viewModel.openAiConcierge() },
-                                modifier = Modifier.weight(1f),
-                                testTag = "home_btn_ai_concierge"
-                            )
-                            HomeQuickFeatureChip(
-                                icon = Icons.Filled.Favorite,
-                                title = "Swipe Match",
-                                subtitle = "Live Room",
-                                accent = CinemaGreen,
-                                onClick = { viewModel.openSwipeMatch() },
-                                modifier = Modifier.weight(1f),
-                                testTag = "home_btn_swipe_match"
-                            )
-                            HomeQuickFeatureChip(
-                                icon = Icons.Filled.PhotoCamera,
-                                title = "Snap Scan",
-                                subtitle = "Screenshot AI",
-                                accent = CinemaCyan,
-                                onClick = { viewModel.openSnapScanner() },
-                                modifier = Modifier.weight(1f),
-                                testTag = "home_btn_snap_scan"
-                            )
-                        }
+                    // 3 Signature WatchPilot Action Cards
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        HomeQuickFeatureChip(
+                            icon = Icons.Filled.AutoAwesome,
+                            title = "Tonight's Pick",
+                            subtitle = "AI Concierge",
+                            accent = CinemaGold,
+                            onClick = { viewModel.openAiConcierge() },
+                            modifier = Modifier.weight(1f),
+                            testTag = "home_btn_ai_concierge"
+                        )
+                        HomeQuickFeatureChip(
+                            icon = Icons.Filled.Favorite,
+                            title = "Swipe Match",
+                            subtitle = "Live Room",
+                            accent = CinemaGreen,
+                            onClick = { viewModel.openSwipeMatch() },
+                            modifier = Modifier.weight(1f),
+                            testTag = "home_btn_swipe_match"
+                        )
+                        HomeQuickFeatureChip(
+                            icon = Icons.Filled.PhotoCamera,
+                            title = "Snap Scan",
+                            subtitle = "Screenshot AI",
+                            accent = CinemaCyan,
+                            onClick = { viewModel.openSnapScanner() },
+                            modifier = Modifier.weight(1f),
+                            testTag = "home_btn_snap_scan"
+                        )
                     }
                 }
             }

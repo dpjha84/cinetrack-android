@@ -5,6 +5,7 @@ import android.content.Context
 import com.example.BuildConfig
 import com.example.data.model.MonetizationState
 import com.example.data.model.PlanType
+import com.example.data.model.ProFeatureQuotaType
 import com.example.util.OttMoneySaverCalculator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,8 +33,16 @@ class MonetizationManager(
         private const val KEY_SNAP_SCANS_USED = "snap_scans_used"
         private const val KEY_CONCIERGE_USED = "concierge_used"
         private const val KEY_MATCH_ROOMS_HOSTED = "match_rooms_hosted"
+        private const val KEY_AI_RECAPS_USED = "ai_recaps_used"
+        private const val KEY_QUOTA_YEAR_MONTH = "quota_year_month"
+        private const val KEY_REWARDED_CREDITS = "rewarded_trial_credits"
+        private const val KEY_REWARDED_TODAY = "rewarded_ads_today"
+        private const val KEY_REWARDED_DAY_KEY = "rewarded_last_day_key"
+        private const val KEY_REWARDED_MONTH = "rewarded_ads_month"
+        private const val KEY_REWARDED_MONTH_KEY = "rewarded_month_key"
         private const val KEY_SUBSCRIBED_PROVIDERS = "subscribed_providers"
         private const val KEY_STREAM_ON_MY_APPS = "stream_on_my_apps_only"
+        private const val KEY_PRO_ALERTS_ENABLED = "pro_alerts_enabled"
     }
 
     private val appContext = context.applicationContext
@@ -61,7 +70,6 @@ class MonetizationManager(
             }
 
             override fun onPlansUnlocked(planType: PlanType, statusMessage: String) {
-                if (BuildConfig.IS_V1_EDITION) return
                 updateAndPersist { curr ->
                     curr.copy(
                         isPro = true,
@@ -88,23 +96,26 @@ class MonetizationManager(
     )
 
     init {
-        if (!BuildConfig.IS_V1_EDITION) {
-            connectToGooglePlayBilling()
+        connectToGooglePlayBilling()
+    }
+
+    fun refreshQuotasIfRolledOver() {
+        val current = _state.value
+        val normalized = MonetizationQuotaPolicy.normalizeForDate(current)
+        if (normalized != current) {
+            updateAndPersist(syncCloud = false) { normalized }
         }
     }
 
     fun connectToGooglePlayBilling() {
-        if (BuildConfig.IS_V1_EDITION) return
         billingGateway.connect()
     }
 
     fun launchPurchaseFlow(activity: Activity, productId: String) {
-        if (BuildConfig.IS_V1_EDITION) return
         billingGateway.launchPurchaseFlow(activity, productId)
     }
 
     fun restorePurchases() {
-        if (BuildConfig.IS_V1_EDITION) return
         billingGateway.restorePurchases(
             silent = false,
             currentPlanType = _state.value.planType
@@ -112,7 +123,7 @@ class MonetizationManager(
     }
 
     fun activateSandboxPro(plan: PlanType = PlanType.PRO_SANDBOX) {
-        if (BuildConfig.IS_V1_EDITION || !BuildConfig.DEBUG) return
+        if (!BuildConfig.DEBUG) return
         updateAndPersist { curr ->
             curr.copy(
                 isPro = true,
@@ -132,6 +143,7 @@ class MonetizationManager(
                 isPro = false,
                 planType = PlanType.FREE,
                 streamOnMyAppsOnly = false,
+                proAlertsEnabled = false,
                 billingStatusMessage = "Switched back to WatchPilot Free tier."
             )
         }
@@ -141,24 +153,38 @@ class MonetizationManager(
         _state.update { it.copy(billingStatusMessage = null) }
     }
 
-    fun recordSnapScanUsed() {
-        if (_state.value.isPro) return
+    fun grantRewardedTrialPass(): Boolean {
+        val before = MonetizationQuotaPolicy.normalizeForDate(_state.value)
+        if (!before.canWatchRewardedTrialAd) return false
         updateAndPersist(syncCloud = false) { curr ->
-            curr.copy(snapScansUsed = curr.snapScansUsed + 1)
+            MonetizationQuotaPolicy.recordRewardedAdEarned(curr).copy(
+                billingStatusMessage = "1 Pro Trial Pass unlocked! Ready for your next AI session or Match Room."
+            )
+        }
+        return true
+    }
+
+    fun recordSnapScanUsed() {
+        updateAndPersist(syncCloud = false) { curr ->
+            MonetizationQuotaPolicy.consumeFeatureUse(curr, ProFeatureQuotaType.SNAP_SCAN)
         }
     }
 
     fun recordConciergeUsed() {
-        if (_state.value.isPro) return
         updateAndPersist(syncCloud = false) { curr ->
-            curr.copy(aiConciergeUsed = curr.aiConciergeUsed + 1)
+            MonetizationQuotaPolicy.consumeFeatureUse(curr, ProFeatureQuotaType.AI_CONCIERGE)
         }
     }
 
     fun recordMatchRoomHosted() {
-        if (_state.value.isPro) return
         updateAndPersist(syncCloud = false) { curr ->
-            curr.copy(matchRoomsHosted = curr.matchRoomsHosted + 1)
+            MonetizationQuotaPolicy.consumeFeatureUse(curr, ProFeatureQuotaType.MATCH_ROOM_HOST)
+        }
+    }
+
+    fun recordAiRecapUsed() {
+        updateAndPersist(syncCloud = false) { curr ->
+            MonetizationQuotaPolicy.consumeFeatureUse(curr, ProFeatureQuotaType.AI_RECAP)
         }
     }
 
@@ -181,6 +207,12 @@ class MonetizationManager(
         }
     }
 
+    fun setProAlertsEnabled(enabled: Boolean) {
+        updateAndPersist { curr ->
+            curr.copy(proAlertsEnabled = curr.isPro && enabled)
+        }
+    }
+
     fun mergeCloudEntitlement(
         cloudIsPro: Boolean,
         cloudPlanType: String,
@@ -194,7 +226,7 @@ class MonetizationManager(
             .toSet()
 
         updateAndPersist(syncCloud = false) { curr ->
-            val mergedPro = !BuildConfig.IS_V1_EDITION && (curr.isPro || cloudIsPro)
+            val mergedPro = curr.isPro || cloudIsPro
             val mergedPlan = when {
                 !mergedPro -> PlanType.FREE
                 curr.isPro && curr.planType != PlanType.FREE -> curr.planType
@@ -206,14 +238,14 @@ class MonetizationManager(
                 isPro = mergedPro,
                 planType = mergedPlan,
                 subscribedProviders = mergedProviders,
-                streamOnMyAppsOnly = !BuildConfig.IS_V1_EDITION && (curr.streamOnMyAppsOnly || (cloudStreamOnMyAppsOnly && mergedProviders.isNotEmpty()))
+                streamOnMyAppsOnly = curr.streamOnMyAppsOnly || (cloudStreamOnMyAppsOnly && mergedProviders.isNotEmpty())
             )
         }
     }
 
     fun resetOnSignOut() {
         prefs.edit().clear().commit()
-        _state.value = MonetizationState()
+        _state.value = MonetizationQuotaPolicy.normalizeForDate(MonetizationState())
     }
 
     private fun updateAndPersist(
@@ -228,11 +260,19 @@ class MonetizationManager(
             .putInt(KEY_SNAP_SCANS_USED, updated.snapScansUsed)
             .putInt(KEY_CONCIERGE_USED, updated.aiConciergeUsed)
             .putInt(KEY_MATCH_ROOMS_HOSTED, updated.matchRoomsHosted)
+            .putInt(KEY_AI_RECAPS_USED, updated.aiRecapsUsed)
+            .putString(KEY_QUOTA_YEAR_MONTH, updated.quotaYearMonth)
+            .putInt(KEY_REWARDED_CREDITS, updated.rewardedTrialCredits)
+            .putInt(KEY_REWARDED_TODAY, updated.rewardedAdsWatchedToday)
+            .putString(KEY_REWARDED_DAY_KEY, updated.rewardedLastDayKey)
+            .putInt(KEY_REWARDED_MONTH, updated.rewardedAdsWatchedThisMonth)
+            .putString(KEY_REWARDED_MONTH_KEY, updated.rewardedMonthKey)
             .putString(KEY_SUBSCRIBED_PROVIDERS, updated.subscribedProviders.joinToString(","))
             .putBoolean(KEY_STREAM_ON_MY_APPS, updated.streamOnMyAppsOnly)
+            .putBoolean(KEY_PRO_ALERTS_ENABLED, updated.proAlertsEnabled)
             .apply()
 
-        if (syncCloud && onSyncEntitlementToCloud != null && !BuildConfig.IS_V1_EDITION) {
+        if (syncCloud && onSyncEntitlementToCloud != null) {
             scope.launch(Dispatchers.IO) {
                 onSyncEntitlementToCloud.invoke(updated)
             }
@@ -240,9 +280,6 @@ class MonetizationManager(
     }
 
     private fun loadPersistedState(): MonetizationState {
-        if (BuildConfig.IS_V1_EDITION) {
-            return MonetizationState()
-        }
         val isPro = prefs.getBoolean(KEY_IS_PRO, false)
         val planStr = prefs.getString(KEY_PLAN_TYPE, PlanType.FREE.name) ?: PlanType.FREE.name
         val planType = runCatching { PlanType.valueOf(planStr) }.getOrDefault(PlanType.FREE)
@@ -252,14 +289,23 @@ class MonetizationManager(
             .filter { it.isNotBlank() }
             .toSet()
 
-        return MonetizationState(
+        val raw = MonetizationState(
             isPro = isPro,
             planType = if (isPro && planType == PlanType.FREE) PlanType.PRO_SANDBOX else planType,
             snapScansUsed = prefs.getInt(KEY_SNAP_SCANS_USED, 0),
             aiConciergeUsed = prefs.getInt(KEY_CONCIERGE_USED, 0),
             matchRoomsHosted = prefs.getInt(KEY_MATCH_ROOMS_HOSTED, 0),
+            aiRecapsUsed = prefs.getInt(KEY_AI_RECAPS_USED, 0),
+            quotaYearMonth = prefs.getString(KEY_QUOTA_YEAR_MONTH, "").orEmpty(),
+            rewardedTrialCredits = prefs.getInt(KEY_REWARDED_CREDITS, 0),
+            rewardedAdsWatchedToday = prefs.getInt(KEY_REWARDED_TODAY, 0),
+            rewardedLastDayKey = prefs.getString(KEY_REWARDED_DAY_KEY, "").orEmpty(),
+            rewardedAdsWatchedThisMonth = prefs.getInt(KEY_REWARDED_MONTH, 0),
+            rewardedMonthKey = prefs.getString(KEY_REWARDED_MONTH_KEY, "").orEmpty(),
             subscribedProviders = providers,
-            streamOnMyAppsOnly = prefs.getBoolean(KEY_STREAM_ON_MY_APPS, false) && providers.isNotEmpty()
+            streamOnMyAppsOnly = prefs.getBoolean(KEY_STREAM_ON_MY_APPS, false) && providers.isNotEmpty(),
+            proAlertsEnabled = isPro && prefs.getBoolean(KEY_PRO_ALERTS_ENABLED, false)
         )
+        return MonetizationQuotaPolicy.normalizeForDate(raw)
     }
 }

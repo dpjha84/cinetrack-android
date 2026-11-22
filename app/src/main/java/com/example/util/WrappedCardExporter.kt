@@ -157,7 +157,7 @@ object WrappedCardExporter {
                     textSize = 28f
                     typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 }
-                canvas.drawText("Tracked with WatchPilot v2.0", 96f, 1280f, footerBrandPaint)
+                canvas.drawText("Tracked with WatchPilot", 96f, 1280f, footerBrandPaint)
 
                 FileOutputStream(outFile).use { fos ->
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)

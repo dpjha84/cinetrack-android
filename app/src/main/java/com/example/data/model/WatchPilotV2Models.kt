@@ -10,6 +10,13 @@ enum class PlanType(val displayLabel: String) {
     PRO_SANDBOX("WatchPilot Pro • Sandbox Preview")
 }
 
+enum class ProFeatureQuotaType {
+    SNAP_SCAN,
+    AI_CONCIERGE,
+    MATCH_ROOM_HOST,
+    AI_RECAP
+}
+
 data class MonetizationState(
     val isPro: Boolean = false,
     val planType: PlanType = PlanType.FREE,
@@ -20,15 +27,28 @@ data class MonetizationState(
     val snapScansUsed: Int = 0,
     val aiConciergeUsed: Int = 0,
     val matchRoomsHosted: Int = 0,
+    val aiRecapsUsed: Int = 0,
+    val quotaYearMonth: String = "",
+    val rewardedTrialCredits: Int = 0,
+    val rewardedAdsWatchedToday: Int = 0,
+    val rewardedLastDayKey: String = "",
+    val rewardedAdsWatchedThisMonth: Int = 0,
+    val rewardedMonthKey: String = "",
     val subscribedProviders: Set<String> = emptySet(),
     val streamOnMyAppsOnly: Boolean = false,
+    val proAlertsEnabled: Boolean = false,
     val billingStatusMessage: String? = null
 ) {
     companion object {
         const val FREE_SNAP_SCANS_LIMIT = 3
         const val FREE_CONCIERGE_LIMIT = 3
         const val FREE_MATCH_ROOMS_LIMIT = 1
+        const val FREE_AI_RECAPS_LIMIT = 1
         const val FREE_CUSTOM_COLLECTIONS_LIMIT = 2
+
+        const val MAX_REWARDED_ADS_PER_DAY = 1
+        const val MAX_REWARDED_ADS_PER_MONTH = 3
+        const val MAX_BANKED_TRIAL_CREDITS = 2
     }
 
     val remainingFreeSnapScans: Int
@@ -40,14 +60,45 @@ data class MonetizationState(
     val remainingFreeHostedRooms: Int
         get() = (FREE_MATCH_ROOMS_LIMIT - matchRoomsHosted).coerceAtLeast(0)
 
+    val remainingFreeAiRecaps: Int
+        get() = (FREE_AI_RECAPS_LIMIT - aiRecapsUsed).coerceAtLeast(0)
+
+    val remainingRewardedAdsToday: Int
+        get() = (MAX_REWARDED_ADS_PER_DAY - rewardedAdsWatchedToday).coerceAtLeast(0)
+
+    val remainingRewardedAdsThisMonth: Int
+        get() = (MAX_REWARDED_ADS_PER_MONTH - rewardedAdsWatchedThisMonth).coerceAtLeast(0)
+
+    val canWatchRewardedTrialAd: Boolean
+        get() = !isPro &&
+            rewardedTrialCredits < MAX_BANKED_TRIAL_CREDITS &&
+            remainingRewardedAdsToday > 0 &&
+            remainingRewardedAdsThisMonth > 0
+
     val canUseSnapScan: Boolean
-        get() = isPro || remainingFreeSnapScans > 0
+        get() = isPro || remainingFreeSnapScans > 0 || rewardedTrialCredits > 0
 
     val canUseConcierge: Boolean
-        get() = isPro || remainingFreeConciergePicks > 0
+        get() = isPro || remainingFreeConciergePicks > 0 || rewardedTrialCredits > 0
 
     val canHostMatchRoom: Boolean
-        get() = isPro || remainingFreeHostedRooms > 0
+        get() = isPro || remainingFreeHostedRooms > 0 || rewardedTrialCredits > 0
+
+    val canUseAiRecap: Boolean
+        get() = isPro || remainingFreeAiRecaps > 0 || rewardedTrialCredits > 0
+
+    val rewardedCapStatusText: String
+        get() = when {
+            isPro -> "Pro active — unlimited access without ads"
+            rewardedTrialCredits >= MAX_BANKED_TRIAL_CREDITS ->
+                "$rewardedTrialCredits Ad Passes ready — use one before unlocking more"
+            remainingRewardedAdsThisMonth <= 0 ->
+                "Monthly ad trial cap reached ($MAX_REWARDED_ADS_PER_MONTH/$MAX_REWARDED_ADS_PER_MONTH used)"
+            remainingRewardedAdsToday <= 0 ->
+                "Daily ad trial used ($MAX_REWARDED_ADS_PER_DAY/1 today) • Resets tomorrow"
+            else ->
+                "$remainingRewardedAdsToday/1 available today • $remainingRewardedAdsThisMonth/$MAX_REWARDED_ADS_PER_MONTH this month"
+        }
 }
 
 enum class OttRecommendation(val badgeText: String) {
@@ -114,6 +165,36 @@ sealed interface ConciergeUiState {
     ) : ConciergeUiState
     data class Error(val message: String) : ConciergeUiState
 }
+
+data class TitleAiBrief(
+    val mediaId: String,
+    val personalMatchScore: Int,
+    val watchPriorityTag: String,
+    val fitSummary: String,
+    val seasonRecap: String
+)
+
+sealed interface TitleAiBriefUiState {
+    data object Idle : TitleAiBriefUiState
+    data object Loading : TitleAiBriefUiState
+    data class Success(val brief: TitleAiBrief) : TitleAiBriefUiState
+    data class Error(val message: String) : TitleAiBriefUiState
+}
+
+enum class WatchAlertType(val badgeLabel: String) {
+    NOW_ON_MY_APPS("NOW STREAMING"),
+    NEW_SEASON("NEW SEASON")
+}
+
+data class WatchAlertEvent(
+    val id: String,
+    val mediaId: String,
+    val title: String,
+    val posterUrl: String,
+    val alertType: WatchAlertType,
+    val detailMessage: String,
+    val detectedAtMs: Long = System.currentTimeMillis()
+)
 
 data class MatchCandidateCard(
     val id: String,

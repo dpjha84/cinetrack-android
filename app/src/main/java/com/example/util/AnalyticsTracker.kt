@@ -247,6 +247,24 @@ object AnalyticsTracker {
         )
     }
 
+    fun logAiRecapGenerated(mediaId: String, mediaType: MediaType, success: Boolean) {
+        logEvent(
+            name = "ai_recap_generated",
+            params = mapOf(
+                FirebaseAnalytics.Param.ITEM_ID to mediaId,
+                FirebaseAnalytics.Param.CONTENT_TYPE to if (mediaType == MediaType.TV_SHOW) "tv_show" else "movie",
+                "success" to success.toString()
+            )
+        )
+    }
+
+    fun logRewardedTrialEarned(source: String) {
+        logEvent(
+            name = "rewarded_trial_pass_earned",
+            params = mapOf("source" to source)
+        )
+    }
+
     // =========================================================================
     // 5. Swipe-to-Match Rooms & Matches
     // =========================================================================

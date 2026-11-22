@@ -36,6 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -43,14 +44,17 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Button
@@ -110,9 +114,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.data.model.CastMemberItem
+import com.example.data.model.MonetizationState
 import com.example.data.model.RegionalDefaults
 import com.example.data.model.SeasonItem
+import com.example.data.model.TitleAiBriefUiState
 import com.example.data.model.TvWatchStatus
+import com.example.ui.components.RewardedTrialPassBanner
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.WatchProviderLauncher
@@ -136,6 +143,9 @@ fun MediaDetailScreen(
     val isLoadingSeasons by viewModel.isLoadingSeasons.collectAsStateWithLifecycle()
     val userPrefs by viewModel.userPreferences.collectAsStateWithLifecycle()
     val showStreamingProviders = userPrefs.showStreamingProviders
+    val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
+    val titleAiBriefs by viewModel.titleAiBriefs.collectAsStateWithLifecycle()
+    val aiBriefState = titleAiBriefs[media.id] ?: TitleAiBriefUiState.Idle
 
     var showRatingDialog by remember { mutableStateOf(false) }
     var showWatchlistDialog by remember { mutableStateOf(false) }
@@ -401,6 +411,19 @@ fun MediaDetailScreen(
                             onChangeClick = { showWatchlistDialog = true }
                         )
                         Spacer(modifier = Modifier.height(18.dp))
+                        MediaAiCompanionCard(
+                            isMovie = isMovie,
+                            monetizationState = monetizationState,
+                            briefState = aiBriefState,
+                            onGenerate = { viewModel.generateTitleAiBrief(media) },
+                            onOpenPaywall = {
+                                viewModel.openPaywall(
+                                    "Unlock unlimited Spoiler-Free AI Recaps & Personal Watch-Fit briefs with WatchPilot Pro."
+                                )
+                            },
+                            onRewardEarned = { viewModel.grantRewardedTrialPass("media_detail_recap") }
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
                         MediaSynopsisAndCastSection(
                             media = media,
                             displayCast = displayCast,
@@ -561,6 +584,21 @@ fun MediaDetailScreen(
                     MediaCustomCollectionCard(
                         media = media,
                         onChangeClick = { showWatchlistDialog = true }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    MediaAiCompanionCard(
+                        isMovie = isMovie,
+                        monetizationState = monetizationState,
+                        briefState = aiBriefState,
+                        onGenerate = { viewModel.generateTitleAiBrief(media) },
+                        onOpenPaywall = {
+                            viewModel.openPaywall(
+                                "Unlock unlimited Spoiler-Free AI Recaps & Personal Watch-Fit briefs with WatchPilot Pro."
+                            )
+                        },
+                        onRewardEarned = { viewModel.grantRewardedTrialPass("media_detail_recap") }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -2124,3 +2162,332 @@ private fun CompactStepperControl(
         }
     }
 }
+
+@Composable
+private fun MediaAiCompanionCard(
+    isMovie: Boolean,
+    monetizationState: MonetizationState,
+    briefState: TitleAiBriefUiState,
+    onGenerate: () -> Unit,
+    onOpenPaywall: () -> Unit,
+    onRewardEarned: () -> Unit
+) {
+    val pillText = when {
+        monetizationState.isPro -> "PRO"
+        monetizationState.rewardedTrialCredits > 0 -> "${monetizationState.rewardedTrialCredits} Ad Pass"
+        else -> "${monetizationState.remainingFreeAiRecaps}/${MonetizationState.FREE_AI_RECAPS_LIMIT} Free/mo"
+    }
+    val pillColor = when {
+        monetizationState.isPro -> CinemaGold
+        monetizationState.canUseAiRecap -> CinemaCyan
+        else -> CinemaRed
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("media_ai_companion_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+        ),
+        border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.35f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = CinemaCyan.copy(alpha = 0.16f),
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = "AI Companion",
+                                tint = CinemaCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Column {
+                        Text(
+                            text = "AI Companion • Recap & Fit",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isMovie) {
+                                "Spoiler-free mood hook & personal watch-fit"
+                            } else {
+                                "Spoiler-free catch-up & personal watch-fit"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = pillColor.copy(alpha = 0.16f),
+                    border = BorderStroke(1.dp, pillColor.copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        text = pillText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = pillColor,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            when (briefState) {
+                TitleAiBriefUiState.Idle -> {
+                    if (!monetizationState.canUseAiRecap) {
+                        RewardedTrialPassBanner(
+                            monetizationState = monetizationState,
+                            sourceTag = "media_detail_recap",
+                            onRewardEarned = onRewardEarned
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            if (monetizationState.canUseAiRecap) onGenerate() else onOpenPaywall()
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (monetizationState.canUseAiRecap) CinemaCyan else CinemaGold,
+                            contentColor = Color(0xFF0A0E17)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("btn_generate_ai_brief")
+                    ) {
+                        Icon(
+                            imageVector = if (monetizationState.canUseAiRecap) {
+                                Icons.Filled.AutoAwesome
+                            } else {
+                                Icons.Filled.Lock
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (monetizationState.canUseAiRecap) {
+                                if (isMovie) "Get Watch-Fit & Mood Hook" else "Get Spoiler-Free Recap & Fit"
+                            } else {
+                                "Unlock Unlimited AI Recaps with Pro"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                TitleAiBriefUiState.Loading -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.5.dp,
+                            color = CinemaCyan
+                        )
+                        Text(
+                            text = "Generating spoiler-free AI brief...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                is TitleAiBriefUiState.Success -> {
+                    val brief = briefState.brief
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = CinemaGreen.copy(alpha = 0.16f),
+                            border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                text = "${brief.personalMatchScore}% Match",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = CinemaGreen,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                        if (brief.watchPriorityTag.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = CinemaGold.copy(alpha = 0.16f),
+                                border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.35f))
+                            ) {
+                                Text(
+                                    text = brief.watchPriorityTag,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CinemaGold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "WHY IT FITS YOU",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = CinemaCyan,
+                                letterSpacing = 0.7.sp
+                            )
+                            Text(
+                                text = brief.fitSummary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (isMovie) "SPOILER-FREE HOOK" else "SPOILER-FREE RECAP",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = CinemaGold,
+                                letterSpacing = 0.7.sp
+                            )
+                            Text(
+                                text = brief.seasonRecap,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    if (!monetizationState.canUseAiRecap) {
+                        RewardedTrialPassBanner(
+                            monetizationState = monetizationState,
+                            sourceTag = "media_detail_refresh",
+                            onRewardEarned = onRewardEarned
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            if (monetizationState.canUseAiRecap) onGenerate() else onOpenPaywall()
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("btn_refresh_ai_brief")
+                    ) {
+                        Icon(
+                            imageVector = if (monetizationState.canUseAiRecap) {
+                                Icons.Filled.Refresh
+                            } else {
+                                Icons.Filled.WorkspacePremium
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (monetizationState.canUseAiRecap) {
+                                "Refresh Brief"
+                            } else {
+                                "Upgrade to Pro for Unlimited Briefs"
+                            },
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                is TitleAiBriefUiState.Error -> {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = CinemaRed.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, CinemaRed.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = briefState.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                    FilledTonalButton(
+                        onClick = {
+                            if (monetizationState.canUseAiRecap) onGenerate() else onOpenPaywall()
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("btn_retry_ai_brief")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Try Again", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+

@@ -209,7 +209,7 @@ object CsvLibraryPorter {
             Intent(Intent.ACTION_SEND).apply {
                 type = mime
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "WatchPilot v2.0 Library Backup ($ext)")
+                putExtra(Intent.EXTRA_SUBJECT, "WatchPilot Library Backup ($ext)")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         }

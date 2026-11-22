@@ -36,7 +36,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.BuildConfig
 import com.example.R
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.DarkSurfaceVariant
@@ -56,19 +55,6 @@ fun SponsoredBannerCard(
 ) {
     var adInitFailed by remember { mutableStateOf(false) }
     if (isPro || adInitFailed) return
-
-    if (BuildConfig.IS_V1_EDITION) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .heightIn(min = 50.dp)
-                .testTag("sponsored_banner_$tagSuffix"),
-            contentAlignment = Alignment.Center
-        ) {
-            AdMobBannerHost(onAdInitFailed = { adInitFailed = true })
-        }
-        return
-    }
 
     Card(
         modifier = modifier

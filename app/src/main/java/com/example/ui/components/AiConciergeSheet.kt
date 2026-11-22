@@ -75,7 +75,8 @@ fun AiConciergeSheet(
     onGeneratePicks: (mood: String, timeBudget: String, audience: String) -> Unit,
     onAddPickToWatchlist: (ConciergePick) -> Unit,
     onOpenMedia: (MediaEntity) -> Unit,
-    onUpgradePro: () -> Unit
+    onUpgradePro: () -> Unit,
+    onWatchRewardedTrialAd: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -124,10 +125,12 @@ fun AiConciergeSheet(
             }
 
             // Remaining quota pill
-            val quotaLabel = if (monetizationState.isPro) {
-                "PRO • UNLIMITED TONIGHT'S PICKS"
-            } else {
-                "${monetizationState.remainingFreeConciergePicks} OF ${MonetizationState.FREE_CONCIERGE_LIMIT} FREE SESSIONS LEFT"
+            val quotaLabel = when {
+                monetizationState.isPro -> "PRO • UNLIMITED TONIGHT'S PICKS"
+                monetizationState.rewardedTrialCredits > 0 ->
+                    "${monetizationState.remainingFreeConciergePicks}/${MonetizationState.FREE_CONCIERGE_LIMIT} FREE/MO • ${monetizationState.rewardedTrialCredits} AD PASS"
+                else ->
+                    "${monetizationState.remainingFreeConciergePicks} OF ${MonetizationState.FREE_CONCIERGE_LIMIT} FREE THIS MONTH"
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -216,6 +219,14 @@ fun AiConciergeSheet(
                 }
             }
 
+            if (!monetizationState.isPro && monetizationState.remainingFreeConciergePicks == 0) {
+                RewardedTrialPassBanner(
+                    monetizationState = monetizationState,
+                    sourceTag = "ai_concierge",
+                    onRewardEarned = onWatchRewardedTrialAd
+                )
+            }
+
             Button(
                 onClick = {
                     if (monetizationState.canUseConcierge) {
@@ -237,7 +248,10 @@ fun AiConciergeSheet(
             ) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Pick What We Watch Tonight", fontWeight = FontWeight.ExtraBold)
+                Text(
+                    text = if (monetizationState.canUseConcierge) "Pick What We Watch Tonight" else "Unlock Unlimited with Pro",
+                    fontWeight = FontWeight.ExtraBold
+                )
             }
 
             when (conciergeState) {
