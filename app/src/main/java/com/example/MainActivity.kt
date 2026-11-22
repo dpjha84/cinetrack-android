@@ -112,7 +112,6 @@ import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.AnalyticsTracker
 import com.example.util.TrailerInterstitialAdManager
 import com.example.util.configureAppCheck
-import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -138,15 +137,7 @@ class MainActivity : ComponentActivity() {
         configureAppCheck(this, intent)
 
         lifecycleScope.launch(Dispatchers.IO) {
-            runCatching {
-                MobileAds.initialize(this@MainActivity) {
-                    runOnUiThread {
-                        if (!isFinishing && !isDestroyed) {
-                            TrailerInterstitialAdManager.preload(this@MainActivity)
-                        }
-                    }
-                }
-            }
+            TrailerInterstitialAdManager.initializeAdsSdk(applicationContext)
         }
 
         enableEdgeToEdge()

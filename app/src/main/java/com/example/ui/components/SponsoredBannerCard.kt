@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import android.util.Log
+import android.view.View
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -33,13 +35,17 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.BuildConfig
 import com.example.R
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.DarkSurfaceVariant
+import com.example.util.TrailerInterstitialAdManager
+import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.LoadAdError
 
 @Composable
 fun SponsoredBannerCard(
@@ -48,7 +54,8 @@ fun SponsoredBannerCard(
     modifier: Modifier = Modifier,
     tagSuffix: String = "home"
 ) {
-    if (isPro) return
+    var adInitFailed by remember { mutableStateOf(false) }
+    if (isPro || adInitFailed) return
 
     if (BuildConfig.IS_V1_EDITION) {
         Box(
@@ -58,7 +65,7 @@ fun SponsoredBannerCard(
                 .testTag("sponsored_banner_$tagSuffix"),
             contentAlignment = Alignment.Center
         ) {
-            AdMobBannerHost()
+            AdMobBannerHost(onAdInitFailed = { adInitFailed = true })
         }
         return
     }
@@ -127,14 +134,19 @@ fun SponsoredBannerCard(
                     .heightIn(min = 52.dp),
                 contentAlignment = Alignment.Center
             ) {
-                AdMobBannerHost()
+                AdMobBannerHost(onAdInitFailed = { adInitFailed = true })
             }
         }
     }
 }
 
 @Composable
-private fun AdMobBannerHost() {
+private fun AdMobBannerHost(
+    onAdInitFailed: () -> Unit
+) {
+    val isAdsSdkReady by TrailerInterstitialAdManager.isAdsSdkInitialized.collectAsStateWithLifecycle()
+    if (!isAdsSdkReady) return
+
     val lifecycleOwner = LocalLifecycleOwner.current
     var adViewRef by remember { mutableStateOf<AdView?>(null) }
 
@@ -156,18 +168,38 @@ private fun AdMobBannerHost() {
     AndroidView(
         modifier = Modifier.fillMaxWidth(),
         factory = { context ->
-            AdView(context).apply {
-                setAdSize(AdSize.BANNER)
-                adUnitId = context.getString(R.string.admob_banner_unit_id)
-                loadAd(AdRequest.Builder().build())
-            }.also { adViewRef = it }
-        },
-        onRelease = { adView ->
-            if (adViewRef === adView) {
-                adViewRef = null
+            val unitId = runCatching { context.getString(R.string.admob_banner_unit_id) }
+                .getOrDefault("")
+                .trim()
+            if (unitId.isBlank()) {
+                onAdInitFailed()
+                return@AndroidView View(context)
             }
-            runCatching { adView.pause() }
-            runCatching { adView.destroy() }
+            try {
+                AdView(context).apply {
+                    setAdSize(AdSize.BANNER)
+                    adUnitId = unitId
+                    adListener = object : AdListener() {
+                        override fun onAdFailedToLoad(error: LoadAdError) {
+                            Log.w("SponsoredBannerCard", "Banner ad skipped (${error.code}): ${error.message}")
+                        }
+                    }
+                    loadAd(AdRequest.Builder().build())
+                }.also { adViewRef = it }
+            } catch (t: Throwable) {
+                Log.w("SponsoredBannerCard", "AdView creation skipped safely: ${t.message}")
+                onAdInitFailed()
+                View(context)
+            }
+        },
+        onRelease = { view ->
+            if (view is AdView) {
+                if (adViewRef === view) {
+                    adViewRef = null
+                }
+                runCatching { view.pause() }
+                runCatching { view.destroy() }
+            }
         }
     )
 }

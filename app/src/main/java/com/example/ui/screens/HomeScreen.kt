@@ -392,7 +392,7 @@ fun HomeScreen(
                                     .testTag("home_picked_for_you_carousel")
                             ) {
                                 items(
-                                    items = pickedForYouItems,
+                                    items = pickedForYouItems.distinctBy { it.id },
                                     key = { item -> "picked_for_you_${item.id}" }
                                 ) { item ->
                                     val reasonLabel = remember(
@@ -876,7 +876,7 @@ private fun HomeHorizontalPeopleSection(
                     .testTag("home_section_row_popular_people")
             ) {
                 items(
-                    items = people,
+                    items = people.distinctBy { it.id },
                     key = { person -> "popular_person_${person.id}" }
                 ) { person ->
                     CompactPersonCircleCard(
@@ -1080,7 +1080,7 @@ private fun HomeHorizontalCatalogSection(
                     .testTag("home_section_row_${section.name.lowercase()}")
             ) {
                 items(
-                    items = items,
+                    items = items.distinctBy { it.id },
                     key = { media -> "${section.name}_${media.id}" }
                 ) { media ->
                     CompactMediaPosterCard(

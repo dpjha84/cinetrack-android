@@ -197,10 +197,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val monetizationState: StateFlow<MonetizationState> = monetizationManager.state
 
     private val aiService = WatchPilotAiService()
-    private val matchRoomRepo = MatchRoomRepository(
-        firestore = firestoreSyncManager.firestore,
-        auth = Firebase.auth
-    )
+    private val matchRoomRepo by lazy {
+        MatchRoomRepository(
+            firestore = firestoreSyncManager.firestore,
+            auth = Firebase.auth
+        )
+    }
     private var matchRoomObserverJob: kotlinx.coroutines.Job? = null
 
     private val _snapScanState = MutableStateFlow<SnapScanUiState>(SnapScanUiState.Idle)
@@ -930,22 +932,35 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         FirebaseAuthHelper.initialize(viewModelScope)
 
         viewModelScope.launch {
-            repository.seedIfEmpty()
-            // Only auto-complete for legacy pre-onboarding local upgrades when signed out
-            if (!_hasCompletedOnboarding.value &&
-                onboardingStep.value == 0 &&
-                Firebase.auth.currentUser == null &&
-                repository.hasAnyUserTrackedData()
-            ) {
-                completeOnboarding()
-            }
-            currentUser
-                .map { it?.uid }
-                .distinctUntilChanged()
-                .filter { !it.isNullOrBlank() }
-                .collect {
-                    syncWithCloud(force = false)
+            try {
+                repository.seedIfEmpty()
+                // Only auto-complete for legacy pre-onboarding local upgrades when signed out
+                val signedInUser = runCatching { Firebase.auth.currentUser }.getOrNull()
+                if (!_hasCompletedOnboarding.value &&
+                    onboardingStep.value == 0 &&
+                    signedInUser == null &&
+                    repository.hasAnyUserTrackedData()
+                ) {
+                    completeOnboarding()
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            try {
+                currentUser
+                    .map { it?.uid }
+                    .distinctUntilChanged()
+                    .filter { !it.isNullOrBlank() }
+                    .collect {
+                        syncWithCloud(force = false)
+                    }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
         if (!_hasCompletedOnboarding.value) {
@@ -1038,15 +1053,27 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         if (currentList.size < 12) {
                             launch {
-                                repository.fetchHomeCatalogPage(section, key, typeFilter, lang, reg, page = 1)
+                                try {
+                                    repository.fetchHomeCatalogPage(section, key, typeFilter, lang, reg, page = 1)
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
                             }
                         }
                     }
                     if (popularPeopleHomeItems.value.size < 12) {
                         launch {
-                            repository.fetchPopularPeoplePage(key, lang, page = 1)
-                            if (popularPeopleHomeItems.value.size < 12) {
-                                repository.fetchPopularPeoplePage(key, lang, page = 2)
+                            try {
+                                repository.fetchPopularPeoplePage(key, lang, page = 1)
+                                if (popularPeopleHomeItems.value.size < 12) {
+                                    repository.fetchPopularPeoplePage(key, lang, page = 2)
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                e.printStackTrace()
                             }
                         }
                     }
@@ -1108,6 +1135,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                                 language = userPreferences.value.languageCode,
                                 region = null
                             )
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         } finally {
                             isSearchingTmdb.value = false
                         }
@@ -1621,6 +1652,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val key = getActiveTmdbApiKey()
                     personDetailData.value = repository.fetchPersonDetails(person.id, key)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 } finally {
                     isLoadingPersonDetail.value = false
                 }
@@ -1684,8 +1719,14 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openMediaFromSearch(entity: MediaEntity) {
         viewModelScope.launch {
-            repository.ensureMediaCached(entity)
-            selectMedia(entity.id)
+            try {
+                repository.ensureMediaCached(entity)
+                selectMedia(entity.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -1814,6 +1855,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 isLoadingOnboardingPeople.value = true
                 try {
                     onboardingPopularPeople.value = repository.fetchPopularPeople(key, lang)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 } finally {
                     isLoadingOnboardingPeople.value = false
                 }
@@ -1822,6 +1867,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 isLoadingOnboardingTitles.value = true
                 try {
                     onboardingPopularTitles.value = repository.fetchOnboardingPopularTitles(key, lang, reg)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 } finally {
                     isLoadingOnboardingTitles.value = false
                 }
@@ -1940,6 +1989,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     apiKey = getActiveTmdbApiKey(),
                     language = userPreferences.value.languageCode
                 )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 isLoadingOnboardingPeople.value = false
             }
@@ -1971,6 +2024,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     language = userPreferences.value.languageCode,
                     region = null
                 )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 isLoadingOnboardingTitles.value = false
             }
@@ -2023,16 +2080,22 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         val region = effectiveRegionCode.value
         if (currentTracked.isNotEmpty() || currentPeople.isNotEmpty() || currentGenres.isNotEmpty()) {
             viewModelScope.launch {
-                val instant = repository.computeInstantRecommendations(
-                    favoritePeople = currentPeople,
-                    trackedMedia = currentTracked,
-                    region = region,
-                    preferredGenres = currentGenres
-                )
-                if (instant.isNotEmpty()) {
-                    pickedForYouItems.value = instant
+                try {
+                    val instant = repository.computeInstantRecommendations(
+                        favoritePeople = currentPeople,
+                        trackedMedia = currentTracked,
+                        region = region,
+                        preferredGenres = currentGenres
+                    )
+                    if (instant.isNotEmpty()) {
+                        pickedForYouItems.value = instant
+                    }
+                    refreshPickedForYou()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-                refreshPickedForYou()
             }
         } else {
             pickedForYouItems.value = emptyList()
@@ -2075,6 +2138,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     preferredGenres = currentGenres
                 )
                 pickedForYouItems.value = items
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 isLoadingPickedForYou.value = false
             }

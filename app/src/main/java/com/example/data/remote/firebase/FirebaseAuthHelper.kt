@@ -37,17 +37,23 @@ object FirebaseAuthHelper {
     private var authListener: FirebaseAuth.AuthStateListener? = null
 
     fun initialize(scope: CoroutineScope) {
-        val auth = Firebase.auth
-        _currentUser.value = auth.currentUser
-        _isGuest.value = auth.currentUser == null
+        runCatching {
+            val auth = Firebase.auth
+            _currentUser.value = auth.currentUser
+            _isGuest.value = auth.currentUser == null
 
-        if (authListener == null) {
-            authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
-                val user = firebaseAuth.currentUser
-                _currentUser.value = user
-                _isGuest.value = user == null
+            if (authListener == null) {
+                authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+                    val user = firebaseAuth.currentUser
+                    _currentUser.value = user
+                    _isGuest.value = user == null
+                }
+                auth.addAuthStateListener(authListener!!)
             }
-            auth.addAuthStateListener(authListener!!)
+        }.onFailure { error ->
+            Log.w(TAG, "FirebaseAuth unavailable at startup; continuing as guest: ${error.message}")
+            _currentUser.value = null
+            _isGuest.value = true
         }
     }
 

@@ -84,7 +84,7 @@ fun configureAppCheck(context: Context, intent: Intent?) {
                 Log.d(TAG, "recaptcha_site_key string resource not found; skipping reCAPTCHA App Check initialization.")
             }
         }
-    } catch (e: Exception) {
-        Log.e(TAG, "Failed to initialize Firebase App Check", e)
+    } catch (t: Throwable) {
+        Log.e(TAG, "Failed to initialize Firebase App Check", t)
     }
 }

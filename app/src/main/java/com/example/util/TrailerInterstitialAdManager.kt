@@ -8,12 +8,17 @@ import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Manages AdMob interstitial ads on trailer playback with a strict 3-minute (180s) cooldown.
- * Never blocks trailer playback if an ad is unavailable, loading, or fails to display.
+ * Manages AdMob SDK initialization readiness and interstitial ads on trailer playback
+ * with a strict 3-minute (180s) cooldown.
+ * Never blocks startup, Home rendering, or trailer playback if AdMob/WebView is unavailable.
  */
 object TrailerInterstitialAdManager {
     private const val TAG = "TrailerInterstitialAd"
@@ -28,6 +33,12 @@ object TrailerInterstitialAdManager {
     @Volatile
     private var isLoading: Boolean = false
 
+    @Volatile
+    private var initializationStarted: Boolean = false
+
+    private val _isAdsSdkInitialized = MutableStateFlow(false)
+    val isAdsSdkInitialized: StateFlow<Boolean> = _isAdsSdkInitialized.asStateFlow()
+
     fun shouldShowInterstitialNow(
         nowEpochMs: Long,
         lastShownEpochMs: Long,
@@ -38,6 +49,28 @@ object TrailerInterstitialAdManager {
         // Handle clock adjustments gracefully
         if (elapsed < 0L) return true
         return elapsed >= cooldownMs
+    }
+
+    fun initializeAdsSdk(context: Context, isPro: Boolean = false) {
+        if (_isAdsSdkInitialized.value) {
+            if (!isPro) preload(context.applicationContext, isPro = false)
+            return
+        }
+        if (initializationStarted) return
+        initializationStarted = true
+        val appContext = context.applicationContext
+        try {
+            MobileAds.initialize(appContext) {
+                _isAdsSdkInitialized.value = true
+                if (!isPro) {
+                    preload(appContext, isPro = false)
+                }
+            }
+        } catch (t: Throwable) {
+            initializationStarted = false
+            _isAdsSdkInitialized.value = false
+            Log.w(TAG, "MobileAds initialization skipped safely: ${t.message}")
+        }
     }
 
     fun releasePreloaded() {
@@ -60,25 +93,31 @@ object TrailerInterstitialAdManager {
         if (adUnitId.isBlank()) return
 
         isLoading = true
-        val adRequest = AdRequest.Builder().build()
-        InterstitialAd.load(
-            appContext,
-            adUnitId,
-            adRequest,
-            object : InterstitialAdLoadCallback() {
-                override fun onAdLoaded(ad: InterstitialAd) {
-                    isLoading = false
-                    loadedInterstitial = ad
-                    Log.d(TAG, "Trailer interstitial ad loaded.")
-                }
+        try {
+            val adRequest = AdRequest.Builder().build()
+            InterstitialAd.load(
+                appContext,
+                adUnitId,
+                adRequest,
+                object : InterstitialAdLoadCallback() {
+                    override fun onAdLoaded(ad: InterstitialAd) {
+                        isLoading = false
+                        loadedInterstitial = ad
+                        Log.d(TAG, "Trailer interstitial ad loaded.")
+                    }
 
-                override fun onAdFailedToLoad(loadAdError: LoadAdError) {
-                    isLoading = false
-                    loadedInterstitial = null
-                    Log.w(TAG, "Trailer interstitial load skipped (${loadAdError.code}): ${loadAdError.message}")
+                    override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                        isLoading = false
+                        loadedInterstitial = null
+                        Log.w(TAG, "Trailer interstitial load skipped (${loadAdError.code}): ${loadAdError.message}")
+                    }
                 }
-            }
-        )
+            )
+        } catch (t: Throwable) {
+            isLoading = false
+            loadedInterstitial = null
+            Log.w(TAG, "Trailer interstitial preload failed safely: ${t.message}")
+        }
     }
 
     fun maybeShowBeforeTrailer(

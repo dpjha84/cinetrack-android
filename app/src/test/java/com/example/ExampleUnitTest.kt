@@ -116,5 +116,28 @@ class ExampleUnitTest {
     assertEquals("Dune: Part Two", parsed.results.first().title)
     assertEquals(693134L, parsed.results.first().id)
   }
-}
 
+  @Test
+  fun testAdsSdkStartsUninitializedBeforeMainActivityInit() {
+    assertFalse(com.example.util.TrailerInterstitialAdManager.isAdsSdkInitialized.value)
+  }
+
+  @Test
+  fun testMaybeShowBeforeTrailerProceedsImmediatelyWhenNullActivityOrPro() {
+    var continuedForNull = false
+    com.example.util.TrailerInterstitialAdManager.maybeShowBeforeTrailer(
+      activity = null,
+      isPro = false,
+      onContinuePlayback = { continuedForNull = true }
+    )
+    assertTrue(continuedForNull)
+
+    var continuedForPro = false
+    com.example.util.TrailerInterstitialAdManager.maybeShowBeforeTrailer(
+      activity = null,
+      isPro = true,
+      onContinuePlayback = { continuedForPro = true }
+    )
+    assertTrue(continuedForPro)
+  }
+}
