@@ -38,7 +38,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.DarkSurfaceVariant
 import com.example.util.TrailerInterstitialAdManager
 import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
@@ -62,7 +61,7 @@ fun SponsoredBannerCard(
             .testTag("sponsored_banner_$tagSuffix"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = DarkSurfaceVariant.copy(alpha = 0.72f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f))
     ) {

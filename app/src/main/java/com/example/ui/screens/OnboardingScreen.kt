@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -24,6 +25,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,9 +101,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,11 +117,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -132,8 +139,11 @@ import com.example.data.local.FavoritePersonEntity
 import com.example.data.local.MediaEntity
 import com.example.data.local.SampleMediaData
 import com.example.data.model.MediaType
+import com.example.data.model.RegionOption
+import com.example.data.model.RegionalDefaults
 import com.example.data.model.TmdbSearchResultItem
 import com.example.data.model.WatchStatus
+import com.example.ui.components.LocalizationPreferencesDialog
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
@@ -143,6 +153,11 @@ import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 private val ONBOARDING_GENRES = listOf(
     "Sci-Fi",
@@ -186,6 +201,14 @@ fun OnboardingScreen(
     val isLoadingTitles by viewModel.isLoadingOnboardingTitles.collectAsStateWithLifecycle()
     val allMedia by viewModel.allMedia.collectAsStateWithLifecycle()
     val trackedMedia by viewModel.trackedMedia.collectAsStateWithLifecycle()
+    val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
+    val userPreferences by viewModel.userPreferences.collectAsStateWithLifecycle()
+
+    var showLocalizationDialog by remember { mutableStateOf(false) }
+    val detectedRegionOption = remember(effectiveRegion) {
+        RegionalDefaults.supportedRegions.find { it.code.equals(effectiveRegion, ignoreCase = true) }
+            ?: RegionalDefaults.detectDeviceRegion()
+    }
 
     val welcomeShowcaseTitles = remember(popularTitles, allMedia) {
         val pool = (popularTitles + allMedia + SampleMediaData.getInitialCatalog())
@@ -203,12 +226,10 @@ fun OnboardingScreen(
     }
 
     var ambientActiveIndex by remember(welcomeShowcaseTitles.size) { mutableIntStateOf(0) }
-    LaunchedEffect(welcomeShowcaseTitles.size) {
+    LaunchedEffect(welcomeShowcaseTitles.size, ambientActiveIndex) {
         if (welcomeShowcaseTitles.size > 1) {
-            while (true) {
-                delay(3200L)
-                ambientActiveIndex = (ambientActiveIndex + 1) % welcomeShowcaseTitles.size
-            }
+            delay(3200L)
+            ambientActiveIndex = (ambientActiveIndex + 1) % welcomeShowcaseTitles.size
         }
     }
     val safeAmbientIndex = if (welcomeShowcaseTitles.isNotEmpty()) ambientActiveIndex % welcomeShowcaseTitles.size else 0
@@ -318,6 +339,8 @@ fun OnboardingScreen(
                             OnboardingFavoritePeopleStep(
                                 syncNotice = syncNotice,
                                 onDismissSyncNotice = { viewModel.dismissOnboardingSyncNotice() },
+                                detectedRegion = detectedRegionOption,
+                                onRegionClick = { showLocalizationDialog = true },
                                 selectedGenres = selectedGenres,
                                 onToggleGenre = { genre -> viewModel.toggleOnboardingGenre(genre) },
                                 query = personQuery,
@@ -346,6 +369,8 @@ fun OnboardingScreen(
                             OnboardingWatchedTitlesStep(
                                 syncNotice = syncNotice,
                                 onDismissSyncNotice = { viewModel.dismissOnboardingSyncNotice() },
+                                detectedRegion = detectedRegionOption,
+                                onRegionClick = { showLocalizationDialog = true },
                                 query = titleQuery,
                                 onQueryChange = { viewModel.updateOnboardingTitleQuery(it) },
                                 titles = if (titleQuery.isNotBlank()) titleSearchResults else popularTitles,
@@ -364,6 +389,28 @@ fun OnboardingScreen(
                     }
                 }
             }
+        }
+
+        if (showLocalizationDialog) {
+            LocalizationPreferencesDialog(
+                currentPreferences = userPreferences,
+                effectiveRegionCode = effectiveRegion,
+                activeApiKey = viewModel.getActiveTmdbApiKey(),
+                onDismiss = { showLocalizationDialog = false },
+                onSave = { regionCode, autoDetect, languageCode, filterOnly, customKey ->
+                    viewModel.updatePreferences(
+                        userPreferences.copy(
+                            regionCode = regionCode,
+                            autoDetect = autoDetect,
+                            languageCode = languageCode,
+                            filterCatalogByLanguage = filterOnly,
+                            customTmdbApiKey = customKey
+                        )
+                    )
+                    viewModel.loadOnboardingCatalog()
+                    showLocalizationDialog = false
+                }
+            )
         }
     }
 }
@@ -553,12 +600,10 @@ internal fun OnboardingWelcomeStep(
     }
 
     var localActiveIndex by remember(resolvedShowcase.size) { mutableIntStateOf(0) }
-    LaunchedEffect(resolvedShowcase.size, sharedActiveIndex == null) {
+    LaunchedEffect(resolvedShowcase.size, localActiveIndex, sharedActiveIndex == null) {
         if (sharedActiveIndex == null && resolvedShowcase.size > 1) {
-            while (true) {
-                delay(3200L)
-                localActiveIndex = (localActiveIndex + 1) % resolvedShowcase.size
-            }
+            delay(3200L)
+            localActiveIndex = (localActiveIndex + 1) % resolvedShowcase.size
         }
     }
 
@@ -766,17 +811,73 @@ private fun WelcomeAmbientCinemaShowcase(
     fillStage: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val activeItem = items.getOrNull(activeIndex)
-    val prevIndex = if (items.size > 1) (activeIndex - 1 + items.size) % items.size else null
-    val nextIndex = if (items.size > 2) (activeIndex + 1) % items.size else null
-    val sideBlur = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Modifier.blur(2.5.dp) else Modifier
+    if (items.isEmpty()) return
+    val count = items.size
+    val coroutineScope = rememberCoroutineScope()
+
+    var targetVirtualSlot by remember { mutableIntStateOf(activeIndex.coerceIn(0, (count - 1).coerceAtLeast(0))) }
+    var lastPreferredDirection by remember { mutableIntStateOf(1) }
+    var isDragging by remember { mutableStateOf(false) }
+    val animatableSlot = remember {
+        Animatable(targetVirtualSlot.toFloat(), visibilityThreshold = 0.001f)
+    }
+
+    LaunchedEffect(activeIndex, count) {
+        if (count <= 1) {
+            targetVirtualSlot = 0
+            animatableSlot.snapTo(0f)
+            return@LaunchedEffect
+        }
+        val normalizedActive = ((activeIndex % count) + count) % count
+        val currentMod = ((targetVirtualSlot % count) + count) % count
+        if (normalizedActive != currentMod) {
+            val forwardStep = (normalizedActive - currentMod + count) % count
+            val backwardStep = forwardStep - count
+            val delta = when {
+                forwardStep == 1 && (count > 2 || lastPreferredDirection >= 0) -> 1
+                backwardStep == -1 && (count > 2 || lastPreferredDirection < 0) -> -1
+                abs(forwardStep) <= abs(backwardStep) -> forwardStep
+                else -> backwardStep
+            }
+            targetVirtualSlot += delta
+            lastPreferredDirection = if (delta >= 0) 1 else -1
+        }
+        if (!isDragging && animatableSlot.value != targetVirtualSlot.toFloat()) {
+            animatableSlot.animateTo(
+                targetValue = targetVirtualSlot.toFloat(),
+                animationSpec = spring(
+                    dampingRatio = 0.86f,
+                    stiffness = 260f,
+                    visibilityThreshold = 0.001f
+                )
+            )
+        }
+    }
+
+    fun stepBy(delta: Int) {
+        if (count <= 1 || delta == 0) return
+        lastPreferredDirection = if (delta >= 0) 1 else -1
+        targetVirtualSlot += delta
+        val nextMod = ((targetVirtualSlot % count) + count) % count
+        onSelectIndex(nextMod)
+        coroutineScope.launch {
+            animatableSlot.animateTo(
+                targetValue = targetVirtualSlot.toFloat(),
+                animationSpec = spring(
+                    dampingRatio = 0.86f,
+                    stiffness = 260f,
+                    visibilityThreshold = 0.001f
+                )
+            )
+        }
+    }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .testTag("welcome_ambient_showcase")
     ) {
-        // Subtle breathing radial cinema spotlight behind the rotating title posters
+        // Subtle breathing radial cinema spotlight behind the sliding title posters
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
@@ -806,70 +907,129 @@ private fun WelcomeAmbientCinemaShowcase(
             val desiredCenterHeight = (maxHeight - 4.dp).coerceIn(210.dp, 440.dp)
             val maxAllowedCenterWidth = (maxWidth * 0.62f).coerceAtLeast(170.dp)
             val centerCardWidth = (desiredCenterHeight * (2f / 3f)).coerceAtMost(maxAllowedCenterWidth)
-            val sideCardWidth = centerCardWidth * 0.78f
             val sideHorizontalSpread = maxWidth * 0.30f
-
-            if (prevIndex != null) {
-                val leftItem = items[prevIndex]
-                WelcomeShowcasePosterCard(
-                    media = leftItem,
-                    isFocused = false,
-                    onClick = { onSelectIndex(prevIndex) },
-                    modifier = Modifier
-                        .width(sideCardWidth)
-                        .aspectRatio(2f / 3f)
-                        .graphicsLayer {
-                            translationX = -sideHorizontalSpread.toPx() + driftOffset
-                            rotationZ = -8f
-                            scaleX = 0.94f
-                            scaleY = 0.94f
-                        }
-                        .then(sideBlur)
-                        .alpha(0.62f)
-                )
+            val spreadPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+                sideHorizontalSpread.toPx().coerceAtLeast(1f)
             }
 
-            if (nextIndex != null) {
-                val rightItem = items[nextIndex]
-                WelcomeShowcasePosterCard(
-                    media = rightItem,
-                    isFocused = false,
-                    onClick = { onSelectIndex(nextIndex) },
-                    modifier = Modifier
-                        .width(sideCardWidth)
-                        .aspectRatio(2f / 3f)
-                        .graphicsLayer {
-                            translationX = sideHorizontalSpread.toPx() - driftOffset
-                            rotationZ = 8f
-                            scaleX = 0.94f
-                            scaleY = 0.94f
-                        }
-                        .then(sideBlur)
-                        .alpha(0.62f)
-                )
-            }
-
-            if (activeItem != null) {
-                AnimatedContent(
-                    targetState = activeItem,
-                    transitionSpec = {
-                        fadeIn(tween(450)) togetherWith fadeOut(tween(350))
-                    },
-                    label = "welcomeCenterPoster"
-                ) { centerMedia ->
-                    WelcomeShowcasePosterCard(
-                        media = centerMedia,
-                        isFocused = true,
-                        onClick = {
-                            if (items.size > 1) {
-                                onSelectIndex((activeIndex + 1) % items.size)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (count > 1) {
+                            Modifier.pointerInput(count, spreadPx) {
+                                detectHorizontalDragGestures(
+                                    onDragStart = { isDragging = true },
+                                    onHorizontalDrag = { _, dragAmount ->
+                                        val deltaSlots = -dragAmount / spreadPx
+                                        coroutineScope.launch {
+                                            val clamped = (animatableSlot.value + deltaSlots).coerceIn(
+                                                targetVirtualSlot - 1.35f,
+                                                targetVirtualSlot + 1.35f
+                                            )
+                                            animatableSlot.snapTo(clamped)
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        isDragging = false
+                                        val displacement = animatableSlot.value - targetVirtualSlot.toFloat()
+                                        val stepDelta = when {
+                                            displacement > 0.20f -> 1
+                                            displacement < -0.20f -> -1
+                                            else -> 0
+                                        }
+                                        if (stepDelta != 0) {
+                                            stepBy(stepDelta)
+                                        } else {
+                                            coroutineScope.launch {
+                                                animatableSlot.animateTo(
+                                                    targetValue = targetVirtualSlot.toFloat(),
+                                                    animationSpec = spring(
+                                                        dampingRatio = 0.86f,
+                                                        stiffness = 280f,
+                                                        visibilityThreshold = 0.001f
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onDragCancel = {
+                                        isDragging = false
+                                        coroutineScope.launch {
+                                            animatableSlot.animateTo(
+                                                targetValue = targetVirtualSlot.toFloat(),
+                                                animationSpec = spring(
+                                                    dampingRatio = 0.86f,
+                                                    stiffness = 280f,
+                                                    visibilityThreshold = 0.001f
+                                                )
+                                            )
+                                        }
+                                    }
+                                )
                             }
-                        },
-                        modifier = Modifier
-                            .width(centerCardWidth)
-                            .aspectRatio(2f / 3f)
-                            .testTag("welcome_center_poster")
-                    )
+                        } else Modifier
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                val currentPos = animatableSlot.value
+                val focusedSlot = currentPos.roundToInt()
+                val slotRange = if (count == 1) {
+                    0..0
+                } else {
+                    val startSlot = floor(currentPos).toInt() - 1
+                    val endSlot = ceil(currentPos).toInt() + 1
+                    startSlot..endSlot
+                }
+
+                for (slot in slotRange) {
+                    key(slot) {
+                        val itemIndex = ((slot % count) + count) % count
+                        val media = items[itemIndex]
+                        val d = slot.toFloat() - currentPos
+                        val absD = abs(d)
+                        val isFocused = slot == focusedSlot
+
+                        val cardScale = (1f - 0.22f * absD.coerceAtMost(1.5f)).coerceAtLeast(0.65f)
+                        val cardAlpha = if (absD <= 1f) {
+                            1f - 0.38f * absD
+                        } else {
+                            (0.62f * (1f - (absD - 1f))).coerceIn(0f, 0.62f)
+                        }
+                        val cardBlur = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && absD > 0.35f) {
+                            val blurDp = ((absD - 0.35f).coerceIn(0f, 0.65f) / 0.65f) * 2.5f
+                            Modifier.blur(blurDp.dp)
+                        } else {
+                            Modifier
+                        }
+
+                        if (cardAlpha > 0.01f) {
+                            WelcomeShowcasePosterCard(
+                                media = media,
+                                isFocused = isFocused,
+                                onClick = {
+                                    when {
+                                        slot < focusedSlot -> stepBy(-1)
+                                        else -> stepBy(1)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .width(centerCardWidth)
+                                    .aspectRatio(2f / 3f)
+                                    .zIndex(10f - absD)
+                                    .graphicsLayer {
+                                        translationX = d * spreadPx - d.coerceIn(-1f, 1f) * driftOffset
+                                        translationY = absD.coerceAtMost(1.5f) * 6.dp.toPx()
+                                        rotationZ = (d * 8f).coerceIn(-12f, 12f)
+                                        scaleX = cardScale
+                                        scaleY = cardScale
+                                    }
+                                    .then(cardBlur)
+                                    .alpha(cardAlpha)
+                                    .then(if (isFocused) Modifier.testTag("welcome_center_poster") else Modifier)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1287,6 +1447,8 @@ private fun OnboardingSyncBanner(
 internal fun OnboardingFavoritePeopleStep(
     syncNotice: String?,
     onDismissSyncNotice: () -> Unit,
+    detectedRegion: RegionOption = RegionalDefaults.detectDeviceRegion(),
+    onRegionClick: () -> Unit = {},
     selectedGenres: Set<String>,
     onToggleGenre: (String) -> Unit,
     query: String,
@@ -1339,21 +1501,31 @@ internal fun OnboardingFavoritePeopleStep(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                if (totalSelected > 0) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = CinemaGold.copy(alpha = 0.18f),
-                        border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            text = "$totalSelected picked",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = CinemaGold,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OnboardingRegionBadge(
+                        region = detectedRegion,
+                        onClick = onRegionClick,
+                        testTag = "onboarding_region_chip_people"
+                    )
+                    if (totalSelected > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = CinemaGold.copy(alpha = 0.18f),
+                            border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "$totalSelected picked",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = CinemaGold,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1691,6 +1863,8 @@ private fun OnboardingPersonCard(
 internal fun OnboardingWatchedTitlesStep(
     syncNotice: String?,
     onDismissSyncNotice: () -> Unit,
+    detectedRegion: RegionOption = RegionalDefaults.detectDeviceRegion(),
+    onRegionClick: () -> Unit = {},
     query: String,
     onQueryChange: (String) -> Unit,
     titles: List<MediaEntity>,
@@ -1735,21 +1909,38 @@ internal fun OnboardingWatchedTitlesStep(
         ) {
             OnboardingSyncBanner(message = syncNotice, onDismiss = onDismissSyncNotice)
 
-            Text(
-                text = "Titles you love",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "Heart favorites, mark watched, or save.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                ) {
+                    Text(
+                        text = "Titles you love",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "Heart favorites, mark watched, or save.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                OnboardingRegionBadge(
+                    region = detectedRegion,
+                    onClick = onRegionClick,
+                    testTag = "onboarding_region_chip_titles"
+                )
+            }
 
             OutlinedTextField(
                 value = query,
@@ -2255,6 +2446,47 @@ private fun OnboardingBottomActionBar(
                 )
             }
         }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingRegionBadge(
+    region: RegionOption,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .testTag(testTag)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = CinemaCyan.copy(alpha = 0.14f),
+            border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.42f))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Text(
+                    text = region.flag,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = stringResource(R.string.onboarding_region_popular, region.code),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = CinemaCyan,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
         }
     }
 }

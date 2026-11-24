@@ -91,6 +91,7 @@ import com.example.data.model.WatchStatus
 import com.example.ui.components.AiConciergeSheet
 import com.example.ui.components.LegalComplianceDialog
 import com.example.ui.components.OttMoneySaverSheet
+import com.example.ui.components.RateAppDialog
 import com.example.ui.components.SnapScannerSheet
 import com.example.ui.components.SwipeToMatchSheet
 import com.example.ui.components.WatchPilotProPaywallSheet
@@ -105,6 +106,7 @@ import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SeasonDetailScreen
 import com.example.ui.screens.TrailersScreen
 import com.example.ui.theme.CinemaGold
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.theme.WatchPilotTheme
 import com.example.ui.util.AdaptiveLayoutProvider
 import com.example.ui.util.LocalAdaptiveLayoutInfo
@@ -142,7 +144,8 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            WatchPilotTheme {
+            val isDarkTheme by viewModel.isDarkTheme.collectAsStateWithLifecycle()
+            WatchPilotTheme(darkTheme = isDarkTheme) {
                 AdaptiveLayoutProvider {
                     var showLaunchSplash by rememberSaveable { mutableStateOf(true) }
                     val hasCompletedOnboarding by viewModel.hasCompletedOnboarding.collectAsStateWithLifecycle()
@@ -341,6 +344,8 @@ fun MovieverseApp(viewModel: MediaViewModel) {
     val showSwipeMatch by viewModel.showSwipeMatchSheet.collectAsStateWithLifecycle()
     val showOttMoneySaver by viewModel.showOttMoneySaverSheet.collectAsStateWithLifecycle()
     val showLegalDialog by viewModel.showLegalComplianceDialog.collectAsStateWithLifecycle()
+    val showRateAppDialog by viewModel.showRateAppDialog.collectAsStateWithLifecycle()
+    val rateAppWatchedCount by viewModel.rateAppWatchedCount.collectAsStateWithLifecycle()
 
     val selectedMedia = remember(
         selectedMediaId,
@@ -458,9 +463,9 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                                     )
                                 },
                                 colors = NavigationBarItemDefaults.colors(
-                                    indicatorColor = CinemaGold.copy(alpha = 0.25f),
-                                    selectedIconColor = CinemaGold,
-                                    selectedTextColor = CinemaGold,
+                                    indicatorColor = WatchPilotColors.current.goldChipContainer,
+                                    selectedIconColor = WatchPilotColors.current.goldAccent,
+                                    selectedTextColor = WatchPilotColors.current.goldAccent,
                                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
@@ -697,6 +702,16 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                 onDismiss = { viewModel.closeLegalCompliance() }
             )
         }
+
+        if (showRateAppDialog) {
+            RateAppDialog(
+                watchedCount = rateAppWatchedCount,
+                onRateNow = { viewModel.onRateAppNow(context) },
+                onShareApp = { viewModel.shareWatchPilotApp(context) },
+                onMaybeLater = { viewModel.onRateAppLater() },
+                onNeverAskAgain = { viewModel.onRateAppNeverAskAgain() }
+            )
+        }
     }
     }
 }
@@ -787,9 +802,9 @@ internal fun AdaptiveTabletNavigationRail(
                         )
                     },
                     colors = NavigationRailItemDefaults.colors(
-                        indicatorColor = CinemaGold.copy(alpha = 0.25f),
-                        selectedIconColor = CinemaGold,
-                        selectedTextColor = CinemaGold,
+                        indicatorColor = WatchPilotColors.current.goldChipContainer,
+                        selectedIconColor = WatchPilotColors.current.goldAccent,
+                        selectedTextColor = WatchPilotColors.current.goldAccent,
                         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),

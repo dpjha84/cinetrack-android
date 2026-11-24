@@ -12,6 +12,9 @@ interface SearchHistoryDao {
     @Query("SELECT * FROM search_history ORDER BY timestamp DESC LIMIT :limit")
     fun getRecentSearches(limit: Int = 20): Flow<List<SearchHistoryEntity>>
 
+    @Query("SELECT * FROM search_history WHERE LOWER(query) = LOWER(:query) LIMIT 1")
+    suspend fun getByQuery(query: String): SearchHistoryEntity?
+
     @Query("SELECT COUNT(*) FROM search_history")
     suspend fun count(): Int
 
@@ -21,7 +24,10 @@ interface SearchHistoryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(items: List<SearchHistoryEntity>)
 
-    @Query("DELETE FROM search_history WHERE query = :query")
+    @Query("UPDATE search_history SET resultCount = :resultCount WHERE LOWER(query) = LOWER(:query)")
+    suspend fun updateResultCount(query: String, resultCount: Int)
+
+    @Query("DELETE FROM search_history WHERE LOWER(query) = LOWER(:query)")
     suspend fun deleteQuery(query: String)
 
     @Query("DELETE FROM search_history")

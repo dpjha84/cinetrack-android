@@ -15,9 +15,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CustomCollectionEntity::class,
         TvProgressEntity::class,
         FavoritePersonEntity::class,
-        PopularPersonEntity::class
+        PopularPersonEntity::class,
+        CachedTvEpisodeEntity::class,
+        CachedPersonEntity::class,
+        CachedSearchResultEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +31,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun tvProgressDao(): TvProgressDao
     abstract fun favoritePersonDao(): FavoritePersonDao
     abstract fun popularPersonDao(): PopularPersonDao
+    abstract fun tvEpisodeCacheDao(): TvEpisodeCacheDao
+    abstract fun cachedPersonDao(): CachedPersonDao
+    abstract fun cachedSearchDao(): CachedSearchDao
 
     companion object {
         @Volatile
@@ -88,6 +94,62 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `search_history` ADD COLUMN `resultCount` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `tv_episodes_cache` (
+                        `mediaId` TEXT NOT NULL,
+                        `seasonNumber` INTEGER NOT NULL,
+                        `episodeNumber` INTEGER NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `overview` TEXT NOT NULL,
+                        `imageUrl` TEXT NOT NULL,
+                        `airDate` TEXT NOT NULL,
+                        `runtimeMinutes` INTEGER NOT NULL,
+                        `rating` REAL NOT NULL,
+                        `episodeCount` INTEGER NOT NULL,
+                        `releaseYear` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`mediaId`, `seasonNumber`, `episodeNumber`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tv_episodes_cache_mediaId` ON `tv_episodes_cache` (`mediaId`)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `cached_people` (
+                        `personId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `profileUrl` TEXT NOT NULL,
+                        `department` TEXT NOT NULL,
+                        `popularity` REAL NOT NULL,
+                        `knownForIds` TEXT NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`personId`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_cached_people_name` ON `cached_people` (`name`)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `cached_search_results` (
+                        `normalizedQuery` TEXT NOT NULL,
+                        `resultKey` TEXT NOT NULL,
+                        `resultType` TEXT NOT NULL,
+                        `mediaId` TEXT NOT NULL,
+                        `personId` INTEGER NOT NULL,
+                        `position` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`normalizedQuery`, `resultKey`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_cached_search_results_normalizedQuery` ON `cached_search_results` (`normalizedQuery`)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -95,7 +157,13 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "cinetrack_database"
                 )
-                    .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                    .addMigrations(
+                        MIGRATION_10_11,
+                        MIGRATION_11_12,
+                        MIGRATION_12_13,
+                        MIGRATION_13_14,
+                        MIGRATION_14_15
+                    )
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

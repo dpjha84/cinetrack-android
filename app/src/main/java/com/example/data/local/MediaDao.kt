@@ -13,7 +13,7 @@ interface MediaDao {
     @Query("SELECT * FROM media_items ORDER BY createdAt DESC")
     fun getAllMedia(): Flow<List<MediaEntity>>
 
-    @Query("SELECT * FROM media_items WHERE status != 'NONE' OR isFavorite = 1 OR userRating > 0 ORDER BY lastWatchedDate DESC, createdAt DESC")
+    @Query("SELECT * FROM media_items WHERE status != 'NONE' OR isFavorite = 1 OR userRating > 0 OR (customWatchlist IS NOT NULL AND customWatchlist != '') ORDER BY lastWatchedDate DESC, createdAt DESC")
     fun getTrackedMedia(): Flow<List<MediaEntity>>
 
     @Query("SELECT * FROM media_items WHERE status = 'WATCHING' ORDER BY lastWatchedDate DESC")
@@ -22,8 +22,11 @@ interface MediaDao {
     @Query("SELECT * FROM media_items WHERE isFavorite = 1 ORDER BY lastWatchedDate DESC, createdAt DESC")
     fun getFavorites(): Flow<List<MediaEntity>>
 
-    @Query("SELECT * FROM media_items WHERE status = 'PLAN_TO_WATCH' OR customWatchlist IS NOT NULL OR isFavorite = 1 ORDER BY lastWatchedDate DESC, createdAt DESC")
+    @Query("SELECT * FROM media_items WHERE status = 'PLAN_TO_WATCH' OR (customWatchlist IS NOT NULL AND customWatchlist != '') OR isFavorite = 1 ORDER BY lastWatchedDate DESC, createdAt DESC")
     fun getWatchlistMedia(): Flow<List<MediaEntity>>
+
+    @Query("SELECT * FROM media_items WHERE status != 'NONE' OR (customWatchlist IS NOT NULL AND customWatchlist != '') OR isFavorite = 1 ORDER BY lastWatchedDate DESC, createdAt DESC")
+    suspend fun getWatchlistMediaDirect(): List<MediaEntity>
 
     @Query("SELECT * FROM media_items WHERE id = :id")
     fun getMediaById(id: String): Flow<MediaEntity?>
@@ -113,6 +116,24 @@ interface MediaDao {
         limit: Int,
         offset: Int
     ): List<MediaEntity>
+
+    @Query(
+        """
+        SELECT * FROM media_items
+        WHERE title LIKE '%' || :query || '%'
+           OR `cast` LIKE '%' || :query || '%'
+           OR directorOrCreator LIKE '%' || :query || '%'
+           OR genres LIKE '%' || :query || '%'
+           OR overview LIKE '%' || :query || '%'
+           OR (customWatchlist IS NOT NULL AND customWatchlist LIKE '%' || :query || '%')
+        ORDER BY
+          CASE WHEN status != 'NONE' OR isFavorite = 1 OR (customWatchlist IS NOT NULL AND customWatchlist != '') THEN 0 ELSE 1 END,
+          CASE WHEN LOWER(title) LIKE LOWER(:query || '%') THEN 0 ELSE 1 END,
+          communityRating DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchMediaOffline(query: String, limit: Int = 60): List<MediaEntity>
 
     @Query("DELETE FROM media_items WHERE isCustom = 1")
     suspend fun deleteCustomMedia()

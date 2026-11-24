@@ -81,6 +81,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.ui.viewmodel.TrailerCategory
@@ -152,16 +153,17 @@ fun TrailersScreen(
                             .weight(1f)
                             .padding(end = 8.dp)
                     ) {
+                        val trailerColors = WatchPilotColors.current
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = CinemaGold.copy(alpha = 0.2f),
+                            color = trailerColors.goldChipContainer,
                             modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.PlayCircle,
                                     contentDescription = "Trailers",
-                                    tint = CinemaGold,
+                                    tint = trailerColors.goldAccent,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -179,11 +181,11 @@ fun TrailersScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = CinemaGold.copy(alpha = 0.15f)
+                                    color = trailerColors.goldChipContainer
                                 ) {
                                     Text(
                                         text = "${regionOption.flag} ${regionOption.code}",
-                                        color = CinemaGold,
+                                        color = trailerColors.goldAccent,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
@@ -209,7 +211,7 @@ fun TrailersScreen(
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Refresh Trailers",
-                            tint = CinemaGold
+                            tint = WatchPilotColors.current.goldAccent
                         )
                     }
                 }
@@ -224,6 +226,7 @@ fun TrailersScreen(
                 ) {
                     items(TrailerCategory.entries, key = { it.name }) { category ->
                         val selected = selectedCategory == category
+                        val trailerColors = WatchPilotColors.current
                         val labelWithCount = when (category) {
                             TrailerCategory.ALL -> "All (${relevantTrailers.size})"
                             TrailerCategory.NOW_PLAYING -> "Now Playing ($nowPlayingCount)"
@@ -239,6 +242,7 @@ fun TrailersScreen(
                                 Text(
                                     text = labelWithCount,
                                     fontSize = 12.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -259,9 +263,9 @@ fun TrailersScreen(
                                 else -> null
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaGold,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface,
-                                selectedLeadingIconColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = trailerColors.goldSolidBg,
+                                selectedLabelColor = trailerColors.onGoldSolid,
+                                selectedLeadingIconColor = trailerColors.onGoldSolid
                             ),
                             modifier = Modifier.testTag("trailer_filter_${category.name.lowercase()}")
                         )
@@ -646,6 +650,7 @@ fun TrailerCard(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
+                val trailerCardColors = WatchPilotColors.current
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -656,7 +661,7 @@ fun TrailerCard(
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (isInWatchlist) CinemaGreen else CinemaGold
+                            contentColor = if (isInWatchlist) trailerCardColors.greenAccent else trailerCardColors.goldAccent
                         ),
                         modifier = Modifier
                             .weight(1f)

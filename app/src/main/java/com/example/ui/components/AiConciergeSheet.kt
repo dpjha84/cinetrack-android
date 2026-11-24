@@ -61,8 +61,7 @@ import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.WatchPilotColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,7 +90,7 @@ fun AiConciergeSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         modifier = Modifier.testTag("ai_concierge_sheet")
     ) {
         Column(
@@ -132,6 +131,7 @@ fun AiConciergeSheet(
                 else ->
                     "${monetizationState.remainingFreeConciergePicks} OF ${MonetizationState.FREE_CONCIERGE_LIMIT} FREE THIS MONTH"
             }
+            val conciergeColors = WatchPilotColors.current
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -142,14 +142,14 @@ fun AiConciergeSheet(
                         .weight(1f, fill = false)
                         .padding(end = 8.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(CinemaGold.copy(alpha = 0.16f))
+                        .background(conciergeColors.goldChipContainer)
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = quotaLabel,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = CinemaGold,
+                        color = conciergeColors.goldAccent,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -158,7 +158,7 @@ fun AiConciergeSheet(
                     Text(
                         text = "Using ${monetizationState.subscribedProviders.size} OTT app(s)",
                         fontSize = 11.sp,
-                        color = CinemaCyan,
+                        color = conciergeColors.cyanAccent,
                         maxLines = 1,
                         softWrap = false
                     )
@@ -303,7 +303,7 @@ fun AiConciergeSheet(
                                     .clickable(enabled = entity != null) {
                                         if (entity != null) onOpenMedia(entity)
                                     },
-                                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 shape = RoundedCornerShape(16.dp),
                                 border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.25f))
                             ) {

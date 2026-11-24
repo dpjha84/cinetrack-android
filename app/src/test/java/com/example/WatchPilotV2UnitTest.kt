@@ -10,6 +10,8 @@ import com.example.data.model.WatchAlertType
 import com.example.data.model.WatchStatus
 import com.example.util.CsvLibraryPorter
 import com.example.util.OttMoneySaverCalculator
+import com.example.util.RateAppEngagementPolicy
+import com.example.util.RateAppPromptState
 import com.example.util.WatchAlertSnapshot
 import com.example.util.WatchAlertsManager
 import org.junit.Assert.assertEquals
@@ -338,6 +340,83 @@ class WatchPilotV2UnitTest {
             nowMs = 1_700_000_005_000L
         )
         assertTrue(secondPassAlerts.isEmpty())
+    }
+
+    @Test
+    fun rateAppEngagementPolicy_triggersAtFiveWatchedAndRespectsSnoozeAndOptOut() {
+        var state = RateAppPromptState()
+
+        // First 4 watched movies/episodes should accumulate without triggering
+        repeat(4) {
+            val (next, shouldPrompt) = RateAppEngagementPolicy.recordWatched(
+                state = state,
+                delta = 1,
+                alreadyPromptedThisSession = false
+            )
+            state = next
+            assertFalse(shouldPrompt)
+        }
+        assertEquals(4, state.watchedCount)
+
+        // 5th watched movie/episode triggers the dialog
+        val (atFive, shouldPromptAtFive) = RateAppEngagementPolicy.recordWatched(
+            state = state,
+            delta = 1,
+            alreadyPromptedThisSession = false
+        )
+        assertEquals(5, atFive.watchedCount)
+        assertTrue(shouldPromptAtFive)
+
+        // Same-session suppression prevents repeated prompts if dialog already opened
+        val (_, suppressedSameSession) = RateAppEngagementPolicy.recordWatched(
+            state = atFive,
+            delta = 1,
+            alreadyPromptedThisSession = true
+        )
+        assertFalse(suppressedSameSession)
+
+        // Tapping Maybe Later snoozes by 10 watched items (5 + 10 = 15)
+        val snoozedOnce = RateAppEngagementPolicy.onMaybeLater(atFive)
+        assertEquals(1, snoozedOnce.dismissCount)
+        assertEquals(15, snoozedOnce.nextTriggerThreshold)
+        assertFalse(snoozedOnce.neverAskAgain)
+
+        // Watching 9 more items (count 14) still does not re-trigger
+        val (atFourteen, promptAtFourteen) = RateAppEngagementPolicy.recordWatched(
+            state = snoozedOnce,
+            delta = 9,
+            alreadyPromptedThisSession = false
+        )
+        assertEquals(14, atFourteen.watchedCount)
+        assertFalse(promptAtFourteen)
+
+        // Watching 15th item triggers again
+        val (atFifteen, promptAtFifteen) = RateAppEngagementPolicy.recordWatched(
+            state = atFourteen,
+            delta = 1,
+            alreadyPromptedThisSession = false
+        )
+        assertEquals(15, atFifteen.watchedCount)
+        assertTrue(promptAtFifteen)
+
+        // Second Maybe Later permanently stops asking
+        val snoozedTwice = RateAppEngagementPolicy.onMaybeLater(atFifteen)
+        assertTrue(snoozedTwice.neverAskAgain)
+        val (_, afterMaxSnooze) = RateAppEngagementPolicy.recordWatched(
+            state = snoozedTwice,
+            delta = 20,
+            alreadyPromptedThisSession = false
+        )
+        assertFalse(afterMaxSnooze)
+
+        // Rating now or selecting Never Ask Again permanently suppresses future triggers
+        val rated = RateAppEngagementPolicy.onRateNow(atFive)
+        assertTrue(rated.hasRatedApp)
+        assertFalse(RateAppEngagementPolicy.recordWatched(rated, delta = 10).second)
+
+        val optedOut = RateAppEngagementPolicy.onNeverAskAgain(atFive)
+        assertTrue(optedOut.neverAskAgain)
+        assertFalse(RateAppEngagementPolicy.recordWatched(optedOut, delta = 10).second)
     }
 }
 

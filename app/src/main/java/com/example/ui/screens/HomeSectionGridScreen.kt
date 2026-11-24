@@ -59,6 +59,7 @@ import com.example.ui.components.CompactMediaPosterCard
 import com.example.ui.components.CompactPersonCircleCard
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -187,6 +188,7 @@ fun HomeSectionGridScreen(
                 }
 
                 // Hide Media Type filter bar when Movie/TV Show was already filtered on Home
+                val chipColors = WatchPilotColors.current
                 if (!isFilterLocked) {
                     Row(
                         modifier = Modifier
@@ -198,17 +200,17 @@ fun HomeSectionGridScreen(
                         FilterChip(
                             selected = selectedType == null,
                             onClick = { onSelectType(null) },
-                            label = { Text("All Media", maxLines = 1, softWrap = false) },
+                            label = { Text("All Media", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaGold,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = chipColors.goldSolidBg,
+                                selectedLabelColor = chipColors.onGoldSolid
                             ),
                             modifier = Modifier.testTag("section_filter_all")
                         )
                         FilterChip(
                             selected = selectedType == MediaType.MOVIE,
                             onClick = { onSelectType(MediaType.MOVIE) },
-                            label = { Text("Movies", maxLines = 1, softWrap = false) },
+                            label = { Text("Movies", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Movie,
@@ -217,15 +219,16 @@ fun HomeSectionGridScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaGold,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = chipColors.goldSolidBg,
+                                selectedLabelColor = chipColors.onGoldSolid,
+                                selectedLeadingIconColor = chipColors.onGoldSolid
                             ),
                             modifier = Modifier.testTag("section_filter_movies")
                         )
                         FilterChip(
                             selected = selectedType == MediaType.TV_SHOW,
                             onClick = { onSelectType(MediaType.TV_SHOW) },
-                            label = { Text("TV Shows", maxLines = 1, softWrap = false) },
+                            label = { Text("TV Shows", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Tv,
@@ -234,8 +237,9 @@ fun HomeSectionGridScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaCyan,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = chipColors.cyanSolidBg,
+                                selectedLabelColor = chipColors.onCyanSolid,
+                                selectedLeadingIconColor = chipColors.onCyanSolid
                             ),
                             modifier = Modifier.testTag("section_filter_tv")
                         )
@@ -263,15 +267,28 @@ fun HomeSectionGridScreen(
                         )
 
                         availableGenres.forEach { genre ->
+                            val isGenreSelected = selectedGenre == genre
                             FilterChip(
-                                selected = selectedGenre == genre,
+                                selected = isGenreSelected,
                                 onClick = {
-                                    onSelectGenre(if (selectedGenre == genre) null else genre)
+                                    onSelectGenre(if (isGenreSelected) null else genre)
                                 },
-                                label = { Text(genre, fontSize = 12.sp) },
+                                label = {
+                                    Text(
+                                        genre,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isGenreSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = CinemaGold.copy(alpha = 0.2f),
-                                    selectedLabelColor = CinemaGold
+                                    selectedContainerColor = chipColors.goldChipContainer,
+                                    selectedLabelColor = chipColors.goldAccent
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isGenreSelected,
+                                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                                    selectedBorderColor = chipColors.goldChipBorder
                                 ),
                                 modifier = Modifier.testTag("section_genre_${genre.lowercase().replace(" ", "_")}")
                             )
@@ -328,7 +345,7 @@ fun HomeSectionGridScreen(
                         }
                         if (hasMore) {
                             TextButton(onClick = onLoadMore) {
-                                Text("Load More", color = CinemaGold, fontWeight = FontWeight.Bold)
+                                Text("Load More", color = WatchPilotColors.current.goldAccent, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

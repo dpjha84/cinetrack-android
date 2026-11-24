@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,12 +38,14 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -87,12 +90,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.BuildConfig
+import com.example.R
 import com.example.data.model.RegionalDefaults
 import com.example.ui.components.GoogleSignInIcon
 import com.example.ui.components.LocalizationPreferencesDialog
@@ -100,6 +105,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import androidx.compose.ui.unit.Dp
@@ -117,6 +123,7 @@ fun ProfileScreen(
     val userPrefs by viewModel.userPreferences.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
     val analyticsEnabled by viewModel.analyticsEnabled.collectAsStateWithLifecycle()
+    val isDarkTheme by viewModel.isDarkTheme.collectAsStateWithLifecycle()
     val stats by viewModel.stats.collectAsStateWithLifecycle()
     val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
     val ottSummary by viewModel.ottMoneySaverSummary.collectAsStateWithLifecycle()
@@ -250,15 +257,16 @@ fun ProfileScreen(
                                 .weight(1f)
                                 .padding(end = 8.dp)
                         ) {
+                            val proColors = WatchPilotColors.current
                             Surface(
                                 shape = CircleShape,
-                                color = CinemaGold.copy(alpha = 0.2f),
+                                color = proColors.goldChipContainer,
                                 modifier = Modifier.size(42.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.WorkspacePremium,
                                     contentDescription = null,
-                                    tint = CinemaGold,
+                                    tint = proColors.goldAccent,
                                     modifier = Modifier
                                         .padding(9.dp)
                                         .fillMaxSize()
@@ -270,7 +278,7 @@ fun ProfileScreen(
                                     text = if (monetizationState.isPro) monetizationState.planType.displayLabel else "WatchPilot Pro",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = CinemaGold
+                                    color = proColors.goldAccent
                                 )
                                 Text(
                                     text = if (monetizationState.isPro) {
@@ -284,9 +292,10 @@ fun ProfileScreen(
                             }
                         }
 
+                        val tierColors = WatchPilotColors.current
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (monetizationState.isPro) CinemaGreen.copy(alpha = 0.2f) else CinemaGold.copy(alpha = 0.16f)
+                            color = if (monetizationState.isPro) tierColors.greenChipContainer else tierColors.goldChipContainer
                         ) {
                             Text(
                                 text = if (monetizationState.isPro) "ACTIVE" else "FREE TIER",
@@ -294,7 +303,7 @@ fun ProfileScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1,
                                 softWrap = false,
-                                color = if (monetizationState.isPro) CinemaGreen else CinemaGold,
+                                color = if (monetizationState.isPro) tierColors.greenAccent else tierColors.goldAccent,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
@@ -303,11 +312,12 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     if (!monetizationState.isPro) {
+                        val ctaColors = WatchPilotColors.current
                         Button(
                             onClick = { viewModel.openPaywall() },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = CinemaGold,
-                                contentColor = Color.Black
+                                containerColor = ctaColors.goldSolidBg,
+                                contentColor = ctaColors.onGoldSolid
                             ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
@@ -738,16 +748,17 @@ fun ProfileScreen(
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
                                             if (!monetizationState.isPro) {
+                                                val proPillColors = WatchPilotColors.current
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Surface(
                                                     shape = RoundedCornerShape(6.dp),
-                                                    color = CinemaGold.copy(alpha = 0.18f)
+                                                    color = proPillColors.goldChipContainer
                                                 ) {
                                                     Text(
                                                         text = "PRO",
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.ExtraBold,
-                                                        color = CinemaGold,
+                                                        color = proPillColors.goldAccent,
                                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                                     )
                                                 }
@@ -1028,6 +1039,63 @@ fun ProfileScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.setDarkTheme(!isDarkTheme) }
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isDarkTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
+                                contentDescription = stringResource(R.string.pref_theme_title),
+                                tint = WatchPilotColors.current.goldAccent
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.pref_theme_title),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = stringResource(
+                                        if (isDarkTheme) {
+                                            R.string.pref_theme_dark_subtitle
+                                        } else {
+                                            R.string.pref_theme_light_subtitle
+                                        }
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = isDarkTheme,
+                            onCheckedChange = { viewModel.setDarkTheme(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = CinemaGold,
+                                checkedTrackColor = CinemaGold.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier.testTag("switch_dark_theme")
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
                             .clickable { showRegionDialog = true }
                             .padding(vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1229,9 +1297,10 @@ fun ProfileScreen(
                         .padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val badgeColors = WatchPilotColors.current
                     Surface(
                         shape = CircleShape,
-                        color = CinemaGold.copy(alpha = 0.2f),
+                        color = badgeColors.goldChipContainer,
                         modifier = Modifier.size(52.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -1250,7 +1319,7 @@ fun ProfileScreen(
                             text = stats.cinephileRank,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = CinemaGold
+                            color = badgeColors.goldAccent
                         )
                         Text(
                             text = "${stats.completedMoviesCount} Movies • ${stats.totalEpisodesLogged} TV Episodes",
@@ -1268,8 +1337,8 @@ fun ProfileScreen(
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = CinemaGold.copy(alpha = 0.2f),
-                            contentColor = CinemaGold
+                            containerColor = badgeColors.goldChipContainer,
+                            contentColor = badgeColors.goldAccent
                         ),
                         modifier = Modifier.testTag("btn_share_wrapped")
                     ) {
@@ -1390,9 +1459,10 @@ fun ProfileScreen(
                             )
                         }
                         if (!monetizationState.isPro) {
+                            val dnaLockColors = WatchPilotColors.current
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = CinemaGold.copy(alpha = 0.18f)
+                                color = dnaLockColors.goldChipContainer
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1401,7 +1471,7 @@ fun ProfileScreen(
                                     Icon(
                                         imageVector = Icons.Default.Lock,
                                         contentDescription = null,
-                                        tint = CinemaGold,
+                                        tint = dnaLockColors.goldAccent,
                                         modifier = Modifier.size(11.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -1409,7 +1479,7 @@ fun ProfileScreen(
                                         text = "PRO",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = CinemaGold
+                                        color = dnaLockColors.goldAccent
                                     )
                                 }
                             }
@@ -1418,15 +1488,16 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    val dnaColors = WatchPilotColors.current
                     if (monetizationState.isPro) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = CinemaCyan.copy(alpha = 0.14f)
+                            color = dnaColors.cyanChipContainer
                         ) {
                             Text(
                                 text = "${stats.completionRatePercent}% Completion • ${stats.topOriginLanguage}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = CinemaCyan,
+                                color = dnaColors.cyanAccent,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -1457,7 +1528,7 @@ fun ProfileScreen(
                                         Text(
                                             text = countText,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = CinemaCyan,
+                                            color = dnaColors.cyanAccent,
                                             maxLines = 1,
                                             softWrap = false
                                         )
@@ -1469,7 +1540,7 @@ fun ProfileScreen(
                                             .fillMaxWidth()
                                             .height(6.dp)
                                             .clip(CircleShape),
-                                        color = CinemaCyan,
+                                        color = dnaColors.cyanSolidBg,
                                         trackColor = MaterialTheme.colorScheme.surface
                                     )
                                 }
@@ -1494,8 +1565,8 @@ fun ProfileScreen(
                                 viewModel.openPaywall("Unlock deep Cinema DNA Insights (Completion Rate, Era Breakdown & Language DNA) with WatchPilot Pro.")
                             },
                             colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = CinemaGold.copy(alpha = 0.2f),
-                                contentColor = CinemaGold
+                                containerColor = dnaColors.goldChipContainer,
+                                contentColor = dnaColors.goldAccent
                             ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
@@ -1661,6 +1732,105 @@ fun ProfileScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { viewModel.rateWatchPilotApp(context) }
+                            .padding(vertical = 8.dp)
+                            .testTag("btn_profile_rate_app"),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = stringResource(R.string.rate_app_title),
+                                tint = CinemaGold,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.rate_app_title),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = stringResource(R.string.rate_app_subtitle),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { viewModel.shareWatchPilotApp(context) }
+                            .padding(vertical = 8.dp)
+                            .testTag("btn_profile_share_app"),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = stringResource(R.string.share_app_title),
+                                tint = CinemaCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.share_app_title),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = stringResource(R.string.share_app_subtitle),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { viewModel.openLegalCompliance() }
                             .padding(vertical = 8.dp)

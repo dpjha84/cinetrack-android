@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class SearchHistoryEntity(
     @PrimaryKey
     val query: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val resultCount: Int = 0
 )

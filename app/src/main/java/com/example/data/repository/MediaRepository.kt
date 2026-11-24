@@ -2,6 +2,11 @@ package com.example.data.repository
 
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.example.data.local.CachedPersonDao
+import com.example.data.local.CachedPersonEntity
+import com.example.data.local.CachedSearchDao
+import com.example.data.local.CachedSearchResultEntity
+import com.example.data.local.CachedTvEpisodeEntity
 import com.example.data.local.CustomCollectionDao
 import com.example.data.local.CustomCollectionEntity
 import com.example.data.local.FavoritePersonDao
@@ -15,6 +20,7 @@ import com.example.data.local.SampleMediaData
 import com.example.data.local.SampleTrailerData
 import com.example.data.local.SearchHistoryDao
 import com.example.data.local.SearchHistoryEntity
+import com.example.data.local.TvEpisodeCacheDao
 import com.example.data.local.UserPreferencesEntity
 import com.example.data.model.CastMemberItem
 import com.example.data.model.HomeCatalogSection
@@ -39,7 +45,10 @@ import com.example.data.model.EpisodeItem
 import com.example.data.model.SeasonItem
 import com.example.data.model.TvWatchStatus
 import com.example.util.CsvLibraryPorter
+import com.example.util.OfflineCachePolicy
+import com.example.util.OnboardingRegionalPolicy
 import com.example.util.PersonalizationEngine
+import com.example.util.TrendingRotationPolicy
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +63,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap
 
@@ -65,7 +75,10 @@ class MediaRepository(
     private val tvProgressDao: TvProgressDao,
     private val favoritePersonDao: FavoritePersonDao,
     private val firestoreSyncManager: FirestoreSyncManager? = null,
-    private val popularPersonDao: PopularPersonDao? = null
+    private val popularPersonDao: PopularPersonDao? = null,
+    private val tvEpisodeCacheDao: TvEpisodeCacheDao? = null,
+    private val cachedPersonDao: CachedPersonDao? = null,
+    private val cachedSearchDao: CachedSearchDao? = null
 ) {
 
     private val syncMutex = Mutex()
@@ -247,28 +260,59 @@ class MediaRepository(
 
     fun getMediaById(id: String): Flow<MediaEntity?> = mediaDao.getMediaById(id)
 
-    suspend fun recordSearchQuery(query: String) = withContext(Dispatchers.IO) {
+    suspend fun recordSearchQuery(query: String, resultCount: Int = 0) = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
         if (trimmed.length >= 2) {
+            val existing = searchHistoryDao.getByQuery(trimmed)
+            val resolvedCount = if (resultCount > 0) resultCount else (existing?.resultCount ?: 0)
+            if (existing != null && !existing.query.equals(trimmed, ignoreCase = false)) {
+                searchHistoryDao.deleteQuery(existing.query)
+            }
             searchHistoryDao.insertOrUpdate(
                 SearchHistoryEntity(
                     query = trimmed,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = System.currentTimeMillis(),
+                    resultCount = resolvedCount
                 )
             )
             val uid = currentAuthenticatedUserId()
             if (!uid.isNullOrBlank()) {
-                firestoreSyncManager?.uploadSearchHistory(uid, trimmed)
+                firestoreSyncManager?.uploadSearchHistory(uid, trimmed, resolvedCount)
+            }
+        }
+    }
+
+    suspend fun updateRecordedSearchResultCount(query: String, resultCount: Int) = withContext(Dispatchers.IO) {
+        val trimmed = query.trim()
+        if (trimmed.length < 2 || resultCount <= 0) return@withContext
+        val existing = searchHistoryDao.getByQuery(trimmed) ?: return@withContext
+        if (existing.resultCount != resultCount) {
+            searchHistoryDao.updateResultCount(trimmed, resultCount)
+            val uid = currentAuthenticatedUserId()
+            if (!uid.isNullOrBlank()) {
+                firestoreSyncManager?.uploadSearchHistory(uid, existing.query, resultCount)
             }
         }
     }
 
     suspend fun removeSearchQuery(query: String) = withContext(Dispatchers.IO) {
-        searchHistoryDao.deleteQuery(query.trim())
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return@withContext
+        searchHistoryDao.deleteQuery(trimmed)
+        cachedSearchDao?.deleteForQuery(OfflineCachePolicy.normalizeSearchQuery(trimmed))
+        val uid = currentAuthenticatedUserId()
+        if (!uid.isNullOrBlank()) {
+            firestoreSyncManager?.deleteSearchHistory(uid, trimmed)
+        }
     }
 
     suspend fun clearSearchHistory() = withContext(Dispatchers.IO) {
         searchHistoryDao.clearAll()
+        cachedSearchDao?.clearAll()
+        val uid = currentAuthenticatedUserId()
+        if (!uid.isNullOrBlank()) {
+            firestoreSyncManager?.clearSearchHistory(uid)
+        }
     }
 
     private suspend fun clearLocalUserDataLocked() {
@@ -276,6 +320,7 @@ class MediaRepository(
         mediaDao.deleteCustomMedia()
         tvProgressDao.clearAll()
         searchHistoryDao.clearAll()
+        cachedSearchDao?.clearAll()
         collectionDao.clearAll()
         favoritePersonDao.clearAll()
         baseSeasonsCache.clear()
@@ -687,6 +732,24 @@ class MediaRepository(
         region: String = "US",
         timeWindow: String = "day"
     ): List<MediaEntity> = withContext(Dispatchers.IO) {
+        val watchedIds = runCatching {
+            mediaDao.getAllMediaList()
+                .asSequence()
+                .filter { it.status == WatchStatus.COMPLETED.name }
+                .map { it.id }
+                .toHashSet()
+        }.getOrDefault(emptySet())
+
+        val isEligibleTrending: (MediaEntity) -> Boolean = {
+            val titleLower = it.title.lowercase().trim()
+            !titleLower.contains("panchayat") &&
+                titleLower != "rrr" &&
+                titleLower != "inception" &&
+                titleLower != "fight club" &&
+                titleLower != "parasite" &&
+                it.releaseYear >= 2023
+        }
+
         if (apiKey.isNotBlank() && apiKey != "YOUR_TMDB_API_KEY") {
             try {
                 val safeLanguage = if (language != null && !language.equals("all", ignoreCase = true)) language else null
@@ -739,44 +802,41 @@ class MediaRepository(
                     .filter { it.mediaType != "person" }
                     .map { TmdbClient.toMediaEntity(it) }
 
-                val combined = (regionalEntities + globalTrending)
-                    .filter { 
-                        val titleLower = it.title.lowercase().trim()
-                        !titleLower.contains("panchayat") &&
-                        titleLower != "rrr" &&
-                        titleLower != "inception" &&
-                        titleLower != "fight club" &&
-                        titleLower != "parasite" &&
-                        it.releaseYear >= 2023
-                    }
-                    .distinctBy { it.id }
+                val filteredRegional = regionalEntities.filter(isEligibleTrending).distinctBy { it.id }
+                val filteredGlobal = globalTrending.filter(isEligibleTrending).distinctBy { it.id }
 
-                if (combined.isNotEmpty()) {
-                    mediaDao.insertAll(combined)
-                    return@withContext combined
+                val rotated = TrendingRotationPolicy.rotateTrendingForWindow(
+                    regionalHits = filteredRegional,
+                    globalHits = filteredGlobal,
+                    watchedIds = watchedIds,
+                    region = region,
+                    timeWindow = timeWindow
+                )
+
+                if (rotated.isNotEmpty()) {
+                    mediaDao.insertAll(rotated)
+                    return@withContext rotated
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
         // Fallback to initial catalog sorted for this region (excluding legacy titles)
-        val catalog = SampleMediaData.getInitialCatalog()
-        return@withContext catalog
-            .filter { 
-                val titleLower = it.title.lowercase().trim()
-                !titleLower.contains("panchayat") &&
-                titleLower != "rrr" &&
-                titleLower != "inception" &&
-                titleLower != "fight club" &&
-                titleLower != "parasite" &&
-                it.releaseYear >= 2023
-            }
+        val sortedFallback = SampleMediaData.getInitialCatalog()
+            .filter(isEligibleTrending)
             .sortedWith(
                 compareByDescending<MediaEntity> {
                     if (it.originCountry.equals(region, ignoreCase = true)) 1 else 0
                 }.thenByDescending { it.releaseYear }
-                .thenByDescending { it.communityRating }
+                    .thenByDescending { it.communityRating }
             )
+        return@withContext TrendingRotationPolicy.rotateTrendingForWindow(
+            regionalHits = sortedFallback.filter { it.originCountry.equals(region, ignoreCase = true) },
+            globalHits = sortedFallback.filterNot { it.originCountry.equals(region, ignoreCase = true) },
+            watchedIds = watchedIds,
+            region = region,
+            timeWindow = timeWindow
+        )
     }
 
     suspend fun searchTmdb(query: String, apiKey: String, language: String?, region: String?): List<MediaEntity> = withContext(Dispatchers.IO) {
@@ -817,14 +877,29 @@ class MediaRepository(
                     language = safeLanguage,
                     region = safeRegion
                 )
-                val entities = response.results.map { TmdbClient.toMediaEntity(it) }
+                val entities = response.results.map {
+                    TmdbClient.toMediaEntity(it).copy(feedTags = "TOP_RATED_MOVIE")
+                }
                 if (entities.isNotEmpty()) {
-                    mediaDao.insertAll(entities)
+                    upsertWithFeedTag(entities, "TOP_RATED_MOVIE")
                     return@withContext entities
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+        val cachedTopMovies = runCatching {
+            mediaDao.getPagedMediaByFeed(
+                feedTag = "TOP_RATED_MOVIE",
+                mediaType = MediaType.MOVIE.name,
+                genreFilter = null,
+                languageFilter = null,
+                limit = 20,
+                offset = 0
+            )
+        }.getOrDefault(emptyList())
+        if (cachedTopMovies.isNotEmpty()) {
+            return@withContext cachedTopMovies.sortedByDescending { it.communityRating }
         }
         getCuratedTopRatedMovies()
     }
@@ -838,14 +913,29 @@ class MediaRepository(
                     apiKey = apiKey,
                     language = safeLanguage
                 )
-                val entities = response.results.map { TmdbClient.toMediaEntity(it) }
+                val entities = response.results.map {
+                    TmdbClient.toMediaEntity(it).copy(feedTags = "TOP_RATED_TV")
+                }
                 if (entities.isNotEmpty()) {
-                    mediaDao.insertAll(entities)
+                    upsertWithFeedTag(entities, "TOP_RATED_TV")
                     return@withContext entities
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+        val cachedTopTv = runCatching {
+            mediaDao.getPagedMediaByFeed(
+                feedTag = "TOP_RATED_TV",
+                mediaType = MediaType.TV_SHOW.name,
+                genreFilter = null,
+                languageFilter = null,
+                limit = 20,
+                offset = 0
+            )
+        }.getOrDefault(emptyList())
+        if (cachedTopTv.isNotEmpty()) {
+            return@withContext cachedTopTv.sortedByDescending { it.communityRating }
         }
         getCuratedTopRatedTv()
     }
@@ -1176,6 +1266,86 @@ class MediaRepository(
         )
     }
 
+    private suspend fun cacheSearchResultsInRoom(
+        cacheKey: String,
+        results: List<TmdbSearchResultItem>,
+        entitiesToCache: List<MediaEntity>
+    ) {
+        if (entitiesToCache.isNotEmpty()) {
+            mediaDao.insertAll(entitiesToCache.distinctBy { it.id })
+        }
+        val people = results.filterIsInstance<TmdbSearchResultItem.Person>().filter { it.id > 0L }
+        if (people.isNotEmpty()) {
+            cachedPersonDao?.insertAll(people.map { CachedPersonEntity.fromPerson(it) })
+        }
+        val dao = cachedSearchDao ?: return
+        val normalized = OfflineCachePolicy.normalizeSearchQuery(cacheKey)
+        if (normalized.isBlank()) return
+        val now = System.currentTimeMillis()
+        dao.deleteForQuery(normalized)
+        val entries = results.mapIndexedNotNull { idx, item ->
+            when (item) {
+                is TmdbSearchResultItem.Media -> CachedSearchResultEntity(
+                    normalizedQuery = normalized,
+                    resultKey = "m_${item.entity.id}",
+                    resultType = "MEDIA",
+                    mediaId = item.entity.id,
+                    position = idx,
+                    updatedAt = now
+                )
+                is TmdbSearchResultItem.Person -> CachedSearchResultEntity(
+                    normalizedQuery = normalized,
+                    resultKey = "p_${item.id}",
+                    resultType = "PERSON",
+                    personId = item.id,
+                    position = idx,
+                    updatedAt = now
+                )
+            }
+        }
+        if (entries.isNotEmpty()) {
+            dao.insertAll(entries)
+        }
+    }
+
+    private suspend fun loadCachedSearchResultsFromRoom(cacheKey: String): List<TmdbSearchResultItem> {
+        val dao = cachedSearchDao ?: return emptyList()
+        val normalized = OfflineCachePolicy.normalizeSearchQuery(cacheKey)
+        if (normalized.isBlank()) return emptyList()
+        val rows = dao.getResultsForQuery(normalized)
+        if (rows.isEmpty()) return emptyList()
+
+        val mediaIds = rows.filter { it.resultType == "MEDIA" && it.mediaId.isNotBlank() }.map { it.mediaId }.distinct()
+        val mediaMap = if (mediaIds.isNotEmpty()) {
+            mediaIds.chunked(400).flatMap { mediaDao.getByIds(it) }.associateBy { it.id }
+        } else emptyMap()
+
+        val personIds = rows.filter { it.resultType == "PERSON" && it.personId > 0L }.map { it.personId }.distinct()
+        val personEntities = if (personIds.isNotEmpty()) {
+            cachedPersonDao?.getByIds(personIds).orEmpty()
+        } else emptyList()
+        val knownForIds = personEntities.flatMap { p ->
+            p.knownForIds.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        }.distinct()
+        val allMediaForPeople = if (knownForIds.isNotEmpty()) {
+            mediaMap + knownForIds.chunked(400).flatMap { mediaDao.getByIds(it) }.associateBy { it.id }
+        } else mediaMap
+        val personMap = personEntities.associate { it.personId to it.toPersonItem(allMediaForPeople) }
+
+        return rows.mapNotNull { row ->
+            when (row.resultType) {
+                "MEDIA" -> mediaMap[row.mediaId]?.let { entity ->
+                    TmdbSearchResultItem.Media(
+                        entity = entity,
+                        isMovie = entity.getMediaTypeEnum() == MediaType.MOVIE
+                    )
+                }
+                "PERSON" -> personMap[row.personId]
+                else -> null
+            }
+        }
+    }
+
     suspend fun searchMultiTmdb(
         query: String,
         apiKey: String,
@@ -1227,10 +1397,8 @@ class MediaRepository(
                     }
                 }
 
-                if (entitiesToCache.isNotEmpty()) {
-                    mediaDao.insertAll(entitiesToCache)
-                }
                 if (results.isNotEmpty()) {
+                    cacheSearchResultsInRoom(trimmed, results, entitiesToCache)
                     return@withContext results
                 }
             } catch (e: Exception) {
@@ -1332,13 +1500,12 @@ class MediaRepository(
                     }
                 }
 
-                if (entitiesToCache.isNotEmpty()) {
-                    mediaDao.insertAll(entitiesToCache)
+                val deduped = combined.distinctBy {
+                    (it as TmdbSearchResultItem.Media).entity.id
                 }
-                if (combined.isNotEmpty()) {
-                    return@withContext combined.distinctBy {
-                        (it as TmdbSearchResultItem.Media).entity.id
-                    }
+                if (deduped.isNotEmpty()) {
+                    cacheSearchResultsInRoom("genre:${normalized.lowercase()}", deduped, entitiesToCache)
+                    return@withContext deduped
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1349,69 +1516,117 @@ class MediaRepository(
     }
 
     suspend fun discoverLocalByGenre(genre: String): List<TmdbSearchResultItem> = withContext(Dispatchers.IO) {
+        val cachedGenre = runCatching {
+            loadCachedSearchResultsFromRoom("genre:${genre.trim().lowercase()}")
+        }.getOrDefault(emptyList())
         val allLocal = try {
             (mediaDao.getAllMediaList() + SampleMediaData.getInitialCatalog()).distinctBy { it.id }
         } catch (_: Exception) {
             SampleMediaData.getInitialCatalog()
         }
-        allLocal.filter { item ->
+        val localMatches = allLocal.filter { item ->
             item.getGenreList().any { g ->
                 g.equals(genre, ignoreCase = true) ||
                     g.contains(genre, ignoreCase = true) ||
                     (genre.equals("Sci-Fi", ignoreCase = true) && g.contains("Science Fiction", ignoreCase = true))
             }
-        }.sortedByDescending { it.communityRating }
-            .map { entity ->
-                TmdbSearchResultItem.Media(
-                    entity = entity,
-                    isMovie = entity.getMediaTypeEnum() == MediaType.MOVIE
-                )
-            }
-    }
-
-    private suspend fun searchLocalMediaOnly(query: String): List<MediaEntity> = withContext(Dispatchers.IO) {
-        val allLocal = try {
-            (mediaDao.getAllMediaList() + SampleMediaData.getInitialCatalog()).distinctBy { it.id }
-        } catch (_: Exception) {
-            SampleMediaData.getInitialCatalog()
-        }
-        allLocal.filter { item ->
-            item.title.contains(query, ignoreCase = true) ||
-                    item.cast.contains(query, ignoreCase = true) ||
-                    item.directorOrCreator.contains(query, ignoreCase = true) ||
-                    item.genres.contains(query, ignoreCase = true) ||
-                    item.overview.contains(query, ignoreCase = true)
-        }
-    }
-
-    suspend fun searchLocalAndSample(query: String): List<TmdbSearchResultItem> = withContext(Dispatchers.IO) {
-        val results = mutableListOf<TmdbSearchResultItem>()
-
-        val allLocal = try {
-            (mediaDao.getAllMediaList() + SampleMediaData.getInitialCatalog()).distinctBy { it.id }
-        } catch (_: Exception) {
-            SampleMediaData.getInitialCatalog()
-        }
-
-        val matchingMedia = allLocal.filter { item ->
-            item.title.contains(query, ignoreCase = true) ||
-                    item.cast.contains(query, ignoreCase = true) ||
-                    item.directorOrCreator.contains(query, ignoreCase = true) ||
-                    item.genres.contains(query, ignoreCase = true) ||
-                    item.overview.contains(query, ignoreCase = true)
-        }.map { entity ->
+        }.sortedWith(
+            compareByDescending<MediaEntity> { if (it.isInWatchlist()) 1 else 0 }
+                .thenByDescending { it.communityRating }
+        ).map { entity ->
             TmdbSearchResultItem.Media(
                 entity = entity,
                 isMovie = entity.getMediaTypeEnum() == MediaType.MOVIE
             )
         }
-        results.addAll(matchingMedia)
-
-        val matchingPeople = SampleMediaData.getSamplePeople().filter { person ->
-            person.name.contains(query, ignoreCase = true) ||
-                    person.knownFor.any { it.title.contains(query, ignoreCase = true) }
+        (cachedGenre + localMatches).distinctBy {
+            when (it) {
+                is TmdbSearchResultItem.Media -> "m_${it.entity.id}"
+                is TmdbSearchResultItem.Person -> "p_${it.id}"
+            }
         }
-        results.addAll(matchingPeople)
+    }
+
+    private suspend fun searchLocalMediaOnly(query: String): List<MediaEntity> = withContext(Dispatchers.IO) {
+        val sqlMatches = runCatching { mediaDao.searchMediaOffline(query) }.getOrDefault(emptyList())
+        val allLocal = try {
+            (sqlMatches + mediaDao.getAllMediaList() + SampleMediaData.getInitialCatalog()).distinctBy { it.id }
+        } catch (_: Exception) {
+            SampleMediaData.getInitialCatalog()
+        }
+        OfflineCachePolicy.rankOfflineMediaMatches(allLocal, query)
+    }
+
+    suspend fun searchLocalAndSample(query: String): List<TmdbSearchResultItem> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<TmdbSearchResultItem>()
+        val seenKeys = HashSet<String>()
+
+        // 1. Exact cached multi-search replay from Room (for re-running Search History offline)
+        val cachedReplay = runCatching { loadCachedSearchResultsFromRoom(query) }.getOrDefault(emptyList())
+        cachedReplay.forEach { item ->
+            val key = when (item) {
+                is TmdbSearchResultItem.Media -> "m_${item.entity.id}"
+                is TmdbSearchResultItem.Person -> "p_${item.id}"
+            }
+            if (seenKeys.add(key)) {
+                results.add(item)
+            }
+        }
+
+        // 2. Local Room media_items (prioritizing saved watchlist items) + baseline catalog
+        val sqlMatches = runCatching { mediaDao.searchMediaOffline(query) }.getOrDefault(emptyList())
+        val fallbackPool = try {
+            (sqlMatches + mediaDao.getWatchlistMediaDirect() + mediaDao.getAllMediaList() + SampleMediaData.getInitialCatalog())
+                .distinctBy { it.id }
+        } catch (_: Exception) {
+            SampleMediaData.getInitialCatalog()
+        }
+        val rankedMedia = OfflineCachePolicy.rankOfflineMediaMatches(fallbackPool, query)
+        rankedMedia.forEach { entity ->
+            if (seenKeys.add("m_${entity.id}")) {
+                results.add(
+                    TmdbSearchResultItem.Media(
+                        entity = entity,
+                        isMovie = entity.getMediaTypeEnum() == MediaType.MOVIE
+                    )
+                )
+            }
+        }
+
+        // 3. Cached people + favorite people + popular people + sample people
+        val cachedPeopleRows = runCatching { cachedPersonDao?.searchByQuery(query).orEmpty() }.getOrDefault(emptyList())
+        val cachedKnownForIds = cachedPeopleRows.flatMap { row ->
+            row.knownForIds.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        }.distinct()
+        val cachedKnownForMap = if (cachedKnownForIds.isNotEmpty()) {
+            runCatching {
+                cachedKnownForIds.chunked(400).flatMap { mediaDao.getByIds(it) }.associateBy { it.id }
+            }.getOrDefault(emptyMap())
+        } else emptyMap()
+        val cachedPeople = cachedPeopleRows.map { it.toPersonItem(cachedKnownForMap) }
+
+        val favPeople = runCatching { favoritePersonDao.getAllFavoritePeopleList() }.getOrDefault(emptyList())
+            .map { fav ->
+                TmdbSearchResultItem.Person(
+                    id = fav.personId,
+                    name = fav.name,
+                    profileUrl = fav.profileUrl.ifBlank { null },
+                    department = fav.department.ifBlank { "Acting" },
+                    knownFor = emptyList(),
+                    popularity = 50.0
+                )
+            }
+
+        val matchingPeople = OfflineCachePolicy.rankOfflinePeopleMatches(
+            people = cachedPeople + favPeople + SampleMediaData.getSamplePeople(),
+            query = query
+        )
+        matchingPeople.forEach { person ->
+            val key = if (person.id > 0L) "p_${person.id}" else "p_${person.name.lowercase()}"
+            if (seenKeys.add(key)) {
+                results.add(person)
+            }
+        }
 
         results
     }
@@ -2142,7 +2357,33 @@ class MediaRepository(
     }
 
     suspend fun ensureMediaCached(item: MediaEntity) = withContext(Dispatchers.IO) {
-        mediaDao.insertAll(listOf(item))
+        val existing = mediaDao.getMediaByIdDirect(item.id)
+        if (existing == null) {
+            mediaDao.insertAll(listOf(item))
+        } else {
+            val merged = OfflineCachePolicy.mergeCatalogMetadataPreservingUserTracking(existing, item)
+            if (merged != existing) {
+                mediaDao.update(merged)
+            }
+        }
+    }
+
+    suspend fun hydrateWatchlistItemForOffline(
+        mediaId: String,
+        apiKey: String,
+        regionCode: String
+    ) = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank() || apiKey == "YOUR_TMDB_API_KEY") return@withContext
+        if (!mediaId.startsWith("tmdb_m_") && !mediaId.startsWith("tmdb_tv_")) return@withContext
+        runCatching {
+            fetchDetailsFromTmdb(mediaId, apiKey)
+            fetchLiveWatchProviders(mediaId, regionCode, apiKey)
+            val refreshed = mediaDao.getMediaByIdDirect(mediaId)
+            if (refreshed != null && refreshed.getMediaTypeEnum() == MediaType.TV_SHOW) {
+                getSeasonsForTvShow(refreshed, apiKey)
+                getEpisodesForSeason(refreshed, 1, apiKey)
+            }
+        }
     }
 
     suspend fun toggleWatchlistForEntity(item: MediaEntity) = withContext(Dispatchers.IO) {
@@ -2158,13 +2399,17 @@ class MediaRepository(
                 firestoreSyncManager?.uploadTrackedMedia(uid, added)
             }
         } else {
-            val currentStatus = existing.getWatchStatusEnum()
+            val enriched = OfflineCachePolicy.mergeCatalogMetadataPreservingUserTracking(existing, item)
+            if (enriched != existing) {
+                mediaDao.update(enriched)
+            }
+            val currentStatus = enriched.getWatchStatusEnum()
             val nextStatus = if (currentStatus == WatchStatus.NONE) {
                 WatchStatus.PLAN_TO_WATCH
             } else {
                 WatchStatus.NONE
             }
-            updateStatus(existing.id, nextStatus)
+            updateStatus(enriched.id, nextStatus)
         }
     }
 
@@ -2179,6 +2424,7 @@ class MediaRepository(
     suspend fun deleteMedia(id: String) = withContext(Dispatchers.IO) {
         mediaDao.deleteById(id)
         tvProgressDao.deleteAllForMedia(id)
+        tvEpisodeCacheDao?.deleteForMedia(id)
         val uid = currentAuthenticatedUserId()
         if (!uid.isNullOrBlank()) {
             firestoreSyncManager?.deleteTrackedMedia(uid, id)
@@ -2197,7 +2443,7 @@ class MediaRepository(
             baseSeasonsCache[cacheKey]?.let { return it }
         }
 
-        val fetched = if (hasLiveKey) {
+        val fetchedFromTmdb = if (hasLiveKey) {
             try {
                 val tmdbId = media.id.removePrefix("tmdb_tv_").toLongOrNull()
                 if (tmdbId != null) {
@@ -2218,17 +2464,35 @@ class MediaRepository(
                             airDate = s.airDate ?: "${media.releaseYear}-01-01",
                             rating = (s.voteAverage?.toFloat() ?: media.communityRating)
                         )
-                    } ?: SampleTvEpisodeData.getCuratedSeasons(media)
-                } else SampleTvEpisodeData.getCuratedSeasons(media)
-            } catch (e: Exception) {
-                SampleTvEpisodeData.getCuratedSeasons(media)
+                    }
+                } else null
+            } catch (_: Exception) {
+                null
             }
         } else {
-            SampleTvEpisodeData.getCuratedSeasons(media)
+            null
         }
 
-        baseSeasonsCache[cacheKey] = fetched
-        return fetched
+        if (!fetchedFromTmdb.isNullOrEmpty()) {
+            tvEpisodeCacheDao?.insertAll(fetchedFromTmdb.map { CachedTvEpisodeEntity.fromSeason(it) })
+            baseSeasonsCache[cacheKey] = fetchedFromTmdb
+            return fetchedFromTmdb
+        }
+
+        val roomCachedSeasons = runCatching {
+            tvEpisodeCacheDao?.getCachedSeasons(media.id).orEmpty()
+        }.getOrDefault(emptyList())
+        if (roomCachedSeasons.isNotEmpty()) {
+            val restored = roomCachedSeasons.map {
+                it.toSeasonItem(seriesTitle = media.title, fallbackBackdropUrl = media.backdropUrl)
+            }
+            baseSeasonsCache[cacheKey] = restored
+            return restored
+        }
+
+        val fallback = SampleTvEpisodeData.getCuratedSeasons(media)
+        baseSeasonsCache[cacheKey] = fallback
+        return fallback
     }
 
     private fun resolveEffectiveWatchedEpisodesSet(
@@ -2364,7 +2628,7 @@ class MediaRepository(
 
     suspend fun getEpisodesForSeason(media: MediaEntity, seasonNumber: Int, apiKey: String): List<EpisodeItem> = withContext(Dispatchers.IO) {
         val latestMedia = mediaDao.getMediaByIdDirect(media.id) ?: media
-        val baseEpisodes = if (latestMedia.id.startsWith("tmdb_tv_") && apiKey.isNotBlank() && apiKey != "YOUR_TMDB_API_KEY") {
+        val fetchedFromTmdb = if (latestMedia.id.startsWith("tmdb_tv_") && apiKey.isNotBlank() && apiKey != "YOUR_TMDB_API_KEY") {
             try {
                 val tmdbId = latestMedia.id.removePrefix("tmdb_tv_").toLongOrNull()
                 if (tmdbId != null) {
@@ -2388,13 +2652,33 @@ class MediaRepository(
                                 writer = latestMedia.directorOrCreator
                             )
                         }
-                    } else SampleTvEpisodeData.getCuratedEpisodes(latestMedia, seasonNumber)
-                } else SampleTvEpisodeData.getCuratedEpisodes(latestMedia, seasonNumber)
-            } catch (e: Exception) {
-                SampleTvEpisodeData.getCuratedEpisodes(latestMedia, seasonNumber)
+                    } else null
+                } else null
+            } catch (_: Exception) {
+                null
             }
         } else {
-            SampleTvEpisodeData.getCuratedEpisodes(latestMedia, seasonNumber)
+            null
+        }
+
+        val baseEpisodes = if (!fetchedFromTmdb.isNullOrEmpty()) {
+            tvEpisodeCacheDao?.insertAll(fetchedFromTmdb.map { CachedTvEpisodeEntity.fromEpisode(it) })
+            fetchedFromTmdb
+        } else {
+            val cachedRoomEpisodes = runCatching {
+                tvEpisodeCacheDao?.getCachedEpisodes(latestMedia.id, seasonNumber).orEmpty()
+            }.getOrDefault(emptyList())
+            if (cachedRoomEpisodes.isNotEmpty()) {
+                cachedRoomEpisodes.map {
+                    it.toEpisodeItem(
+                        seriesTitle = latestMedia.title,
+                        director = latestMedia.directorOrCreator,
+                        writer = latestMedia.directorOrCreator
+                    )
+                }
+            } else {
+                SampleTvEpisodeData.getCuratedEpisodes(latestMedia, seasonNumber)
+            }
         }
 
         // Merge saved progress + reconciled watchedEpisodes
@@ -2939,59 +3223,224 @@ class MediaRepository(
         emptyList()
     }
 
+    private suspend fun fetchRegionalStarsForOnboarding(
+        apiKey: String,
+        safeLanguage: String?,
+        safeRegion: String
+    ): List<TmdbSearchResultItem.Person> = coroutineScope {
+        val (regionalMovies, regionalTv) = run {
+            val mDef = async {
+                withTimeoutOrNull(5000L) {
+                    runCatching {
+                        TmdbClient.api.discoverMovies(
+                            apiKey = apiKey,
+                            language = safeLanguage,
+                            region = safeRegion,
+                            watchRegion = safeRegion,
+                            withOriginCountry = safeRegion,
+                            sortBy = "popularity.desc",
+                            page = 1
+                        ).results.map { TmdbClient.toMediaEntity(it.copy(mediaType = "movie")).copy(originCountry = safeRegion) }
+                    }.getOrDefault(emptyList())
+                } ?: emptyList()
+            }
+            val tDef = async {
+                withTimeoutOrNull(5000L) {
+                    runCatching {
+                        TmdbClient.api.discoverTv(
+                            apiKey = apiKey,
+                            language = safeLanguage,
+                            region = safeRegion,
+                            withOriginCountry = safeRegion,
+                            sortBy = "popularity.desc",
+                            page = 1
+                        ).results.map { TmdbClient.toMediaEntity(it.copy(mediaType = "tv")).copy(originCountry = safeRegion) }
+                    }.getOrDefault(emptyList())
+                } ?: emptyList()
+            }
+            mDef.await() to tDef.await()
+        }
+
+        val topMovies = regionalMovies.filter { it.posterUrl.isNotBlank() || it.backdropUrl.isNotBlank() }.take(4)
+        val topTv = regionalTv.filter { it.posterUrl.isNotBlank() || it.backdropUrl.isNotBlank() }.take(3)
+        if (topMovies.isEmpty() && topTv.isEmpty()) return@coroutineScope emptyList()
+
+        val allSourceMedia = (topMovies + topTv).distinctBy { it.id }
+        if (allSourceMedia.isNotEmpty()) {
+            runCatching { mediaDao.insertAll(allSourceMedia) }
+        }
+
+        data class AccumulatedStar(
+            val id: Long,
+            val name: String,
+            val profileUrl: String,
+            val department: String,
+            val popularity: Double,
+            var score: Double = 0.0,
+            val knownFor: MutableList<MediaEntity> = mutableListOf()
+        )
+
+        val movieCastCalls = topMovies.map { media ->
+            async {
+                val numericId = media.id.removePrefix("tmdb_m_").toLongOrNull() ?: return@async null
+                val detail = withTimeoutOrNull(4500L) {
+                    runCatching { TmdbClient.api.getMovieDetails(numericId, apiKey) }.getOrNull()
+                } ?: return@async null
+                media to (detail.credits?.cast.orEmpty().take(5))
+            }
+        }
+        val tvCastCalls = topTv.map { media ->
+            async {
+                val numericId = media.id.removePrefix("tmdb_tv_").toLongOrNull() ?: return@async null
+                val detail = withTimeoutOrNull(4500L) {
+                    runCatching { TmdbClient.api.getTvDetails(numericId, apiKey) }.getOrNull()
+                } ?: return@async null
+                media to (detail.credits?.cast.orEmpty().take(5))
+            }
+        }
+
+        val starMap = LinkedHashMap<Long, AccumulatedStar>()
+        val castResults = (movieCastCalls.awaitAll() + tvCastCalls.awaitAll()).filterNotNull()
+        for ((sourceMedia, castList) in castResults) {
+            castList.forEachIndexed { index, castDto ->
+                val personId = castDto.id ?: return@forEachIndexed
+                if (personId <= 0L) return@forEachIndexed
+                val profilePath = castDto.profilePath?.takeIf { it.isNotBlank() } ?: return@forEachIndexed
+                val cleanName = castDto.name.trim()
+                if (cleanName.isBlank()) return@forEachIndexed
+                val billingWeight = (5 - index).coerceAtLeast(1) * 15.0
+                val pop = castDto.popularity ?: 0.0
+
+                val entry = starMap.getOrPut(personId) {
+                    AccumulatedStar(
+                        id = personId,
+                        name = cleanName,
+                        profileUrl = "${TmdbClient.IMAGE_BASE_URL}$profilePath",
+                        department = castDto.knownForDepartment?.takeIf { it.isNotBlank() } ?: "Acting",
+                        popularity = pop
+                    )
+                }
+                entry.score += billingWeight + pop
+                if (entry.knownFor.none { it.id == sourceMedia.id }) {
+                    entry.knownFor.add(sourceMedia)
+                }
+            }
+        }
+
+        starMap.values
+            .sortedByDescending { it.score }
+            .take(18)
+            .map { acc ->
+                TmdbSearchResultItem.Person(
+                    id = acc.id,
+                    name = acc.name,
+                    profileUrl = acc.profileUrl,
+                    department = acc.department,
+                    knownFor = acc.knownFor.toList(),
+                    popularity = acc.popularity
+                )
+            }
+    }
+
+    private suspend fun getCachedPeopleFallback(): List<TmdbSearchResultItem.Person> {
+        val allMediaMap = runCatching { mediaDao.getAllMediaList().associateBy { it.id } }.getOrDefault(emptyMap())
+        val cachedEntities = runCatching { cachedPersonDao?.searchByQuery("") ?: emptyList() }.getOrDefault(emptyList())
+        val popularEntities = runCatching { popularPersonDao?.getPagedPopularPeople(null, limit = 30, offset = 0) ?: emptyList() }.getOrDefault(emptyList())
+        val fromCached = cachedEntities.map { it.toPersonItem(allMediaMap) }
+        val fromPopular = popularEntities.map { it.toSearchResultPerson(allMediaMap) }
+        return (fromCached + fromPopular).distinctBy { it.id }
+    }
+
     suspend fun fetchPopularPeople(
         apiKey: String,
-        language: String?
+        language: String?,
+        region: String? = null
     ): List<TmdbSearchResultItem.Person> = withContext(Dispatchers.IO) {
         val samplePeople = SampleMediaData.getSamplePeople()
+        val safeRegion = OnboardingRegionalPolicy.normalizeRegionCode(region)
         if (apiKey.isBlank() || apiKey == "YOUR_TMDB_API_KEY") {
             seedPopularPeopleIfEmpty()
-            return@withContext samplePeople
+            return@withContext OnboardingRegionalPolicy.rankFallbackPeopleForRegion(
+                samplePeople = samplePeople,
+                cachedPeople = getCachedPeopleFallback(),
+                regionCode = safeRegion,
+                limit = 24
+            )
         }
         try {
             val safeLanguage = if (language != null && !language.equals("all", ignoreCase = true) && language.isNotBlank()) language else null
-            val response = TmdbClient.api.getPopularPeople(apiKey = apiKey, language = safeLanguage, page = 1)
-            val entitiesToCache = mutableListOf<MediaEntity>()
-            val livePeople = response.results.mapNotNull { dto ->
-                val personName = dto.name?.trim().orEmpty()
-                if (personName.isBlank()) return@mapNotNull null
-                val knownForEntities = dto.knownFor?.map { TmdbClient.knownForToEntity(it) }.orEmpty()
-                entitiesToCache.addAll(knownForEntities)
-                TmdbSearchResultItem.Person(
-                    id = dto.id,
-                    name = personName,
-                    profileUrl = dto.profilePath?.let { "https://image.tmdb.org/t/p/w500$it" },
-                    department = dto.knownForDepartment ?: "Acting",
-                    knownFor = knownForEntities,
-                    popularity = dto.popularity ?: 0.0
-                )
+            val (regionalStars, livePeople) = coroutineScope {
+                val regionalDeferred = async {
+                    if (safeRegion != null) {
+                        runCatching { fetchRegionalStarsForOnboarding(apiKey, safeLanguage, safeRegion) }
+                            .getOrDefault(emptyList())
+                    } else {
+                        emptyList()
+                    }
+                }
+                val globalDeferred = async {
+                    runCatching {
+                        val response = TmdbClient.api.getPopularPeople(apiKey = apiKey, language = safeLanguage, page = 1)
+                        val entitiesToCache = mutableListOf<MediaEntity>()
+                        val parsed = response.results.mapNotNull { dto ->
+                            val personName = dto.name?.trim().orEmpty()
+                            if (personName.isBlank()) return@mapNotNull null
+                            val knownForEntities = dto.knownFor?.map { TmdbClient.knownForToEntity(it) }.orEmpty()
+                            entitiesToCache.addAll(knownForEntities)
+                            TmdbSearchResultItem.Person(
+                                id = dto.id,
+                                name = personName,
+                                profileUrl = dto.profilePath?.let { "https://image.tmdb.org/t/p/w500$it" },
+                                department = dto.knownForDepartment ?: "Acting",
+                                knownFor = knownForEntities,
+                                popularity = dto.popularity ?: 0.0
+                            )
+                        }
+                        if (entitiesToCache.isNotEmpty()) {
+                            mediaDao.insertAll(entitiesToCache.distinctBy { it.id })
+                        }
+                        parsed
+                    }.getOrDefault(emptyList())
+                }
+                regionalDeferred.await() to globalDeferred.await()
             }
-            if (entitiesToCache.isNotEmpty()) {
-                mediaDao.insertAll(entitiesToCache.distinctBy { it.id })
-            }
+
             if (livePeople.isNotEmpty()) {
                 popularPersonDao?.insertAll(
                     livePeople.map { PopularPersonEntity.fromPerson(it, pageLoaded = 1) }
                 )
             }
-            // Merge curated creators/stars with live popular people for rich variety
-            return@withContext (samplePeople + livePeople)
-                .distinctBy { it.name.trim().lowercase() }
-                .take(24)
+            val merged = OnboardingRegionalPolicy.prioritizeOnboardingPeopleForRegion(
+                regionalStars = regionalStars,
+                globalPopularPeople = livePeople,
+                samplePeople = samplePeople,
+                regionCode = safeRegion,
+                limit = 24
+            )
+            if (merged.isNotEmpty()) {
+                cachedPersonDao?.insertAll(merged.map { CachedPersonEntity.fromPerson(it) })
+                return@withContext merged
+            }
         } catch (e: Exception) {
             e.printStackTrace()
-            seedPopularPeopleIfEmpty()
-            return@withContext samplePeople
         }
+        seedPopularPeopleIfEmpty()
+        OnboardingRegionalPolicy.rankFallbackPeopleForRegion(
+            samplePeople = samplePeople,
+            cachedPeople = getCachedPeopleFallback(),
+            regionCode = safeRegion,
+            limit = 24
+        )
     }
 
     suspend fun searchPeopleTmdb(
         query: String,
         apiKey: String,
-        language: String?
+        language: String?,
+        region: String? = null
     ): List<TmdbSearchResultItem.Person> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        if (trimmed.isBlank()) return@withContext fetchPopularPeople(apiKey, language)
+        if (trimmed.isBlank()) return@withContext fetchPopularPeople(apiKey, language, region)
         val safeLanguage = if (language != null && !language.equals("all", ignoreCase = true) && language.isNotBlank()) language else null
 
         if (apiKey.isNotBlank() && apiKey != "YOUR_TMDB_API_KEY") {
@@ -3020,6 +3469,7 @@ class MediaRepository(
                     mediaDao.insertAll(entitiesToCache)
                 }
                 if (liveResults.isNotEmpty()) {
+                    cachedPersonDao?.insertAll(liveResults.take(24).map { CachedPersonEntity.fromPerson(it) })
                     return@withContext liveResults.take(24)
                 }
             } catch (e: Exception) {
@@ -3027,10 +3477,9 @@ class MediaRepository(
             }
         }
 
-        return@withContext SampleMediaData.getSamplePeople().filter {
-            it.name.contains(trimmed, ignoreCase = true) ||
-                it.department.contains(trimmed, ignoreCase = true)
-        }
+        val offlinePool = (getCachedPeopleFallback() + SampleMediaData.getSamplePeople())
+            .distinctBy { it.id.takeIf { id -> id > 0L } ?: it.name.lowercase() }
+        return@withContext OfflineCachePolicy.rankOfflinePeopleMatches(offlinePool, trimmed, limit = 24)
     }
 
     suspend fun fetchOnboardingPopularTitles(
@@ -3038,21 +3487,57 @@ class MediaRepository(
         language: String?,
         region: String?
     ): List<MediaEntity> = withContext(Dispatchers.IO) {
+        val safeRegion = OnboardingRegionalPolicy.normalizeRegionCode(region)
         val fallbackPool = (
-            SampleMediaData.getInitialCatalog() +
+            runCatching { mediaDao.getAllMediaList() }.getOrDefault(emptyList()) +
+                SampleMediaData.getInitialCatalog() +
                 getCuratedTopRatedMovies() +
                 getCuratedTopRatedTv()
             ).distinctBy { it.id }
 
         if (apiKey.isBlank() || apiKey == "YOUR_TMDB_API_KEY") {
-            return@withContext fallbackPool.take(30)
+            return@withContext OnboardingRegionalPolicy.rankFallbackTitlesForRegion(
+                pool = fallbackPool,
+                regionCode = safeRegion,
+                limit = 30
+            )
         }
 
         val safeLanguage = if (language != null && !language.equals("all", ignoreCase = true) && language.isNotBlank()) language else null
-        val safeRegion = if (!region.isNullOrBlank() && !region.equals("AUTO", ignoreCase = true) && !region.equals("GLOBAL", ignoreCase = true)) region.uppercase() else null
 
         try {
-            val (movies, tvShows, topMovies, topTv) = coroutineScope {
+            val results = coroutineScope {
+                val regionalMoviesDef = async {
+                    if (safeRegion == null) return@async emptyList()
+                    runCatching {
+                        TmdbClient.api.discoverMovies(
+                            apiKey = apiKey,
+                            language = safeLanguage,
+                            region = safeRegion,
+                            watchRegion = safeRegion,
+                            withOriginCountry = safeRegion,
+                            sortBy = "popularity.desc",
+                            page = 1
+                        ).results.map {
+                            TmdbClient.toMediaEntity(it.copy(mediaType = "movie")).copy(originCountry = safeRegion)
+                        }
+                    }.getOrDefault(emptyList())
+                }
+                val regionalTvDef = async {
+                    if (safeRegion == null) return@async emptyList()
+                    runCatching {
+                        TmdbClient.api.discoverTv(
+                            apiKey = apiKey,
+                            language = safeLanguage,
+                            region = safeRegion,
+                            withOriginCountry = safeRegion,
+                            sortBy = "popularity.desc",
+                            page = 1
+                        ).results.map {
+                            TmdbClient.toMediaEntity(it.copy(mediaType = "tv")).copy(originCountry = safeRegion)
+                        }
+                    }.getOrDefault(emptyList())
+                }
                 val mDef = async {
                     runCatching {
                         TmdbClient.api.getPopularMovies(apiKey, region = safeRegion, language = safeLanguage)
@@ -3061,8 +3546,20 @@ class MediaRepository(
                 }
                 val tDef = async {
                     runCatching {
-                        TmdbClient.api.getPopularTv(apiKey, language = safeLanguage)
+                        val regionStreamingTv = if (safeRegion != null) {
+                            runCatching {
+                                TmdbClient.api.discoverTv(
+                                    apiKey = apiKey,
+                                    language = safeLanguage,
+                                    region = safeRegion,
+                                    sortBy = "popularity.desc",
+                                    page = 1
+                                ).results.map { TmdbClient.toMediaEntity(it.copy(mediaType = "tv")) }
+                            }.getOrDefault(emptyList())
+                        } else emptyList()
+                        val globalPopularTv = TmdbClient.api.getPopularTv(apiKey, language = safeLanguage)
                             .results.map { TmdbClient.toMediaEntity(it.copy(mediaType = "tv")) }
+                        (regionStreamingTv + globalPopularTv).distinctBy { it.id }
                     }.getOrDefault(emptyList())
                 }
                 val tmDef = async {
@@ -3077,20 +3574,26 @@ class MediaRepository(
                             .results.take(10).map { TmdbClient.toMediaEntity(it.copy(mediaType = "tv")) }
                     }.getOrDefault(emptyList())
                 }
-                listOf(mDef.await(), tDef.await(), tmDef.await(), ttDef.await())
+                listOf(
+                    regionalMoviesDef.await(),
+                    regionalTvDef.await(),
+                    mDef.await(),
+                    tDef.await(),
+                    tmDef.await(),
+                    ttDef.await()
+                )
             }
 
-            val combined = buildList {
-                val allMovies = (movies + topMovies).distinctBy { it.id }
-                val allTv = (tvShows + topTv).distinctBy { it.id }
-                val maxLen = maxOf(allMovies.size, allTv.size)
-                for (i in 0 until maxLen) {
-                    if (i < allMovies.size) add(allMovies[i])
-                    if (i < allTv.size) add(allTv[i])
-                }
-            }.filter { it.posterUrl.isNotBlank() || it.backdropUrl.isNotBlank() }
-                .distinctBy { it.id }
-                .take(36)
+            val combined = OnboardingRegionalPolicy.prioritizeOnboardingTitlesForRegion(
+                regionalOriginMovies = results[0],
+                regionalOriginTv = results[1],
+                popularInRegionMovies = results[2],
+                popularInRegionTv = results[3],
+                topRatedMovies = results[4],
+                topRatedTv = results[5],
+                regionCode = safeRegion,
+                limit = 36
+            )
 
             if (combined.isNotEmpty()) {
                 mediaDao.insertAll(combined)
@@ -3100,7 +3603,11 @@ class MediaRepository(
             e.printStackTrace()
         }
 
-        fallbackPool.take(30)
+        OnboardingRegionalPolicy.rankFallbackTitlesForRegion(
+            pool = fallbackPool,
+            regionCode = safeRegion,
+            limit = 30
+        )
     }
 
     suspend fun computeInstantRecommendations(

@@ -10,4 +10,25 @@
     <string name="tmdb_attribution">This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability data is powered by JustWatch.</string>
     <string name="pro_title">WatchPilot Pro</string>
     <string name="pro_tagline">Stop wasting money on idle streaming apps, scan Reels &amp; screenshots in 1 tap, and match tonight\'s movie live.</string>
+    <string name="pref_theme_title">Dark Mode</string>
+    <string name="pref_theme_dark_subtitle">Cinematic dark theme active</string>
+    <string name="pref_theme_light_subtitle">Crisp light theme active</string>
+    <string name="rate_app_milestone_badge">%1$d+ WATCHED MILESTONE</string>
+    <string name="rate_app_dialog_title">Enjoying WatchPilot?</string>
+    <string name="rate_app_dialog_body">You\'ve logged your first 5 movies &amp; episodes! If WatchPilot helps you decide what to watch, a quick rating on Google Play helps others discover us.</string>
+    <string name="rate_app_cta_primary">Rate on Google Play</string>
+    <string name="rate_app_cta_later">Maybe Later</string>
+    <string name="rate_app_cta_never">Don\'t Ask Again</string>
+    <string name="rate_app_title">Rate WatchPilot</string>
+    <string name="rate_app_subtitle">Leave a quick review on Google Play</string>
+    <string name="rate_app_store_unavailable">Google Play Store is unavailable on this device.</string>
+    <string name="share_app_title">Share WatchPilot</string>
+    <string name="share_app_subtitle">Invite friends to track movies &amp; match tonight</string>
+    <string name="share_app_subject">Track movies &amp; shows with WatchPilot</string>
+    <string name="share_app_chooser_title">Share WatchPilot via</string>
+    <string name="share_app_message">Check out WatchPilot — track movies &amp; TV shows, spot where they stream, and match what to watch tonight: %1$s</string>
+    <string name="offline_watchlist_banner">Offline mode • Viewing your cached watchlist &amp; progress</string>
+    <string name="offline_search_banner">Offline mode • Searching saved items &amp; cached history</string>
+    <string name="offline_search_cached_count">%1$d cached</string>
+    <string name="onboarding_region_popular">Popular in %1$s</string>
 </resources>

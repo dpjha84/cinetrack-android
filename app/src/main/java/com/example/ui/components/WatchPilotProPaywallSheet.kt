@@ -66,8 +66,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.WatchPilotColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +87,7 @@ fun WatchPilotProPaywallSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         modifier = Modifier.testTag("watchpilot_pro_paywall_sheet")
     ) {
         Column(
@@ -138,10 +137,11 @@ fun WatchPilotProPaywallSheet(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        val paywallColors = WatchPilotColors.current
                         Text(
                             text = "Track Smarter • Decide Faster • Save on OTT",
                             fontSize = 12.sp,
-                            color = CinemaGold,
+                            color = paywallColors.goldAccent,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -158,9 +158,10 @@ fun WatchPilotProPaywallSheet(
             }
 
             if (!triggerReason.isNullOrBlank()) {
+                val reasonColors = WatchPilotColors.current
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = CinemaGold.copy(alpha = 0.14f)),
-                    border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.45f)),
+                    colors = CardDefaults.cardColors(containerColor = reasonColors.goldChipContainer),
+                    border = BorderStroke(1.dp, reasonColors.goldChipBorder),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
@@ -174,7 +175,7 @@ fun WatchPilotProPaywallSheet(
 
             // Value Pillars
             Card(
-                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
@@ -410,8 +411,9 @@ private fun PlanOptionCard(
     onClick: () -> Unit,
     testTag: String
 ) {
-    val borderColor = if (selected) CinemaGold else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f)
-    val bgColor = if (selected) CinemaGold.copy(alpha = 0.10f) else DarkSurfaceVariant
+    val planColors = WatchPilotColors.current
+    val borderColor = if (selected) planColors.goldChipBorder else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f)
+    val bgColor = if (selected) planColors.goldChipContainer else MaterialTheme.colorScheme.surfaceVariant
 
     Card(
         modifier = Modifier
@@ -438,7 +440,7 @@ private fun PlanOptionCard(
                     Icon(
                         imageVector = Icons.Filled.CheckCircle,
                         contentDescription = null,
-                        tint = if (selected) CinemaGold else Color.Gray.copy(alpha = 0.45f),
+                        tint = if (selected) planColors.goldAccent else Color.Gray.copy(alpha = 0.45f),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -455,7 +457,7 @@ private fun PlanOptionCard(
                     text = price,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp,
-                    color = if (selected) CinemaGold else MaterialTheme.colorScheme.onSurface,
+                    color = if (selected) planColors.goldAccent else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     softWrap = false
                 )
@@ -465,14 +467,14 @@ private fun PlanOptionCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(CinemaGreen.copy(alpha = 0.18f))
+                        .background(planColors.greenChipContainer)
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = badge,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = CinemaGreen
+                        color = planColors.greenAccent
                     )
                 }
             }

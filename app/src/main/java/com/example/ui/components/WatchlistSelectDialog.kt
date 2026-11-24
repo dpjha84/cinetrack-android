@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.ui.theme.CinemaGold
+import com.example.ui.theme.WatchPilotColors
 
 @Composable
 fun WatchlistSelectDialog(
@@ -168,8 +169,8 @@ fun WatchlistSelectDialog(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = CinemaGold,
-                            contentColor = MaterialTheme.colorScheme.surface
+                            containerColor = WatchPilotColors.current.goldSolidBg,
+                            contentColor = WatchPilotColors.current.onGoldSolid
                         )
                     ) {
                         Text("Save", fontWeight = FontWeight.Bold)

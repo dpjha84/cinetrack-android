@@ -86,6 +86,7 @@ import com.example.data.remote.tmdb.TmdbPersonDetailDto
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaRed
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 
 private enum class CreditFilter(val label: String) {
@@ -629,7 +630,7 @@ private fun PersonFilmographyHeader(
                 Text(
                     text = "$filteredCreditsCount titles",
                     style = MaterialTheme.typography.labelMedium,
-                    color = CinemaGold,
+                    color = WatchPilotColors.current.goldAccent,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     softWrap = false
@@ -639,6 +640,7 @@ private fun PersonFilmographyHeader(
 
         if (hasMovies && hasTvShows) {
             Spacer(modifier = Modifier.height(8.dp))
+            val chipColors = WatchPilotColors.current
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -650,12 +652,18 @@ private fun PersonFilmographyHeader(
                         label = {
                             Text(
                                 text = filter.label,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                             )
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaGold.copy(alpha = 0.22f),
-                            selectedLabelColor = CinemaGold
+                            selectedContainerColor = chipColors.goldChipContainer,
+                            selectedLabelColor = chipColors.goldAccent
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selected,
+                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                            selectedBorderColor = chipColors.goldChipBorder
                         ),
                         modifier = Modifier.testTag("person_filter_${filter.name.lowercase()}")
                     )
@@ -752,19 +760,20 @@ private fun PersonCreditCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                val creditColors = WatchPilotColors.current
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isMovie) CinemaGold.copy(alpha = 0.18f) else CinemaCyan.copy(alpha = 0.18f)
+                        color = if (isMovie) creditColors.goldChipContainer else creditColors.cyanChipContainer
                     ) {
                         Text(
                             text = if (isMovie) "MOVIE" else "SERIES",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isMovie) CinemaGold else CinemaCyan,
+                            color = if (isMovie) creditColors.goldAccent else creditColors.cyanAccent,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -782,14 +791,14 @@ private fun PersonCreditCard(
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = null,
-                            tint = CinemaGold,
+                            tint = creditColors.goldAccent,
                             modifier = Modifier.size(13.dp)
                         )
                         Text(
                             text = String.format("%.1f", media.communityRating),
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = CinemaGold
+                            color = creditColors.goldAccent
                         )
                     }
                 }

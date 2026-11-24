@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Movie
@@ -86,6 +88,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,6 +98,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.BuildConfig
+import com.example.R
 import com.example.data.local.MediaEntity
 import com.example.data.model.MultiSearchCategory
 import com.example.data.model.RegionalDefaults
@@ -105,6 +109,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.ui.viewmodel.TopRatedTab
@@ -122,6 +127,8 @@ fun SearchScreen(
     val searchCounts by viewModel.searchCounts.collectAsStateWithLifecycle()
     val isSearching by viewModel.isMultiSearching.collectAsStateWithLifecycle()
     val recentHistory by viewModel.recentSearchHistory.collectAsStateWithLifecycle()
+    val searchHistoryEntries by viewModel.searchHistory.collectAsStateWithLifecycle()
+    val isOffline by viewModel.isOffline.collectAsStateWithLifecycle()
     val isTmdbConfigured by viewModel.isTmdbConfigured.collectAsStateWithLifecycle()
     val userPreferences by viewModel.userPreferences.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
@@ -130,6 +137,9 @@ fun SearchScreen(
     val topRatedList by viewModel.currentTopRatedList.collectAsStateWithLifecycle()
     val isTopRatedLoading by viewModel.isTopRatedLoading.collectAsStateWithLifecycle()
 
+    val historyCountMap = remember(searchHistoryEntries) {
+        searchHistoryEntries.associate { it.query to it.resultCount }
+    }
     val adaptive = LocalAdaptiveLayoutInfo.current
     var showLocalizationDialog by remember { mutableStateOf(false) }
     var isSearchFocused by remember { mutableStateOf(false) }
@@ -231,7 +241,7 @@ fun SearchScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Category Filter Chips + Snap-to-Watchlist Vision Trigger
+            val searchColors = WatchPilotColors.current
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -245,14 +255,14 @@ fun SearchScreen(
                         Icon(
                             imageVector = Icons.Default.PhotoCamera,
                             contentDescription = "Scan Screenshot",
-                            tint = CinemaCyan,
+                            tint = searchColors.cyanAccent,
                             modifier = Modifier.size(15.dp)
                         )
                     },
                     label = {
                         Text(
                             text = "Scan Screenshot",
-                            color = CinemaCyan,
+                            color = searchColors.cyanAccent,
                             fontWeight = FontWeight.Bold
                         )
                     },
@@ -280,22 +290,22 @@ fun SearchScreen(
                                     MultiSearchCategory.PEOPLE -> Icon(Icons.Default.Person, null, modifier = Modifier.size(14.dp))
                                 }
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(category.label)
+                                Text(category.label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
                                 if (searchQuery.isNotBlank() || selectedSearchGenre != null) {
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "($count)",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (selected) MaterialTheme.colorScheme.surface else CinemaGold
+                                        color = if (selected) searchColors.onGoldSolid else searchColors.goldAccent
                                     )
                                 }
                             }
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaGold,
-                            selectedLabelColor = MaterialTheme.colorScheme.surface,
-                            selectedLeadingIconColor = MaterialTheme.colorScheme.surface
+                            selectedContainerColor = searchColors.goldSolidBg,
+                            selectedLabelColor = searchColors.onGoldSolid,
+                            selectedLeadingIconColor = searchColors.onGoldSolid
                         ),
                         modifier = Modifier.testTag("filter_chip_${category.name.lowercase()}")
                     )
@@ -371,6 +381,40 @@ fun SearchScreen(
                     }
                 }
             }
+            AnimatedVisibility(visible = isOffline) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = searchColors.goldChipContainer,
+                    border = BorderStroke(1.dp, searchColors.goldChipBorder),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp)
+                        .testTag("banner_offline_search")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudOff,
+                            contentDescription = stringResource(R.string.offline_search_banner),
+                            tint = searchColors.goldAccent,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.offline_search_banner),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = searchColors.goldAccent,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
         }
 
         // Main Content Area
@@ -384,7 +428,9 @@ fun SearchScreen(
                     // Empty Query Screen with Trending/Suggested Searches & TMDB Top 10
                     EmptyQueryView(
                         isSearchFocused = isSearchFocused,
+                        isOffline = isOffline,
                         recentHistory = recentHistory,
+                        historyCountMap = historyCountMap,
                         allTrackedMedia = allTrackedMedia,
                         onSuggestionClick = {
                             viewModel.submitMultiSearch(it)
@@ -697,6 +743,7 @@ fun SearchResultMediaCard(
                     .weight(1f)
                     .align(Alignment.CenterVertically)
             ) {
+                val resultColors = WatchPilotColors.current
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -704,13 +751,13 @@ fun SearchResultMediaCard(
                     // Type Badge
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isMovie) CinemaGold.copy(alpha = 0.25f) else CinemaCyan.copy(alpha = 0.25f)
+                        color = if (isMovie) resultColors.goldChipContainer else resultColors.cyanChipContainer
                     ) {
                         Text(
                             text = if (isMovie) "MOVIE" else "TV SERIES",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isMovie) CinemaGold else CinemaCyan,
+                            color = if (isMovie) resultColors.goldAccent else resultColors.cyanAccent,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -728,7 +775,7 @@ fun SearchResultMediaCard(
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = null,
-                            tint = CinemaGold,
+                            tint = resultColors.goldAccent,
                             modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(2.dp))
@@ -736,7 +783,7 @@ fun SearchResultMediaCard(
                             text = String.format("%.1f", media.communityRating),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = CinemaGold
+                            color = resultColors.goldAccent
                         )
                     }
                 }
@@ -783,7 +830,7 @@ fun SearchResultMediaCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isInWatchlist) CinemaGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface,
+                        color = if (isInWatchlist) resultColors.greenChipContainer else MaterialTheme.colorScheme.surface,
                         modifier = Modifier
                             .clickable(onClick = onToggleWatchlist)
                             .testTag("btn_toggle_watchlist_${media.id}")
@@ -795,7 +842,7 @@ fun SearchResultMediaCard(
                             Icon(
                                 imageVector = if (isInWatchlist) Icons.Default.Check else Icons.Default.BookmarkBorder,
                                 contentDescription = null,
-                                tint = if (isInWatchlist) CinemaGreen else CinemaGold,
+                                tint = if (isInWatchlist) resultColors.greenAccent else resultColors.goldAccent,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -803,7 +850,7 @@ fun SearchResultMediaCard(
                                 text = if (isInWatchlist) "In Watchlist" else "+ Watchlist",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isInWatchlist) CinemaGreen else CinemaGold
+                                color = if (isInWatchlist) resultColors.greenAccent else resultColors.goldAccent
                             )
                         }
                     }
@@ -835,11 +882,12 @@ fun SearchResultPersonCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Profile Avatar
+                val personColors = WatchPilotColors.current
                 Box(
                     modifier = Modifier
                         .size(54.dp)
                         .clip(CircleShape)
-                        .background(CinemaGold.copy(alpha = 0.2f)),
+                        .background(personColors.goldChipContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!person.profileUrl.isNullOrBlank()) {
@@ -853,7 +901,7 @@ fun SearchResultPersonCard(
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = null,
-                            tint = CinemaGold,
+                            tint = personColors.goldAccent,
                             modifier = Modifier.size(30.dp)
                         )
                     }
@@ -868,13 +916,13 @@ fun SearchResultPersonCard(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = CinemaGold.copy(alpha = 0.25f)
+                            color = personColors.goldChipContainer
                         ) {
                             Text(
                                 text = person.department.uppercase(),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = CinemaGold,
+                                color = personColors.goldAccent,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -969,7 +1017,9 @@ fun SearchResultPersonCard(
 @Composable
 fun EmptyQueryView(
     isSearchFocused: Boolean,
+    isOffline: Boolean = false,
     recentHistory: List<String>,
+    historyCountMap: Map<String, Int> = emptyMap(),
     allTrackedMedia: List<MediaEntity> = emptyList(),
     onSuggestionClick: (String) -> Unit,
     onGenreClick: (String) -> Unit = {},
@@ -1018,8 +1068,9 @@ fun EmptyQueryView(
                 .align(Alignment.TopCenter)
                 .padding(16.dp)
         ) {
-        // Recent Search History (ONLY shown when user clicks / focuses on the search text box)
-        if (isSearchFocused && recentHistory.isNotEmpty()) {
+        // Recent Search History (shown when focused OR offline so cached queries are immediately accessible)
+        if ((isSearchFocused || isOffline) && recentHistory.isNotEmpty()) {
+            val historyColors = WatchPilotColors.current
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1034,7 +1085,7 @@ fun EmptyQueryView(
                     Icon(
                         imageVector = Icons.Default.History,
                         contentDescription = null,
-                        tint = CinemaCyan,
+                        tint = historyColors.cyanAccent,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1055,7 +1106,7 @@ fun EmptyQueryView(
                 ) {
                     Text(
                         text = "Clear all",
-                        color = CinemaGold,
+                        color = historyColors.goldAccent,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -1067,6 +1118,7 @@ fun EmptyQueryView(
             Spacer(modifier = Modifier.height(8.dp))
 
             recentHistory.forEach { item ->
+                val cachedCount = historyCountMap[item] ?: 0
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -1103,23 +1155,42 @@ fun EmptyQueryView(
                             )
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (cachedCount > 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = historyColors.cyanChipContainer,
+                                    modifier = Modifier.testTag("recent_search_cached_count_$item")
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.offline_search_cached_count, cachedCount),
+                                        fontSize = 10.sp,
+                                        color = historyColors.cyanAccent,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = CinemaGold.copy(alpha = 0.15f),
+                                color = historyColors.goldChipContainer,
                                 modifier = Modifier.clickable { onSuggestionClick(item) }
                             ) {
                                 Text(
                                     text = "Re-run",
                                     fontSize = 11.sp,
-                                    color = CinemaGold,
+                                    color = historyColors.goldAccent,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     softWrap = false,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
                                 onClick = { onDeleteRecentClick(item) },
                                 modifier = Modifier
@@ -1289,6 +1360,7 @@ fun EmptyQueryView(
         Spacer(modifier = Modifier.height(10.dp))
 
         // Switcher between Movies and TV Series
+        val topRatedColors = WatchPilotColors.current
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1301,9 +1373,9 @@ fun EmptyQueryView(
                     Icon(imageVector = Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(16.dp))
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = CinemaGold,
-                    selectedLabelColor = Color.Black,
-                    selectedLeadingIconColor = Color.Black
+                    selectedContainerColor = topRatedColors.goldSolidBg,
+                    selectedLabelColor = topRatedColors.onGoldSolid,
+                    selectedLeadingIconColor = topRatedColors.onGoldSolid
                 ),
                 modifier = Modifier.testTag("tab_top_rated_movies")
             )
@@ -1316,9 +1388,9 @@ fun EmptyQueryView(
                     Icon(imageVector = Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(16.dp))
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = CinemaCyan,
-                    selectedLabelColor = Color.Black,
-                    selectedLeadingIconColor = Color.Black
+                    selectedContainerColor = topRatedColors.cyanSolidBg,
+                    selectedLabelColor = topRatedColors.onCyanSolid,
+                    selectedLeadingIconColor = topRatedColors.onCyanSolid
                 ),
                 modifier = Modifier.testTag("tab_top_rated_tv")
             )
@@ -1458,10 +1530,11 @@ private fun TopRatedEntryCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                val topRatedCardColors = WatchPilotColors.current
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = CinemaGold.copy(alpha = 0.18f),
+                        color = topRatedCardColors.goldChipContainer,
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Row(
@@ -1471,7 +1544,7 @@ private fun TopRatedEntryCard(
                             Icon(
                                 imageVector = Icons.Default.Star,
                                 contentDescription = null,
-                                tint = CinemaGold,
+                                tint = topRatedCardColors.goldAccent,
                                 modifier = Modifier.size(12.dp)
                             )
                             Spacer(modifier = Modifier.width(3.dp))
@@ -1479,7 +1552,7 @@ private fun TopRatedEntryCard(
                                 text = String.format("%.1f", entity.communityRating),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = CinemaGold
+                                color = topRatedCardColors.goldAccent
                             )
                         }
                     }
@@ -1497,7 +1570,7 @@ private fun TopRatedEntryCard(
                     Text(
                         text = entity.genres,
                         style = MaterialTheme.typography.bodySmall,
-                        color = CinemaCyan.copy(alpha = 0.9f),
+                        color = topRatedCardColors.cyanAccent,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1526,7 +1599,7 @@ private fun TopRatedEntryCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isInWatchlist) CinemaGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface,
+                        color = if (isInWatchlist) topRatedCardColors.greenChipContainer else MaterialTheme.colorScheme.surface,
                         modifier = Modifier
                             .clickable(onClick = onToggleWatchlist)
                             .testTag("btn_top_rated_watchlist_${entity.id}")
@@ -1538,7 +1611,7 @@ private fun TopRatedEntryCard(
                             Icon(
                                 imageVector = if (isInWatchlist) Icons.Default.Check else Icons.Default.BookmarkBorder,
                                 contentDescription = if (isInWatchlist) "In Watchlist" else "Add to Watchlist",
-                                tint = if (isInWatchlist) CinemaGreen else CinemaGold,
+                                tint = if (isInWatchlist) topRatedCardColors.greenAccent else topRatedCardColors.goldAccent,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -1546,7 +1619,7 @@ private fun TopRatedEntryCard(
                                 text = if (isInWatchlist) "In Watchlist" else "+ Watchlist",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isInWatchlist) CinemaGreen else CinemaGold
+                                color = if (isInWatchlist) topRatedCardColors.greenAccent else topRatedCardColors.goldAccent
                             )
                         }
                     }

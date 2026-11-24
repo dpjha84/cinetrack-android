@@ -52,8 +52,11 @@ import com.example.data.remote.firebase.MatchRoomRepository
 import com.example.data.remote.tmdb.TmdbPersonDetailDto
 import com.example.data.repository.MediaRepository
 import com.example.util.AnalyticsTracker
+import com.example.util.AppStoreActions
 import com.example.util.CsvLibraryPorter
+import com.example.util.NetworkConnectivityMonitor
 import com.example.util.OttMoneySaverCalculator
+import com.example.util.RateAppEngagementPolicy
 import com.example.util.RewardedTrialAdManager
 import com.example.util.WatchAlertsManager
 import com.example.util.WrappedCardExporter
@@ -165,6 +168,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     val firestoreSyncManager = FirestoreSyncManager(application)
 
+    private val connectivityMonitor = NetworkConnectivityMonitor(application)
+
     private val repository: MediaRepository = run {
         val db = AppDatabase.getDatabase(application)
         MediaRepository(
@@ -175,9 +180,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             db.tvProgressDao(),
             db.favoritePersonDao(),
             firestoreSyncManager,
-            db.popularPersonDao()
+            db.popularPersonDao(),
+            db.tvEpisodeCacheDao(),
+            db.cachedPersonDao(),
+            db.cachedSearchDao()
         )
     }
+
+    val isOffline: StateFlow<Boolean> = connectivityMonitor.isOnline
+        .map { !it }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            !connectivityMonitor.isOnline.value
+        )
 
     // Authentication & Cloud Sync
     val currentUser: StateFlow<FirebaseUser?> = FirebaseAuthHelper.currentUser
@@ -237,6 +253,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val showSwipeMatchSheet = MutableStateFlow(false)
     val showOttMoneySaverSheet = MutableStateFlow(false)
     val showLegalComplianceDialog = MutableStateFlow(false)
+    val showRateAppDialog = MutableStateFlow(false)
+    val rateAppWatchedCount = MutableStateFlow(
+        OnboardingPreferences.getRateAppPromptState(application).watchedCount
+    )
+    private var rateAppPromptShownThisSession = false
 
     // New-User Onboarding & Home Personalization ("Top Picks For You")
     private val _hasCompletedOnboarding = MutableStateFlow(
@@ -247,6 +268,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         OnboardingPreferences.isAnalyticsEnabled(application)
     )
     val analyticsEnabled: StateFlow<Boolean> = _analyticsEnabled.asStateFlow()
+    private val _isDarkTheme = MutableStateFlow(
+        OnboardingPreferences.isDarkTheme(application)
+    )
+    val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
     val onboardingStep = MutableStateFlow(0)
     val onboardingAuthLoading = MutableStateFlow(false)
     val onboardingAuthError = MutableStateFlow<String?>(null)
@@ -270,6 +295,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val pickedForYouItems = MutableStateFlow<List<MediaEntity>>(emptyList())
     val isLoadingPickedForYou = MutableStateFlow(false)
     private var pickedForYouJob: kotlinx.coroutines.Job? = null
+    private var onboardingCatalogJob: kotlinx.coroutines.Job? = null
 
     val allMedia: StateFlow<List<MediaEntity>> = repository.allMedia.stateIn(
         viewModelScope,
@@ -940,7 +966,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ViewingStats())
 
     init {
+        connectivityMonitor.start()
         FirebaseAuthHelper.initialize(viewModelScope)
+
+        viewModelScope.launch {
+            connectivityMonitor.isOnline
+                .drop(1)
+                .distinctUntilChanged()
+                .filter { it }
+                .collect {
+                    if (currentUser.value?.uid != null) {
+                        syncWithCloud(force = false)
+                    }
+                }
+        }
 
         viewModelScope.launch {
             try {
@@ -1033,15 +1072,19 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
         // Listen to region changes to refresh regional popular, now playing, upcoming, trending and trailers
         viewModelScope.launch {
-            effectiveRegionCode.collect {
-                synchronized(sectionOrderedIdsCache) {
-                    sectionOrderedIdsCache.clear()
+            effectiveRegionCode
+                .collect {
+                    synchronized(sectionOrderedIdsCache) {
+                        sectionOrderedIdsCache.clear()
+                    }
+                    sectionPageStateMap.value = emptyMap()
+                    fetchPopularMedia()
+                    fetchTrendingNow()
+                    fetchTrailers()
+                    if (!_hasCompletedOnboarding.value) {
+                        loadOnboardingCatalog()
+                    }
                 }
-                sectionPageStateMap.value = emptyMap()
-                fetchPopularMedia()
-                fetchTrendingNow()
-                fetchTrailers()
-            }
         }
 
         // Prefetch page 1 per media type when switching top filter chips so Movies/TV tabs are rich for all 3 lists
@@ -1550,9 +1593,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     region = null // Pass null for unrestricted global multi-search
                 )
                 multiSearchResults.value = results
+                repository.updateRecordedSearchResultCount(trimmed, results.size)
             } catch (e: Exception) {
                 e.printStackTrace()
-                multiSearchResults.value = repository.searchLocalAndSample(trimmed)
+                val offlineResults = repository.searchLocalAndSample(trimmed)
+                multiSearchResults.value = offlineResults
+                repository.updateRecordedSearchResultCount(trimmed, offlineResults.size)
             } finally {
                 isMultiSearching.value = false
             }
@@ -1562,8 +1608,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun recordCompletedSearch(query: String = multiSearchQuery.value) {
         val trimmed = query.trim()
         if (trimmed.length >= 2) {
+            val knownCount = if (multiSearchQuery.value.trim().equals(trimmed, ignoreCase = true)) {
+                multiSearchResults.value.size
+            } else {
+                0
+            }
             viewModelScope.launch {
-                repository.recordSearchQuery(trimmed)
+                repository.recordSearchQuery(trimmed, knownCount)
             }
         }
     }
@@ -1741,6 +1792,17 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun triggerOfflineHydrationIfOnline(mediaId: String) {
+        if (isOffline.value) return
+        viewModelScope.launch {
+            repository.hydrateWatchlistItemForOffline(
+                mediaId = mediaId,
+                apiKey = getActiveTmdbApiKey(),
+                regionCode = effectiveRegionCode.value
+            )
+        }
+    }
+
     fun toggleWatchlistQuick(entity: MediaEntity) {
         viewModelScope.launch {
             val existing = allMedia.value.find { it.id == entity.id } ?: entity
@@ -1756,6 +1818,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 source = "quick_toggle"
             )
             repository.toggleWatchlistForEntity(entity)
+            if (nextStatus != WatchStatus.NONE) {
+                triggerOfflineHydrationIfOnline(entity.id)
+            }
         }
     }
 
@@ -1776,6 +1841,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     source = "quick_toggle"
                 )
                 repository.updateStatus(mediaId, nextStatus)
+                if (nextStatus != WatchStatus.NONE) {
+                    triggerOfflineHydrationIfOnline(mediaId)
+                }
             }
         }
     }
@@ -1858,14 +1926,19 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     // =========================================================================
 
     fun loadOnboardingCatalog() {
-        viewModelScope.launch {
+        onboardingCatalogJob?.cancel()
+        onboardingCatalogJob = viewModelScope.launch {
             val key = getActiveTmdbApiKey()
             val lang = userPreferences.value.languageCode
             val reg = effectiveRegionCode.value
             val peopleJob = async {
                 isLoadingOnboardingPeople.value = true
                 try {
-                    onboardingPopularPeople.value = repository.fetchPopularPeople(key, lang)
+                    onboardingPopularPeople.value = repository.fetchPopularPeople(
+                        apiKey = key,
+                        language = lang,
+                        region = reg
+                    )
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -1998,7 +2071,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 onboardingPersonSearchResults.value = repository.searchPeopleTmdb(
                     query = query,
                     apiKey = getActiveTmdbApiKey(),
-                    language = userPreferences.value.languageCode
+                    language = userPreferences.value.languageCode,
+                    region = effectiveRegionCode.value
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -2354,6 +2428,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSeasonWatchStatus(media: MediaEntity, seasonNumber: Int, status: TvWatchStatus) {
         viewModelScope.launch {
+            val prevUnwatchedInSeason = currentTvSeasons.value
+                .find { it.seasonNumber == seasonNumber }
+                ?.let { (it.episodeCount - it.watchedEpisodesCount).coerceAtLeast(0) }
+                ?: 1
             repository.setSeasonWatchStatus(media, seasonNumber, status)
             val apiKey = getActiveTmdbApiKey()
             val seasons = repository.getSeasonsForTvShow(media, apiKey)
@@ -2364,10 +2442,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                     loadEpisodesForSeason(media, seasonNumber)
                 }
             }
+            if (status == TvWatchStatus.WATCHED && prevUnwatchedInSeason > 0) {
+                recordWatchedMilestone(prevUnwatchedInSeason)
+            }
         }
     }
 
     fun setEpisodeWatchStatus(media: MediaEntity, seasonNumber: Int, episodeNumber: Int, status: TvWatchStatus) {
+        val wasAlreadyWatched = currentSeasonEpisodes.value.any {
+            it.seasonNumber == seasonNumber &&
+                it.episodeNumber == episodeNumber &&
+                it.watchStatus == TvWatchStatus.WATCHED
+        }
         AnalyticsTracker.logEpisodeLogged(
             mediaId = media.id,
             seasonNumber = seasonNumber,
@@ -2390,6 +2476,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 if (current.seasonNumber == seasonNumber) {
                     selectedSeasonForDetail.value = seasons.find { it.seasonNumber == seasonNumber }
                 }
+            }
+            if (status == TvWatchStatus.WATCHED && !wasAlreadyWatched) {
+                recordWatchedMilestone(1)
             }
         }
     }
@@ -2432,8 +2521,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateStatus(id: String, status: WatchStatus) {
         viewModelScope.launch {
+            val existingBeforeDb = findKnownMedia(id)
             ensureMediaInDb(id)
-            val resolvedType = findKnownMedia(id)?.getMediaTypeEnum()
+            val prevStatus = existingBeforeDb?.getWatchStatusEnum() ?: WatchStatus.NONE
+            val resolvedType = existingBeforeDb?.getMediaTypeEnum()
                 ?: if (id.startsWith("tmdb_tv_")) MediaType.TV_SHOW else MediaType.MOVIE
             AnalyticsTracker.logWatchStatusChanged(
                 mediaId = id,
@@ -2442,23 +2533,41 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 source = "status_action"
             )
             repository.updateStatus(id, status, getActiveTmdbApiKey())
+            if (status != WatchStatus.NONE) {
+                triggerOfflineHydrationIfOnline(id)
+            }
             refreshActiveTvSeasonsIfSelected(id)
+            if (status == WatchStatus.COMPLETED && prevStatus != WatchStatus.COMPLETED) {
+                recordWatchedMilestone(1)
+            }
         }
     }
 
     fun incrementEpisode(id: String) {
         viewModelScope.launch {
+            val prevMedia = findKnownMedia(id)
             ensureMediaInDb(id)
             repository.incrementEpisode(id, getActiveTmdbApiKey())
             refreshActiveTvSeasonsIfSelected(id)
+            val canAdvance = prevMedia == null ||
+                prevMedia.totalEpisodes <= 0 ||
+                prevMedia.watchedEpisodes < prevMedia.totalEpisodes
+            if (canAdvance) {
+                recordWatchedMilestone(1)
+            }
         }
     }
 
     fun setWatchedEpisodes(id: String, episodes: Int) {
         viewModelScope.launch {
+            val prevWatched = findKnownMedia(id)?.watchedEpisodes ?: 0
             ensureMediaInDb(id)
             repository.updateWatchedEpisodes(id, episodes, getActiveTmdbApiKey())
             refreshActiveTvSeasonsIfSelected(id)
+            val delta = episodes - prevWatched
+            if (delta > 0) {
+                recordWatchedMilestone(delta)
+            }
         }
     }
 
@@ -2480,6 +2589,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 isFavorite = !current
             )
             repository.toggleFavorite(id, current)
+            if (!current) {
+                triggerOfflineHydrationIfOnline(id)
+            }
         }
     }
 
@@ -2538,6 +2650,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 repository.createCustomCollection(watchlist)
             }
             repository.updateCustomWatchlist(id, watchlist)
+            if (!watchlist.isNullOrBlank()) {
+                triggerOfflineHydrationIfOnline(id)
+            }
         }
     }
 
@@ -2617,6 +2732,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         _analyticsEnabled.value = enabled
     }
 
+    fun setDarkTheme(enabled: Boolean) {
+        OnboardingPreferences.setDarkTheme(getApplication(), enabled)
+        _isDarkTheme.value = enabled
+    }
+
     fun updatePreferences(prefs: UserPreferencesEntity) {
         viewModelScope.launch {
             repository.updatePreferences(prefs)
@@ -2683,7 +2803,59 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 originCountry = originCountry
             )
             repository.saveMedia(item)
+            if (status == WatchStatus.COMPLETED) {
+                val delta = if (mediaType == MediaType.TV_SHOW) totalEpisodes.coerceAtLeast(1) else 1
+                recordWatchedMilestone(delta)
+            }
         }
+    }
+
+    private fun recordWatchedMilestone(delta: Int) {
+        val currentState = OnboardingPreferences.getRateAppPromptState(getApplication())
+        val (updatedState, shouldPrompt) = RateAppEngagementPolicy.recordWatched(
+            state = currentState,
+            delta = delta,
+            alreadyPromptedThisSession = rateAppPromptShownThisSession
+        )
+        OnboardingPreferences.saveRateAppPromptState(getApplication(), updatedState)
+        rateAppWatchedCount.value = updatedState.watchedCount
+        if (shouldPrompt) {
+            rateAppPromptShownThisSession = true
+            showRateAppDialog.value = true
+        }
+    }
+
+    fun onRateAppNow(context: Context) {
+        val updated = RateAppEngagementPolicy.onRateNow(
+            OnboardingPreferences.getRateAppPromptState(getApplication())
+        )
+        OnboardingPreferences.saveRateAppPromptState(getApplication(), updated)
+        showRateAppDialog.value = false
+        AppStoreActions.openPlayStoreForRating(context)
+    }
+
+    fun onRateAppLater() {
+        val updated = RateAppEngagementPolicy.onMaybeLater(
+            OnboardingPreferences.getRateAppPromptState(getApplication())
+        )
+        OnboardingPreferences.saveRateAppPromptState(getApplication(), updated)
+        showRateAppDialog.value = false
+    }
+
+    fun onRateAppNeverAskAgain() {
+        val updated = RateAppEngagementPolicy.onNeverAskAgain(
+            OnboardingPreferences.getRateAppPromptState(getApplication())
+        )
+        OnboardingPreferences.saveRateAppPromptState(getApplication(), updated)
+        showRateAppDialog.value = false
+    }
+
+    fun rateWatchPilotApp(context: Context) {
+        onRateAppNow(context)
+    }
+
+    fun shareWatchPilotApp(context: Context) {
+        AppStoreActions.shareWatchPilotApp(context)
     }
 
     // =========================================================================
@@ -3019,6 +3191,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             )
             repository.ensureMediaCached(entity)
             repository.updateStatus(entity.id, WatchStatus.PLAN_TO_WATCH, getActiveTmdbApiKey())
+            triggerOfflineHydrationIfOnline(entity.id)
         }
     }
 
@@ -3385,6 +3558,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        connectivityMonitor.stop()
         matchRoomObserverJob?.cancel()
         monetizationManager.destroy()
         super.onCleared()

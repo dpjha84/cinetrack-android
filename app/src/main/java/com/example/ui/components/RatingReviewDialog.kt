@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.ui.theme.CinemaGold
+import com.example.ui.theme.WatchPilotColors
 
 @Composable
 fun RatingReviewDialog(
@@ -147,6 +148,7 @@ fun RatingReviewDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Score Display & Quality Tag
+                val ratingColors = WatchPilotColors.current
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -156,18 +158,18 @@ fun RatingReviewDialog(
                         text = String.format("%.1f / 5.0", rating),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = CinemaGold,
+                        color = ratingColors.goldAccent,
                         maxLines = 1,
                         softWrap = false
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = CinemaGold.copy(alpha = 0.2f)
+                        color = ratingColors.goldChipContainer
                     ) {
                         Text(
                             text = ratingLabel,
-                            color = CinemaGold,
+                            color = ratingColors.goldAccent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             maxLines = 1,
@@ -184,8 +186,8 @@ fun RatingReviewDialog(
                     valueRange = 1f..5f,
                     steps = 7, // 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5
                     colors = SliderDefaults.colors(
-                        thumbColor = CinemaGold,
-                        activeTrackColor = CinemaGold
+                        thumbColor = ratingColors.goldSolidBg,
+                        activeTrackColor = ratingColors.goldSolidBg
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -198,13 +200,21 @@ fun RatingReviewDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf(1f, 2f, 3f, 4f, 5f).forEach { star ->
+                        val isStarSelected = rating == star
                         FilterChip(
-                            selected = rating == star,
+                            selected = isStarSelected,
                             onClick = { rating = star },
-                            label = { Text("${star.toInt()} ★", maxLines = 1, softWrap = false) },
+                            label = {
+                                Text(
+                                    "${star.toInt()} ★",
+                                    fontWeight = if (isStarSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaGold,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = ratingColors.goldSolidBg,
+                                selectedLabelColor = ratingColors.onGoldSolid
                             )
                         )
                     }
@@ -237,8 +247,8 @@ fun RatingReviewDialog(
                     Button(
                         onClick = { onSave(rating, review.trim()) },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = CinemaGold,
-                            contentColor = MaterialTheme.colorScheme.surface
+                            containerColor = ratingColors.goldSolidBg,
+                            contentColor = ratingColors.onGoldSolid
                         ),
                         modifier = Modifier.testTag("btn_save_rating")
                     ) {

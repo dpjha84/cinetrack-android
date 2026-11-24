@@ -92,6 +92,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.DarkBackground
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.PersonalizationEngine
@@ -433,13 +434,14 @@ fun HomeScreen(
                                 )
                             }
 
+                            val homeColors = WatchPilotColors.current
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = CinemaGold.copy(alpha = 0.15f)
+                                color = homeColors.goldChipContainer
                             ) {
                                 Text(
                                     text = "TOP PICKS",
-                                    color = CinemaGold,
+                                    color = homeColors.goldAccent,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     maxLines = 1,
@@ -476,7 +478,7 @@ fun HomeScreen(
             // Category & Genre Filter Section (Consolidated & Streamlined)
             item(span = { GridItemSpan(gridColumns) }) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    // Media Type Chips (All, Movies, TV)
+                    val chipColors = WatchPilotColors.current
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -486,16 +488,16 @@ fun HomeScreen(
                         FilterChip(
                             selected = selectedType == null,
                             onClick = { viewModel.selectedTypeFilter.value = null },
-                            label = { Text("All Media", maxLines = 1, softWrap = false) },
+                            label = { Text("All Media", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaGold,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = chipColors.goldSolidBg,
+                                selectedLabelColor = chipColors.onGoldSolid
                             )
                         )
                         FilterChip(
                             selected = selectedType == MediaType.MOVIE,
                             onClick = { viewModel.selectedTypeFilter.value = MediaType.MOVIE },
-                            label = { Text("Movies", maxLines = 1, softWrap = false) },
+                            label = { Text("Movies", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Movie,
@@ -504,14 +506,15 @@ fun HomeScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaGold,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = chipColors.goldSolidBg,
+                                selectedLabelColor = chipColors.onGoldSolid,
+                                selectedLeadingIconColor = chipColors.onGoldSolid
                             )
                         )
                         FilterChip(
                             selected = selectedType == MediaType.TV_SHOW,
                             onClick = { viewModel.selectedTypeFilter.value = MediaType.TV_SHOW },
-                            label = { Text("TV Shows", maxLines = 1, softWrap = false) },
+                            label = { Text("TV Shows", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Tv,
@@ -520,8 +523,9 @@ fun HomeScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaCyan,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = chipColors.cyanSolidBg,
+                                selectedLabelColor = chipColors.onCyanSolid,
+                                selectedLeadingIconColor = chipColors.onCyanSolid
                             )
                         )
                     }
@@ -542,16 +546,29 @@ fun HomeScreen(
                         )
 
                         availableGenres.forEach { genre ->
+                            val isGenreSelected = selectedGenre == genre
                             FilterChip(
-                                selected = selectedGenre == genre,
+                                selected = isGenreSelected,
                                 onClick = {
                                     viewModel.selectedGenreFilter.value =
-                                        if (selectedGenre == genre) null else genre
+                                        if (isGenreSelected) null else genre
                                 },
-                                label = { Text(genre, fontSize = 12.sp) },
+                                label = {
+                                    Text(
+                                        genre,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isGenreSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = CinemaGold.copy(alpha = 0.2f),
-                                    selectedLabelColor = CinemaGold
+                                    selectedContainerColor = chipColors.goldChipContainer,
+                                    selectedLabelColor = chipColors.goldAccent
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isGenreSelected,
+                                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                                    selectedBorderColor = chipColors.goldChipBorder
                                 )
                             )
                         }
@@ -725,7 +742,7 @@ private fun HomeHorizontalPeopleSection(
     onPersonClick: (TmdbSearchResultItem.Person) -> Unit
 ) {
     val cardWidth = if (isCompactCardTablet) 124.dp else 104.dp
-    val accentColor = CinemaGold
+    val accentColor = WatchPilotColors.current.goldAccent
     val sectionTitle = HomeCatalogSection.POPULAR_PEOPLE.formattedTitle(regionName, selectedType)
     Column(
         modifier = Modifier
@@ -1451,15 +1468,16 @@ private fun PickedForYouCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                val cardColors = WatchPilotColors.current
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = if (isStarReason) CinemaGold.copy(alpha = 0.16f) else CinemaCyan.copy(alpha = 0.14f)
+                    color = if (isStarReason) cardColors.goldChipContainer else cardColors.cyanChipContainer
                 ) {
                     Text(
                         text = reasonLabel,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isStarReason) CinemaGold else CinemaCyan,
+                        color = if (isStarReason) cardColors.goldAccent else cardColors.cyanAccent,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)

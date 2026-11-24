@@ -91,6 +91,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.WatchProviderLauncher
@@ -633,12 +634,13 @@ private fun SeasonWatchStatusCard(
                         }
 
                         // Status Badge
+                        val seasonColors = WatchPilotColors.current
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = when (season.watchStatus) {
-                                TvWatchStatus.WATCHED -> CinemaGreen.copy(alpha = 0.2f)
-                                TvWatchStatus.WATCHING -> CinemaCyan.copy(alpha = 0.2f)
-                                TvWatchStatus.PLAN_TO_WATCH -> CinemaGold.copy(alpha = 0.2f)
+                                TvWatchStatus.WATCHED -> seasonColors.greenChipContainer
+                                TvWatchStatus.WATCHING -> seasonColors.cyanChipContainer
+                                TvWatchStatus.PLAN_TO_WATCH -> seasonColors.goldChipContainer
                                 TvWatchStatus.UNWATCHED -> MaterialTheme.colorScheme.surfaceContainerHigh
                             }
                         ) {
@@ -649,9 +651,9 @@ private fun SeasonWatchStatusCard(
                                 maxLines = 1,
                                 softWrap = false,
                                 color = when (season.watchStatus) {
-                                    TvWatchStatus.WATCHED -> CinemaGreen
-                                    TvWatchStatus.WATCHING -> CinemaCyan
-                                    TvWatchStatus.PLAN_TO_WATCH -> CinemaGold
+                                    TvWatchStatus.WATCHED -> seasonColors.greenAccent
+                                    TvWatchStatus.WATCHING -> seasonColors.cyanAccent
+                                    TvWatchStatus.PLAN_TO_WATCH -> seasonColors.goldAccent
                                     TvWatchStatus.UNWATCHED -> MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -662,6 +664,7 @@ private fun SeasonWatchStatusCard(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Segmented Status Selectors
+                    val chipColors = WatchPilotColors.current
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -675,6 +678,12 @@ private fun SeasonWatchStatusCard(
                             TvWatchStatus.UNWATCHED to Icons.Default.Close
                         ).forEach { (status, icon) ->
                             val isSelected = season.watchStatus == status
+                            val selectedFg = when (status) {
+                                TvWatchStatus.WATCHED -> chipColors.onGreenSolid
+                                TvWatchStatus.WATCHING -> chipColors.onCyanSolid
+                                TvWatchStatus.PLAN_TO_WATCH -> chipColors.onGoldSolid
+                                TvWatchStatus.UNWATCHED -> MaterialTheme.colorScheme.onSurface
+                            }
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { viewModel.setSeasonWatchStatus(media, season.seasonNumber, status) },
@@ -696,13 +705,13 @@ private fun SeasonWatchStatusCard(
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = when (status) {
-                                        TvWatchStatus.WATCHED -> CinemaGreen
-                                        TvWatchStatus.WATCHING -> CinemaCyan
-                                        TvWatchStatus.PLAN_TO_WATCH -> CinemaGold
+                                        TvWatchStatus.WATCHED -> chipColors.greenSolidBg
+                                        TvWatchStatus.WATCHING -> chipColors.cyanSolidBg
+                                        TvWatchStatus.PLAN_TO_WATCH -> chipColors.goldSolidBg
                                         TvWatchStatus.UNWATCHED -> MaterialTheme.colorScheme.surfaceContainerHigh
                                     },
-                                    selectedLabelColor = if (status == TvWatchStatus.UNWATCHED) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface,
-                                    selectedLeadingIconColor = if (status == TvWatchStatus.UNWATCHED) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface
+                                    selectedLabelColor = selectedFg,
+                                    selectedLeadingIconColor = selectedFg
                                 ),
                                 modifier = Modifier.testTag("chip_season_status_${status.name.lowercase()}")
                             )
@@ -799,8 +808,8 @@ private fun SeasonWatchStatusCard(
                                     )
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = CinemaGold,
-                                    contentColor = MaterialTheme.colorScheme.surface
+                                    containerColor = WatchPilotColors.current.goldSolidBg,
+                                    contentColor = WatchPilotColors.current.onGoldSolid
                                 ),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier
@@ -1193,6 +1202,7 @@ fun EpisodeDetailDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
+                val epChipColors = WatchPilotColors.current
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1203,6 +1213,12 @@ fun EpisodeDetailDialog(
                         TvWatchStatus.PLAN_TO_WATCH to "Plan"
                     ).forEach { (status, label) ->
                         val isSelected = episode.watchStatus == status
+                        val selectedFg = when (status) {
+                            TvWatchStatus.WATCHED -> epChipColors.onGreenSolid
+                            TvWatchStatus.WATCHING -> epChipColors.onCyanSolid
+                            TvWatchStatus.PLAN_TO_WATCH -> epChipColors.onGoldSolid
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
                         FilterChip(
                             selected = isSelected,
                             onClick = {
@@ -1213,18 +1229,19 @@ fun EpisodeDetailDialog(
                                 Text(
                                     text = label,
                                     fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     maxLines = 1,
                                     softWrap = false
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = when (status) {
-                                    TvWatchStatus.WATCHED -> CinemaGreen
-                                    TvWatchStatus.WATCHING -> CinemaCyan
-                                    TvWatchStatus.PLAN_TO_WATCH -> CinemaGold
+                                    TvWatchStatus.WATCHED -> epChipColors.greenSolidBg
+                                    TvWatchStatus.WATCHING -> epChipColors.cyanSolidBg
+                                    TvWatchStatus.PLAN_TO_WATCH -> epChipColors.goldSolidBg
                                     else -> MaterialTheme.colorScheme.surfaceContainerHigh
                                 },
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedLabelColor = selectedFg
                             ),
                             modifier = Modifier.weight(1f)
                         )

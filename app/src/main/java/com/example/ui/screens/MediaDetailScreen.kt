@@ -105,6 +105,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.theme.WatchPilotColors
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.CircularProgressIndicator
@@ -1128,6 +1129,7 @@ private fun MediaWatchStatusSelectorSection(
                     )
                 }
 
+                val detailChipColors = WatchPilotColors.current
                 if (isTablet) {
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
@@ -1135,13 +1137,21 @@ private fun MediaWatchStatusSelectorSection(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         statuses.forEach { st ->
+                            val isSelected = media.getWatchStatusEnum() == st
                             FilterChip(
-                                selected = media.getWatchStatusEnum() == st,
+                                selected = isSelected,
                                 onClick = { onUpdateStatus(st) },
-                                label = { Text(st.label, maxLines = 1, softWrap = false) },
+                                label = {
+                                    Text(
+                                        st.label,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = CinemaGold,
-                                    selectedLabelColor = MaterialTheme.colorScheme.surface
+                                    selectedContainerColor = detailChipColors.goldSolidBg,
+                                    selectedLabelColor = detailChipColors.onGoldSolid
                                 )
                             )
                         }
@@ -1154,13 +1164,19 @@ private fun MediaWatchStatusSelectorSection(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         statuses.forEach { st ->
+                            val isSelected = media.getWatchStatusEnum() == st
                             FilterChip(
-                                selected = media.getWatchStatusEnum() == st,
+                                selected = isSelected,
                                 onClick = { onUpdateStatus(st) },
-                                label = { Text(st.label) },
+                                label = {
+                                    Text(
+                                        st.label,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = CinemaGold,
-                                    selectedLabelColor = MaterialTheme.colorScheme.surface
+                                    selectedContainerColor = detailChipColors.goldSolidBg,
+                                    selectedLabelColor = detailChipColors.onGoldSolid
                                 )
                             )
                         }

@@ -69,8 +69,7 @@ import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.WatchPilotColors
 import com.example.util.OttMoneySaverCalculator
 import com.google.firebase.auth.FirebaseUser
 
@@ -102,7 +101,7 @@ fun SwipeToMatchSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         modifier = Modifier.testTag("swipe_to_match_sheet")
     ) {
         Column(
@@ -137,7 +136,7 @@ fun SwipeToMatchSheet(
 
             if (currentUser == null) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(
@@ -215,7 +214,7 @@ fun SwipeToMatchSheet(
 
                     // Host Card
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(
@@ -305,7 +304,7 @@ fun SwipeToMatchSheet(
 
                     // Join Card (100% Free for Guests!)
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(
@@ -386,10 +385,11 @@ fun SwipeToMatchSheet(
                     val myLikes = room.swipesByUid[myUid].orEmpty()
 
                     // Room Code Banner
+                    val roomBannerColors = WatchPilotColors.current
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.4f))
+                        border = BorderStroke(1.dp, roomBannerColors.goldChipBorder)
                     ) {
                         Row(
                             modifier = Modifier
@@ -408,14 +408,14 @@ fun SwipeToMatchSheet(
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 18.sp,
                                     letterSpacing = 1.5.sp,
-                                    color = CinemaGold,
+                                    color = roomBannerColors.goldAccent,
                                     maxLines = 1,
                                     softWrap = false
                                 )
                                 Text(
                                     text = "${room.participantUids.size} participant(s) connected • Host: ${room.hostName}",
                                     fontSize = 11.sp,
-                                    color = CinemaCyan,
+                                    color = roomBannerColors.cyanAccent,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -433,7 +433,7 @@ fun SwipeToMatchSheet(
                                         context.startActivity(Intent.createChooser(share, "Share Room Code"))
                                     }
                                 ) {
-                                    Icon(Icons.Filled.Share, contentDescription = "Share Room Code", tint = CinemaGold)
+                                    Icon(Icons.Filled.Share, contentDescription = "Share Room Code", tint = roomBannerColors.goldAccent)
                                 }
                             }
                         }
@@ -508,7 +508,7 @@ fun SwipeToMatchSheet(
 
                         if (nextCandidate == null) {
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Column(
@@ -539,7 +539,7 @@ fun SwipeToMatchSheet(
                         } else {
                             // Interactive Deck Card
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 shape = RoundedCornerShape(18.dp)
                             ) {
                                 Column(

@@ -64,8 +64,7 @@ import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.WatchPilotColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,7 +99,7 @@ fun SnapScannerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         modifier = Modifier.testTag("snap_scanner_sheet")
     ) {
         Column(
@@ -133,6 +132,7 @@ fun SnapScannerSheet(
             }
 
             // Quota Badge
+            val snapColors = WatchPilotColors.current
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -150,14 +150,14 @@ fun SnapScannerSheet(
                         .weight(1f, fill = false)
                         .padding(end = 8.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (monetizationState.isPro) CinemaGold.copy(alpha = 0.2f) else CinemaCyan.copy(alpha = 0.16f))
+                        .background(if (monetizationState.isPro) snapColors.goldChipContainer else snapColors.cyanChipContainer)
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
                         text = badgeText,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (monetizationState.isPro) CinemaGold else CinemaCyan,
+                        color = if (monetizationState.isPro) snapColors.goldAccent else snapColors.cyanAccent,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -168,7 +168,7 @@ fun SnapScannerSheet(
                         text = "Go Unlimited →",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = CinemaGold,
+                        color = snapColors.goldAccent,
                         maxLines = 1,
                         softWrap = false,
                         modifier = Modifier
@@ -223,7 +223,7 @@ fun SnapScannerSheet(
             when (scanState) {
                 is SnapScanUiState.Idle -> {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text(
@@ -331,7 +331,7 @@ fun SnapScannerSheet(
                                     .clickable(enabled = entity != null) {
                                         if (entity != null) onOpenMedia(entity)
                                     },
-                                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
                                 Row(

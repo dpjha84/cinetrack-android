@@ -44,6 +44,9 @@ class RoomDatabaseTest {
         val tvProgressDao = db.tvProgressDao()
         val favoritePersonDao = db.favoritePersonDao()
         val popularPersonDao = db.popularPersonDao()
+        val tvEpisodeCacheDao = db.tvEpisodeCacheDao()
+        val cachedPersonDao = db.cachedPersonDao()
+        val cachedSearchDao = db.cachedSearchDao()
         repository = MediaRepository(
             mediaDao,
             preferencesDao,
@@ -51,7 +54,10 @@ class RoomDatabaseTest {
             customCollectionDao,
             tvProgressDao,
             favoritePersonDao,
-            popularPersonDao = popularPersonDao
+            popularPersonDao = popularPersonDao,
+            tvEpisodeCacheDao = tvEpisodeCacheDao,
+            cachedPersonDao = cachedPersonDao,
+            cachedSearchDao = cachedSearchDao
         )
     }
 
@@ -634,5 +640,127 @@ class RoomDatabaseTest {
         )
         assertEquals(1, pageOffset.size)
         assertEquals(1002L, pageOffset.first().personId)
+    }
+
+    @Test
+    fun offlineWatchlistAndSearchHistoryCachingPersistsAcrossQueries() = runTest {
+        val savedSeries = MediaEntity(
+            id = "tmdb_tv_777",
+            title = "Arcane Legacy",
+            mediaType = MediaType.TV_SHOW.name,
+            releaseYear = 2024,
+            genres = "Animation, Sci-Fi",
+            posterUrl = "https://example.com/arcane.jpg",
+            backdropUrl = "",
+            overview = "Sisters clash across two cities.",
+            directorOrCreator = "Christian Linke",
+            cast = "Hailee Steinfeld",
+            communityRating = 9.0f,
+            runtimeMinutes = 42,
+            totalSeasons = 2,
+            totalEpisodes = 18,
+            status = WatchStatus.PLAN_TO_WATCH.name,
+            customWatchlist = "Weekend Binge"
+        )
+        val untrackedMovie = MediaEntity(
+            id = "tmdb_m_778",
+            title = "Arcane Chronicle",
+            mediaType = MediaType.MOVIE.name,
+            releaseYear = 2023,
+            genres = "Drama",
+            posterUrl = "",
+            backdropUrl = "",
+            overview = "",
+            directorOrCreator = "Director X",
+            cast = "",
+            communityRating = 9.4f,
+            runtimeMinutes = 110,
+            status = WatchStatus.NONE.name
+        )
+        mediaDao.insertAll(listOf(untrackedMovie, savedSeries))
+
+        val watchlistDirect = mediaDao.getWatchlistMediaDirect()
+        assertEquals(1, watchlistDirect.size)
+        assertEquals("tmdb_tv_777", watchlistDirect.first().id)
+
+        // Saved watchlist item should rank above untracked even if communityRating is slightly lower
+        val offlineMatches = mediaDao.searchMediaOffline("Arcane", limit = 10)
+        assertEquals(2, offlineMatches.size)
+        assertEquals("tmdb_tv_777", offlineMatches.first().id)
+
+        // Cache TV season & episode metadata for offline browsing
+        val seasonRow = CachedTvEpisodeEntity(
+            mediaId = "tmdb_tv_777",
+            seasonNumber = 1,
+            episodeNumber = 0,
+            title = "Season 1",
+            overview = "Piltover & Zaun",
+            imageUrl = "",
+            airDate = "2024-11-01",
+            runtimeMinutes = 0,
+            rating = 8.9f,
+            episodeCount = 9,
+            releaseYear = 2024
+        )
+        val episodeRow = CachedTvEpisodeEntity(
+            mediaId = "tmdb_tv_777",
+            seasonNumber = 1,
+            episodeNumber = 1,
+            title = "Welcome to the Playground",
+            overview = "Opening chapter.",
+            imageUrl = "",
+            airDate = "2024-11-01",
+            runtimeMinutes = 43,
+            rating = 8.8f,
+            episodeCount = 1,
+            releaseYear = 0
+        )
+        db.tvEpisodeCacheDao().insertAll(listOf(seasonRow, episodeRow))
+        val cachedSeasons = repository.getSeasonsForTvShow(savedSeries, "")
+        assertEquals(1, cachedSeasons.size)
+        assertEquals("Season 1", cachedSeasons.first().name)
+        val cachedEpisodes = repository.getEpisodesForSeason(savedSeries, 1, "")
+        assertEquals(1, cachedEpisodes.size)
+        assertEquals("Welcome to the Playground", cachedEpisodes.first().title)
+
+        // Cache search history & person/media query hits for offline replay
+        repository.recordSearchQuery("Arcane", resultCount = 2)
+        val historyEntry = searchHistoryDao.getByQuery("arcane")
+        assertNotNull(historyEntry)
+        assertEquals(2, historyEntry?.resultCount)
+
+        db.cachedPersonDao().insertAll(
+            listOf(
+                CachedPersonEntity(
+                    personId = 9001L,
+                    name = "Hailee Steinfeld",
+                    profileUrl = "",
+                    department = "Acting",
+                    popularity = 85.0,
+                    knownForIds = "tmdb_tv_777"
+                )
+            )
+        )
+        db.cachedSearchDao().insertAll(
+            listOf(
+                CachedSearchResultEntity(
+                    normalizedQuery = "arcane",
+                    resultKey = "media:tmdb_tv_777",
+                    resultType = "MEDIA",
+                    mediaId = "tmdb_tv_777",
+                    position = 0
+                ),
+                CachedSearchResultEntity(
+                    normalizedQuery = "arcane",
+                    resultKey = "person:9001",
+                    resultType = "PERSON",
+                    personId = 9001L,
+                    position = 1
+                )
+            )
+        )
+        val replayed = repository.searchLocalAndSample("Arcane")
+        assertTrue(replayed.any { it is com.example.data.model.TmdbSearchResultItem.Media && it.entity.id == "tmdb_tv_777" })
+        assertTrue(replayed.any { it is com.example.data.model.TmdbSearchResultItem.Person && it.id == 9001L })
     }
 }

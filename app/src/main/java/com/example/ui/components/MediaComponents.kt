@@ -66,6 +66,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.theme.WatchPilotColors
 
 @Composable
 fun MediaPosterCard(
@@ -692,14 +693,15 @@ fun ContinueWatchingCard(
             Spacer(modifier = Modifier.width(10.dp))
 
             // Quick +1 Episode Button
+            val episodeBtnColors = WatchPilotColors.current
             FilledTonalButton(
                 onClick = onIncrementEpisode,
                 modifier = Modifier
                     .height(44.dp)
                     .testTag("increment_ep_${media.id}"),
                 colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = CinemaGold.copy(alpha = 0.2f),
-                    contentColor = CinemaGold
+                    containerColor = episodeBtnColors.goldChipContainer,
+                    contentColor = episodeBtnColors.goldAccent
                 ),
                 shape = RoundedCornerShape(10.dp)
             ) {
@@ -730,13 +732,23 @@ fun WatchStatusPill(
     status: WatchStatus,
     modifier: Modifier = Modifier
 ) {
+    val pillColors = WatchPilotColors.current
     val (bgColor, textColor) = when (status) {
-        WatchStatus.COMPLETED -> Pair(CinemaGreen.copy(alpha = 0.25f), CinemaGreen)
-        WatchStatus.WATCHING -> Pair(CinemaCyan.copy(alpha = 0.25f), CinemaCyan)
-        WatchStatus.PLAN_TO_WATCH -> Pair(CinemaGold.copy(alpha = 0.25f), CinemaGold)
-        WatchStatus.ON_HOLD -> Pair(Color(0xFFF97316).copy(alpha = 0.25f), Color(0xFFF97316))
-        WatchStatus.DROPPED -> Pair(CinemaRed.copy(alpha = 0.25f), CinemaRed)
-        WatchStatus.NONE -> Pair(Color.Gray.copy(alpha = 0.25f), Color.LightGray)
+        WatchStatus.COMPLETED -> Pair(pillColors.greenChipContainer, pillColors.greenAccent)
+        WatchStatus.WATCHING -> Pair(pillColors.cyanChipContainer, pillColors.cyanAccent)
+        WatchStatus.PLAN_TO_WATCH -> Pair(pillColors.goldChipContainer, pillColors.goldAccent)
+        WatchStatus.ON_HOLD -> Pair(
+            pillColors.orangeAccent.copy(alpha = if (pillColors.isDark) 0.22f else 0.14f),
+            pillColors.orangeAccent
+        )
+        WatchStatus.DROPPED -> Pair(
+            pillColors.redAccent.copy(alpha = if (pillColors.isDark) 0.22f else 0.14f),
+            pillColors.redAccent
+        )
+        WatchStatus.NONE -> Pair(
+            MaterialTheme.colorScheme.surfaceContainerHigh,
+            MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 
     Surface(

@@ -56,8 +56,7 @@ import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.WatchPilotColors
 import com.example.util.OttMoneySaverCalculator
 import java.util.Locale
 
@@ -77,7 +76,7 @@ fun OttMoneySaverSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         modifier = Modifier.testTag("ott_money_saver_sheet")
     ) {
         Column(
@@ -141,7 +140,7 @@ fun OttMoneySaverSheet(
 
             // "On My Apps" Filter Toggle
             Card(
-                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Row(
@@ -177,7 +176,7 @@ fun OttMoneySaverSheet(
 
             if (summary.subscribedCount == 0) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
@@ -191,7 +190,7 @@ fun OttMoneySaverSheet(
             } else {
                 // Spend & Savings Hero Banner
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.4f)),
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -291,7 +290,7 @@ fun OttMoneySaverSheet(
                                 OttRecommendation.KEEP_ACTIVE -> CinemaGreen
                             }
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
                                 Column(
@@ -354,9 +353,10 @@ fun OttMoneySaverSheet(
 fun LegalComplianceDialog(
     onDismiss: () -> Unit
 ) {
+    val legalColors = WatchPilotColors.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text("Privacy, Terms & Data Attribution", fontWeight = FontWeight.Bold)
         },
@@ -368,7 +368,7 @@ fun LegalComplianceDialog(
                 Text(
                     text = "TMDB & JustWatch Attribution",
                     fontWeight = FontWeight.Bold,
-                    color = CinemaGold,
+                    color = legalColors.goldAccent,
                     fontSize = 13.sp
                 )
                 Text(
@@ -380,7 +380,7 @@ fun LegalComplianceDialog(
                 Text(
                     text = "Privacy & Data Ownership",
                     fontWeight = FontWeight.Bold,
-                    color = CinemaGold,
+                    color = legalColors.goldAccent,
                     fontSize = 13.sp
                 )
                 Text(
@@ -392,7 +392,7 @@ fun LegalComplianceDialog(
                 Text(
                     text = "Subscriptions & Advertising",
                     fontWeight = FontWeight.Bold,
-                    color = CinemaGold,
+                    color = legalColors.goldAccent,
                     fontSize = 13.sp
                 )
                 Text(
@@ -405,7 +405,7 @@ fun LegalComplianceDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close", color = CinemaGold, fontWeight = FontWeight.Bold)
+                Text("Close", color = legalColors.goldAccent, fontWeight = FontWeight.Bold)
             }
         }
     )

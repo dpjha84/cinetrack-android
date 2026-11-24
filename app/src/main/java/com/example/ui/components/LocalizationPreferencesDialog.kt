@@ -49,6 +49,7 @@ import com.example.data.local.UserPreferencesEntity
 import com.example.data.model.RegionalDefaults
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
+import com.example.ui.theme.WatchPilotColors
 
 @Composable
 fun LocalizationPreferencesDialog(
@@ -208,6 +209,7 @@ fun LocalizationPreferencesDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                val locColors = WatchPilotColors.current
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     RegionalDefaults.supportedLanguages.chunked(2).forEach { rowLangs ->
                         Row(
@@ -215,20 +217,22 @@ fun LocalizationPreferencesDialog(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             rowLangs.forEach { lang ->
+                                val isLangSelected = selectedLanguage.equals(lang.code, ignoreCase = true)
                                 FilterChip(
-                                    selected = selectedLanguage.equals(lang.code, ignoreCase = true),
+                                    selected = isLangSelected,
                                     onClick = { selectedLanguage = lang.code },
                                     label = {
                                         Text(
                                             text = "${lang.flag} ${lang.nativeName}",
                                             fontSize = 11.sp,
+                                            fontWeight = if (isLangSelected) FontWeight.Bold else FontWeight.Medium,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = CinemaGold,
-                                        selectedLabelColor = MaterialTheme.colorScheme.surface
+                                        selectedContainerColor = locColors.goldSolidBg,
+                                        selectedLabelColor = locColors.onGoldSolid
                                     ),
                                     modifier = Modifier.weight(1f)
                                 )
@@ -292,8 +296,8 @@ fun LocalizationPreferencesDialog(
                             onSave(finalRegion, autoDetect, selectedLanguage, filterOnlyLanguage, currentPreferences.customTmdbApiKey)
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = CinemaGold,
-                            contentColor = MaterialTheme.colorScheme.surface
+                            containerColor = WatchPilotColors.current.goldSolidBg,
+                            contentColor = WatchPilotColors.current.onGoldSolid
                         ),
                         modifier = Modifier.testTag("btn_save_localization")
                     ) {

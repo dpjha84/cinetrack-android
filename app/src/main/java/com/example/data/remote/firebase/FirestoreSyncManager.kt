@@ -175,21 +175,47 @@ class FirestoreSyncManager(
         }
     }
 
-    suspend fun uploadSearchHistory(userId: String, query: String) {
+    suspend fun uploadSearchHistory(userId: String, query: String, resultCount: Int = 0) {
         if (userId.isBlank() || query.isBlank()) return
         try {
-            val safeId = query.lowercase().replace("/", "_").take(40)
+            val safeId = query.trim().lowercase().replace("/", "_").take(40)
             val docRef = firestore.collection("users").document(userId)
                 .collection("search_history").document(safeId)
 
             val payload = hashMapOf(
-                "query" to query,
+                "query" to query.trim(),
                 "timestamp" to System.currentTimeMillis(),
+                "resultCount" to resultCount,
                 "userId" to userId
             )
             docRef.set(payload, SetOptions.merge()).await()
         } catch (e: Exception) {
             Log.w(TAG, "Failed to upload search history to Firestore: ${e.message}")
+        }
+    }
+
+    suspend fun deleteSearchHistory(userId: String, query: String) {
+        if (userId.isBlank() || query.isBlank()) return
+        try {
+            val safeId = query.trim().lowercase().replace("/", "_").take(40)
+            firestore.collection("users").document(userId)
+                .collection("search_history").document(safeId)
+                .delete().await()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to delete search history '$query' from Firestore: ${e.message}")
+        }
+    }
+
+    suspend fun clearSearchHistory(userId: String) {
+        if (userId.isBlank()) return
+        try {
+            val snapshot = firestore.collection("users").document(userId)
+                .collection("search_history").get().await()
+            for (doc in snapshot.documents) {
+                doc.reference.delete().await()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to clear search history in Firestore: ${e.message}")
         }
     }
 
@@ -330,7 +356,8 @@ class FirestoreSyncManager(
                 if (!q.isNullOrBlank()) {
                     SearchHistoryEntity(
                         query = q,
-                        timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
+                        timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
+                        resultCount = (doc.getLong("resultCount") ?: 0L).toInt()
                     )
                 } else null
             }

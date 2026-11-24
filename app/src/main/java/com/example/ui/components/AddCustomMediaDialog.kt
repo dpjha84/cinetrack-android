@@ -48,6 +48,7 @@ import com.example.data.model.MediaType
 import com.example.data.model.WatchStatus
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
+import com.example.ui.theme.WatchPilotColors
 
 @Composable
 fun AddCustomMediaDialog(
@@ -125,18 +126,27 @@ fun AddCustomMediaDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Media Type Selector
+                val customMediaColors = WatchPilotColors.current
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     MediaType.entries.forEach { type ->
+                        val isSelected = mediaType == type
                         FilterChip(
-                            selected = mediaType == type,
+                            selected = isSelected,
                             onClick = { mediaType = type },
-                            label = { Text(type.label, maxLines = 1, softWrap = false) },
+                            label = {
+                                Text(
+                                    type.label,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaGold,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = customMediaColors.goldSolidBg,
+                                selectedLabelColor = customMediaColors.onGoldSolid
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -284,6 +294,7 @@ fun AddCustomMediaDialog(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
+                val statusChipColors = WatchPilotColors.current
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -291,13 +302,22 @@ fun AddCustomMediaDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf(WatchStatus.PLAN_TO_WATCH, WatchStatus.WATCHING, WatchStatus.COMPLETED).forEach { st ->
+                        val isSelected = status == st
                         FilterChip(
-                            selected = status == st,
+                            selected = isSelected,
                             onClick = { status = st },
-                            label = { Text(st.label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
+                            label = {
+                                Text(
+                                    st.label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaCyan,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                                selectedContainerColor = statusChipColors.cyanSolidBg,
+                                selectedLabelColor = statusChipColors.onCyanSolid
                             )
                         )
                     }
@@ -318,7 +338,7 @@ fun AddCustomMediaDialog(
                     Text(
                         text = String.format("%.1f / 10", initialRating),
                         style = MaterialTheme.typography.labelLarge,
-                        color = CinemaGold,
+                        color = statusChipColors.goldAccent,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -329,8 +349,8 @@ fun AddCustomMediaDialog(
                     valueRange = 1f..10f,
                     steps = 17,
                     colors = SliderDefaults.colors(
-                        thumbColor = CinemaGold,
-                        activeTrackColor = CinemaGold
+                        thumbColor = statusChipColors.goldSolidBg,
+                        activeTrackColor = statusChipColors.goldSolidBg
                     )
                 )
 
@@ -383,8 +403,8 @@ fun AddCustomMediaDialog(
                             )
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = CinemaGold,
-                            contentColor = MaterialTheme.colorScheme.surface
+                            containerColor = WatchPilotColors.current.goldSolidBg,
+                            contentColor = WatchPilotColors.current.onGoldSolid
                         ),
                         modifier = Modifier.testTag("btn_save_custom_media")
                     ) {

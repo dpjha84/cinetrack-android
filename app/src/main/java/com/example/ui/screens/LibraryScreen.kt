@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FileUpload
@@ -74,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,6 +84,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.BuildConfig
+import com.example.R
 import com.example.data.local.FavoritePersonEntity
 import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
@@ -91,6 +95,7 @@ import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.LibraryTab
 import com.example.ui.viewmodel.MediaViewModel
@@ -114,6 +119,7 @@ fun LibraryScreen(
     val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
     val isImportingCsv by viewModel.isImportingCsv.collectAsStateWithLifecycle()
     val csvImportMessage by viewModel.csvImportMessage.collectAsStateWithLifecycle()
+    val isOffline by viewModel.isOffline.collectAsStateWithLifecycle()
 
     val csvPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -264,6 +270,42 @@ fun LibraryScreen(
             }
         }
 
+        if (isOffline) {
+            val offlineColors = WatchPilotColors.current
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = offlineColors.goldChipContainer,
+                border = BorderStroke(1.dp, offlineColors.goldChipBorder),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .testTag("banner_offline_library")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudOff,
+                        contentDescription = stringResource(R.string.offline_watchlist_banner),
+                        tint = offlineColors.goldAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.offline_watchlist_banner),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = offlineColors.goldAccent,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
         // Library Tabs
         ScrollableTabRow(
             selectedTabIndex = selectedTab.ordinal,
@@ -273,8 +315,9 @@ fun LibraryScreen(
         ) {
             LibraryTab.entries.forEach { tab ->
                 val selected = selectedTab == tab
+                val libColors = WatchPilotColors.current
                 val color by animateColorAsState(
-                    targetValue = if (selected) CinemaGold else MaterialTheme.colorScheme.onSurfaceVariant,
+                    targetValue = if (selected) libColors.goldAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                     label = "tabColor"
                 )
                 val tabIcon = when (tab) {
@@ -314,6 +357,7 @@ fun LibraryScreen(
         Spacer(modifier = Modifier.height(6.dp))
 
         // OTT Smart Filters + Sort Options + Collections Bar
+        val libColors = WatchPilotColors.current
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -329,7 +373,7 @@ fun LibraryScreen(
                     Icon(
                         imageVector = Icons.Default.Subscriptions,
                         contentDescription = null,
-                        tint = if (monetizationState.streamOnMyAppsOnly) CinemaCyan else CinemaGold,
+                        tint = if (monetizationState.streamOnMyAppsOnly) libColors.cyanAccent else libColors.goldAccent,
                         modifier = Modifier.size(14.dp)
                     )
                 },
@@ -343,8 +387,14 @@ fun LibraryScreen(
                     )
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = CinemaCyan.copy(alpha = 0.2f),
-                    selectedLabelColor = CinemaCyan
+                    selectedContainerColor = libColors.cyanChipContainer,
+                    selectedLabelColor = libColors.cyanAccent
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = monetizationState.streamOnMyAppsOnly,
+                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                    selectedBorderColor = libColors.cyanChipBorder
                 ),
                 modifier = Modifier.testTag("chip_on_my_apps")
             )
@@ -356,7 +406,7 @@ fun LibraryScreen(
                     Icon(
                         imageVector = Icons.Default.Savings,
                         contentDescription = null,
-                        tint = CinemaGreen,
+                        tint = libColors.greenAccent,
                         modifier = Modifier.size(14.dp)
                     )
                 },
@@ -365,7 +415,7 @@ fun LibraryScreen(
                         text = "OTT Money-Saver",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = CinemaGreen,
+                        color = libColors.greenAccent,
                         maxLines = 1,
                         softWrap = false
                     )
@@ -381,13 +431,28 @@ fun LibraryScreen(
             )
 
             SortOption.entries.forEach { option ->
+                val isSortSelected = sortOption == option
                 FilterChip(
-                    selected = sortOption == option,
+                    selected = isSortSelected,
                     onClick = { viewModel.librarySortOption.value = option },
-                    label = { Text(option.label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
+                    label = {
+                        Text(
+                            option.label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSortSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = CinemaGold.copy(alpha = 0.2f),
-                        selectedLabelColor = CinemaGold
+                        selectedContainerColor = libColors.goldChipContainer,
+                        selectedLabelColor = libColors.goldAccent
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSortSelected,
+                        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                        selectedBorderColor = libColors.goldChipBorder
                     )
                 )
             }
@@ -465,8 +530,8 @@ fun LibraryScreen(
                     Button(
                         onClick = onExploreClick,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = CinemaGold,
-                            contentColor = MaterialTheme.colorScheme.surface
+                            containerColor = WatchPilotColors.current.goldSolidBg,
+                            contentColor = WatchPilotColors.current.onGoldSolid
                         ),
                         modifier = Modifier.testTag("btn_explore_from_empty_library")
                     ) {

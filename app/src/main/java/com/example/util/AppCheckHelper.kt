@@ -15,6 +15,8 @@ private const val TAG = "AppCheckInit"
 private const val DEBUG_TOKEN_EXTRA = "FIREBASE_APPCHECK_DEBUG_TOKEN"
 private const val DEBUG_STORE_PREFIX = "com.google.firebase.appcheck.debug.store."
 private const val DEBUG_SECRET_KEY = "com.google.firebase.appcheck.debug.DEBUG_SECRET"
+private const val HARNESS_META_PREFS = "watchpilot_appcheck_harness_meta"
+private const val KEY_HAS_HARNESS_TOKEN = "has_harness_debug_token"
 private const val RECAPTCHA_SITE_KEY_RES = "recaptcha_site_key"
 
 fun configureAppCheck(context: Context, intent: Intent?) {
@@ -32,6 +34,8 @@ fun configureAppCheck(context: Context, intent: Intent?) {
                 "$DEBUG_STORE_PREFIX$persistenceKey",
                 Context.MODE_PRIVATE
             )
+            val metaPrefs = context.getSharedPreferences(HARNESS_META_PREFS, Context.MODE_PRIVATE)
+            val hasHarnessToken = metaPrefs.getBoolean(KEY_HAS_HARNESS_TOKEN, false)
 
             if (!debugToken.isNullOrEmpty()) {
                 // CRITICAL: MUST use commit() instead of apply() so the secret is written
@@ -39,16 +43,19 @@ fun configureAppCheck(context: Context, intent: Intent?) {
                 prefs.edit()
                     .putString(DEBUG_SECRET_KEY, debugToken)
                     .commit()
+                metaPrefs.edit()
+                    .putBoolean(KEY_HAS_HARNESS_TOKEN, true)
+                    .commit()
                 Log.d(TAG, "App Check debug secret configured successfully.")
                 FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
                     DebugAppCheckProviderFactory.getInstance()
                 )
                 Log.d(TAG, "DebugAppCheckProviderFactory installed.")
-            } else if (!prefs.getString(DEBUG_SECRET_KEY, null).isNullOrBlank()) {
+            } else if (hasHarnessToken && !prefs.getString(DEBUG_SECRET_KEY, null).isNullOrBlank()) {
                 FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
                     DebugAppCheckProviderFactory.getInstance()
                 )
-                Log.d(TAG, "DebugAppCheckProviderFactory installed from stored secret.")
+                Log.d(TAG, "DebugAppCheckProviderFactory installed from harness stored secret.")
             } else {
                 // Physical-device sideloaded APK (no harness Intent debug token): use the
                 // provisioned reCAPTCHA Enterprise provider so App Check issues a valid token
@@ -56,10 +63,13 @@ fun configureAppCheck(context: Context, intent: Intent?) {
                 val resId = context.resources.getIdentifier(RECAPTCHA_SITE_KEY_RES, "string", context.packageName)
                 val siteKey = if (resId != 0) context.getString(resId) else ""
                 if (siteKey.isNotBlank()) {
+                    if (!prefs.getString(DEBUG_SECRET_KEY, null).isNullOrBlank()) {
+                        prefs.edit().remove(DEBUG_SECRET_KEY).commit()
+                    }
                     FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
                         RecaptchaAppCheckProviderFactory.getInstance(siteKey)
                     )
-                    Log.d(TAG, "No debug token in Intent; RecaptchaAppCheckProviderFactory installed.")
+                    Log.d(TAG, "No harness debug token; RecaptchaAppCheckProviderFactory installed.")
                 } else {
                     Log.w(TAG, "No debug token found in Intent extra and no reCAPTCHA site key found.")
                     FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
