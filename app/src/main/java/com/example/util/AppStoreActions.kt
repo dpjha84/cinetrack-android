@@ -62,4 +62,27 @@ object AppStoreActions {
         }
         runCatching { context.startActivity(chooser) }
     }
+
+    fun openPlayStoreSubscriptions(context: Context, sku: String? = null) {
+        val pkg = context.packageName
+        val url = if (!sku.isNullOrBlank()) {
+            "https://play.google.com/store/account/subscriptions?sku=${Uri.encode(sku)}&package=${Uri.encode(pkg)}"
+        } else {
+            "https://play.google.com/store/account/subscriptions"
+        }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val launched = runCatching {
+            context.startActivity(intent)
+            true
+        }.getOrDefault(false)
+        if (!launched) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.rate_app_store_unavailable),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 }

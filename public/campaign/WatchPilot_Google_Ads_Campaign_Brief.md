@@ -1,8 +1,11 @@
-# WatchPilot (v5.0.0) — Google Ads App Campaign Kit
+# WatchPilot (v5.1.0 • Build 1006) — Google Ads App Campaign Kit
 
 **Package ID:** `com.dpjha.moviebuddy`  
 **Platform:** Android (Phone, Foldable & Tablet Adaptive)  
-**Campaign Type:** Google Ads App Campaign (`App installs` -> `App engagement` / in-app actions)
+**Monetization:** Freemium (AdMob + Rewarded Pro Trial Passes) + WatchPilot Pro (`pro_monthly`, `pro_annual`, `pro_lifetime`)  
+**Campaign Types:**
+1. **Phase 1 (Launch):** Google Ads App Campaign — `App installs` (`first_open`)
+2. **Phase 2 (Scale Paid Conversion):** Google Ads App Campaign — `App installs (In-app actions)` / `tCPA` / `tROAS` optimizing on `pro_plan_unlocked` and `begin_checkout`
 
 ---
 
@@ -12,19 +15,19 @@
 | # | Headline Text | Length | Focus |
 |---|---|---|---|
 | 1 | `WatchPilot: Movie & TV Tracker` | 30 / 30 | Brand + primary keyword |
-| 2 | `Never Lose Episode Progress` | 27 / 30 | Core pain point |
-| 3 | `Find Where Movies Stream Now` | 28 / 30 | High-intent OTT lookup |
-| 4 | `Trailers, Watchlist & Sync` | 26 / 30 | Feature stack |
-| 5 | `Built for Android Phone & Tab` | 29 / 30 | Phone + adaptive tablet appeal |
+| 2 | `Snap Reels to Your Watchlist` | 28 / 30 | AI Screenshot Vision Scanner |
+| 3 | `AI Picks for Movie Night Fast` | 29 / 30 | Tonight's AI Concierge |
+| 4 | `Audit OTT Apps & Save Money` | 27 / 30 | OTT Money-Saver Radar |
+| 5 | `Find Where Movies Stream Now` | 28 / 30 | High-intent regional OTT lookup |
 
 ### Descriptions (Max 90 characters each — paste up to all 5)
 | # | Description Text | Length |
 |---|---|---|
-| 1 | `Track movies, seasons & episodes. Spot Netflix, Prime & Hotstar links fast. Free app!` | 85 / 90 |
-| 2 | `Watch HD trailers, save watchlists & sync Cinema DNA free across Android phone & tablet.` | 88 / 90 |
-| 3 | `Rate what you watch, pick personalized favorites & organize custom cinema lists easily.` | 87 / 90 |
-| 4 | `Check instant streaming availability by region, track next episodes & cloud-sync free.` | 86 / 90 |
-| 5 | `No lost progress. Adaptive tablet two-pane view, cast bios, trailers & regional guides.` | 87 / 90 |
+| 1 | `Track shows & movies offline, import IMDb/Letterboxd CSVs & spot Netflix or Prime links.` | 88 / 90 |
+| 2 | `Snap any Reel or TikTok screenshot with AI to add movies straight into your watchlist.` | 86 / 90 |
+| 3 | `Get Tonight's AI Concierge picks, spoiler-free recaps & swipe to match in live rooms.` | 85 / 90 |
+| 4 | `Audit paid streaming apps against your watchlist, pause idle plans & cut monthly spend.` | 87 / 90 |
+| 5 | `Adaptive Android phone & tablet UI with cloud sync, ratings, trailers & Go Pro ad-free.` | 87 / 90 |
 
 ---
 
@@ -36,39 +39,43 @@
 3. **`watchpilot_uac_portrait_1200x1500.jpg` (`1200×1500 px`, 4:5)** — High-CTR portrait creative for mobile feeds.
 4. **`watchpilot_uac_story_1080x1920.jpg` (`1080×1920 px`, 9:16)** — Full-screen vertical interstitial / mobile story placement.
 5. **`watchpilot_uac_tablet_1920x1080.jpg` (`1920×1080 px`, 16:9)** — Adaptive tablet showcase banner & YouTube custom thumbnail.
-6. **`watchpilot_play_feature_1024x500.png` (`1024×500 px`)** — Play Console Feature Graphic updated for WatchPilot v5.0 Phone & Tablet.
+6. **`watchpilot_play_feature_1024x500.png` (`1024×500 px`)** — Play Console Feature Graphic (`1024×500`).
 
-### Videos (15s H.264 MP4 + Stereo AAC Audio — Ready for YouTube Upload)
-> **Important for Google Ads App Campaigns:** Google Ads pulls videos from **YouTube URLs** (you can set them to **Unlisted** or **Public** on your brand YouTube channel, then paste the 3 YouTube URLs directly into Google Ads!).
+### Videos (15s H.264 MP4 + Stereo AAC Audio — Upload to YouTube first)
+> **Important for Google Ads App Campaigns:** Google Ads pulls videos from **YouTube URLs** (set to **Unlisted** or **Public** on your channel, then paste the 3 URLs into your App Campaign asset group).
 1. **`watchpilot_promo_landscape_16x9_1920x1080.mp4`** (`1920×1080`, 15s) — YouTube In-Stream & Desktop Display.
 2. **`watchpilot_promo_vertical_9x16_1080x1920.mp4`** (`1080×1920`, 15s) — YouTube Shorts, AdMob Vertical Interstitial & Reels.
 3. **`watchpilot_promo_square_1x1_1080x1080.mp4`** (`1080×1080`, 15s) — Discovery / Performance Max / Social Square feeds.
 
 ---
 
-## 3. Recommended Google Ads Launch Blueprint
+## 3. Firebase + Play Store + Google Ads Conversion Funnel
 
-### Step 1: Link Firebase + Play Console before Spending
-1. In **Google Ads → Tools → Data Manager / Linked Accounts**, link **Google Play (`com.dpjha.moviebuddy`)** and **Firebase (`movieverse-dd226`)**.
-2. Import **Firebase `first_open`** (automatic once Analytics SDK is active) so Google Ads counts verified Android installs cleanly without extra attribution SDK cost.
-3. Verify your **`app-ads.txt`** at your Play Console Developer Website root (already bundled in repo at `/app-ads.txt`).
+All key funnel events are instrumented in `AnalyticsTracker.kt`:
+- **Install Baseline:** `first_open` (automatic Firebase Analytics event).
+- **Activation (Mid-Funnel Micro-Conversions):** `watchlist_added`, `ai_concierge_generated`, `snap_scan_completed`, `match_room_created`, `match_found`.
+- **Paid Revenue Funnel (Primary tCPA / tROAS Conversions):**
+  - `paywall_viewed` (includes `trigger_reason`: `banner`, `profile`, `ott_money_saver`, `snap_scan`, `ai_concierge`, `ai_recap`, `match_room`)
+  - `begin_checkout` (fires when tapping Monthly, Annual, or Lifetime purchase CTA)
+  - `pro_plan_unlocked` (fires after verified Play Billing unlock with `plan_type` & `source = google_play`)
+  - Plus **Google Play ↔ Firebase linked `in_app_purchase` / `subscription`** auto-revenue events once Play Console is linked to Firebase (`movieverse-dd226`).
 
-### Step 2: Campaign Structure & Bidding
-- **Campaign Subtype:** **App installs** (`Get new users for your app`).
-- **Start Bidding (Weeks 1–2):** **Target CPI (tCPI)** or **Install Volume** with a realistic daily budget `>= 10x–20x` your target CPI so the ML exits learning quickly (e.g., if target CPI is `₹12 / $0.25`, start around `₹250–₹500 / day` or `$10–$15 / day` in Tier-1/Tier-2 mixes; **avoid mixing Tier-1 US + Tier-3 India in the same ad group**, or 95% of impressions will shift to the cheapest CPI region!).
-- **Recommended Split:**
-  - **Campaign A (Growth Markets — India / LATAM / SE Asia):** Low CPI, fast install volume & review velocity (`tCPI` optimized).
-  - **Campaign B (High-ARPU AdMob Markets — US / UK / CA / AU):** Separate budget so US/UK eCPM traffic isn't starved by lower-CPI geos.
-  - **Device/Form-Factor Note:** Explicitly include **Android Tablets** (`Android 7.0+`, `minSdk 24`) in targeting — your new adaptive tablet UI converts tablet users cleanly into high-retention viewers!
-
-### Step 3: Keyword & Audience Signals (for YouTube / Search / Play Store ASO)
-- **Primary Play Store & Ad Themes:** `movie watchlist app`, `tv show episode tracker`, `where to watch movies streaming`, `movie trailer app`, `series progress tracker`, `cinema tracker android`, `tablet movie organizer`.
-- **Negative Exclusions (YouTube / Display):** Exclude kids/nursery-rhyme channels (`Made for Kids` placements) to maximize adult cinema enthusiast retention and keep AdMob eCPM healthy.
+### Step-by-Step Launch Blueprint
+1. **Link Accounts Before Spending:**
+   - **Firebase (`movieverse-dd226`) ↔ Google Play (`com.dpjha.moviebuddy`)** for verified `in_app_purchase` revenue attribution.
+   - **Firebase ↔ Google Ads** to import `first_open`, `watchlist_added`, `begin_checkout`, `pro_plan_unlocked`, and `in_app_purchase` as conversions (set `pro_plan_unlocked` / `in_app_purchase` as Primary once volume >= 10 conversions/week).
+   - **Google Play Developer Website:** Host `public/privacy.html`, `public/terms.html`, `public/account-deletion.html`, and root `/app-ads.txt` (`pub-9351754143985661`).
+2. **Campaign Segmentation (Never Mix Tier-1 & Low-CPI Geos in One Ad Group):**
+   - **Campaign A — High-ARPU Pro Buyer Markets (`US, UK, CA, AU, DE`):** Optimize toward `first_open` -> `begin_checkout` -> `pro_plan_unlocked` / `in_app_purchase`. Strongest conversion rates on **Annual (`pro_annual`)** + **OTT Money-Saver Radar**.
+   - **Campaign B — High-Velocity Growth Markets (`IN, BR, MX, ID, PH`):** Low-CPI `first_open` / `watchlist_added` targeting localized pricing & AdMob + rewarded trial engagement.
+   - **Include Android Tablets (`minSdk 24+`):** Dedicated 2-pane adaptive tablet layout delivers higher session length and lower uninstall rates.
+3. **YouTube & Display Exclusions:**
+   - Exclude kids/nursery-rhyme channels (`Made for Kids`) so ads reach adult movie/series viewers and keep AdMob & Pro ARPU high.
 
 ---
 
-## 4. Video Voiceover / Ad Script (15s Spot)
-- **0:00–0:04:** *"Meet WatchPilot — your personal cinema and series pilot."*
-- **0:04–0:08:** *"Track every episode you've watched, watch HD trailers, and instantly see where to stream on Netflix, Prime & more."*
-- **0:08–0:12:** *"Designed natively for both Android phones and tablets, with automatic Google Cloud Sync."*
-- **0:12–0:15:** *"WatchPilot v5. Download free on Google Play today."*
+## 4. Updated 15s Promo Script (Pro + AI Value Prop)
+- **0:00–0:03:** *"Stop forgetting shows and paying for streaming apps you never open."*
+- **0:03–0:07:** *"Snap any Reel screenshot to add titles automatically, and check where to stream in your region."*
+- **0:07–0:11:** *"Get AI movie-night picks, swipe to match with friends, and audit your OTT spend with WatchPilot Pro."*
+- **0:11–0:15:** *"Download WatchPilot on Google Play today."*

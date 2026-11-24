@@ -544,6 +544,79 @@ class WatchPilotV2UnitTest {
             ).map { it.id }
         )
     }
+
+    @Test
+    fun shouldRevokePlayEntitlementOnEmptyQuery_revokesExpiredPlayPlansWhileKeepingDebugSandbox() {
+        assertFalse(
+            com.example.data.billing.shouldRevokePlayEntitlementOnEmptyQuery(
+                state = MonetizationState(isPro = false, planType = com.example.data.model.PlanType.FREE),
+                isDebugBuild = false
+            )
+        )
+        assertTrue(
+            com.example.data.billing.shouldRevokePlayEntitlementOnEmptyQuery(
+                state = MonetizationState(isPro = true, planType = com.example.data.model.PlanType.PRO_MONTHLY),
+                isDebugBuild = false
+            )
+        )
+        assertTrue(
+            com.example.data.billing.shouldRevokePlayEntitlementOnEmptyQuery(
+                state = MonetizationState(isPro = true, planType = com.example.data.model.PlanType.PRO_ANNUAL),
+                isDebugBuild = true
+            )
+        )
+        assertTrue(
+            com.example.data.billing.shouldRevokePlayEntitlementOnEmptyQuery(
+                state = MonetizationState(isPro = true, planType = com.example.data.model.PlanType.PRO_LIFETIME),
+                isDebugBuild = false
+            )
+        )
+        assertFalse(
+            com.example.data.billing.shouldRevokePlayEntitlementOnEmptyQuery(
+                state = MonetizationState(isPro = true, planType = com.example.data.model.PlanType.PRO_SANDBOX),
+                isDebugBuild = true
+            )
+        )
+        assertTrue(
+            com.example.data.billing.shouldRevokePlayEntitlementOnEmptyQuery(
+                state = MonetizationState(isPro = true, planType = com.example.data.model.PlanType.PRO_SANDBOX),
+                isDebugBuild = false
+            )
+        )
+    }
+
+    @Test
+    fun analyticsTracker_logsPaywallBeginCheckoutAndProUnlockFunnelEvents() {
+        val captured = mutableListOf<Pair<String, Map<String, String>>>()
+        com.example.util.AnalyticsTracker.testEventObserver = { name, params ->
+            captured.add(name to params)
+        }
+        try {
+            com.example.util.AnalyticsTracker.logPaywallViewed("ott_money_saver")
+            com.example.util.AnalyticsTracker.logBeginCheckout(MonetizationManager.SKU_PRO_ANNUAL)
+            com.example.util.AnalyticsTracker.logProUnlocked(
+                planTypeName = com.example.data.model.PlanType.PRO_ANNUAL.name,
+                isRealPlayBilling = true
+            )
+
+            assertEquals(3, captured.size)
+            assertEquals("paywall_viewed", captured[0].first)
+            assertEquals("ott_money_saver", captured[0].second["trigger_reason"])
+
+            assertEquals(com.google.firebase.analytics.FirebaseAnalytics.Event.BEGIN_CHECKOUT, captured[1].first)
+            assertEquals(
+                MonetizationManager.SKU_PRO_ANNUAL,
+                captured[1].second[com.google.firebase.analytics.FirebaseAnalytics.Param.ITEM_ID]
+            )
+
+            assertEquals("pro_plan_unlocked", captured[2].first)
+            assertEquals("PRO_ANNUAL", captured[2].second["plan_type"])
+            assertEquals("google_play", captured[2].second["source"])
+        } finally {
+            com.example.util.AnalyticsTracker.testEventObserver = null
+        }
+    }
 }
+
 
 

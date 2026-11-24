@@ -16,6 +16,7 @@ interface PlayBillingCallbacks {
     fun onPricesUpdated(prices: PlayBillingCatalogPrices)
     fun onPlansUnlocked(planType: PlanType, statusMessage: String)
     fun onNoActivePurchasesOnRestore(currentPlanType: PlanType)
+    fun onPlayPurchasesVerifiedEmpty(currentPlanType: PlanType)
     fun onStatusMessage(message: String)
 }
 

@@ -6,6 +6,7 @@ import com.example.BuildConfig
 import com.example.data.model.MonetizationState
 import com.example.data.model.PlanType
 import com.example.data.model.ProFeatureQuotaType
+import com.example.util.AnalyticsTracker
 import com.example.util.OttMoneySaverCalculator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +71,7 @@ class MonetizationManager(
             }
 
             override fun onPlansUnlocked(planType: PlanType, statusMessage: String) {
+                AnalyticsTracker.logProUnlocked(planType.name, isRealPlayBilling = true)
                 updateAndPersist { curr ->
                     curr.copy(
                         isPro = true,
@@ -81,10 +83,24 @@ class MonetizationManager(
 
             override fun onNoActivePurchasesOnRestore(currentPlanType: PlanType) {
                 _state.update { curr ->
-                    if (curr.planType == PlanType.PRO_SANDBOX) {
+                    if (curr.planType == PlanType.PRO_SANDBOX && BuildConfig.DEBUG) {
                         curr.copy(billingStatusMessage = "Sandbox Preview Pro is currently active.")
                     } else {
                         curr.copy(billingStatusMessage = "No active Google Play purchases found on this Google account.")
+                    }
+                }
+            }
+
+            override fun onPlayPurchasesVerifiedEmpty(currentPlanType: PlanType) {
+                val curr = _state.value
+                if (shouldRevokePlayEntitlementOnEmptyQuery(curr, BuildConfig.DEBUG)) {
+                    updateAndPersist { state ->
+                        state.copy(
+                            isPro = false,
+                            planType = PlanType.FREE,
+                            streamOnMyAppsOnly = false,
+                            proAlertsEnabled = false
+                        )
                     }
                 }
             }
@@ -220,17 +236,18 @@ class MonetizationManager(
         cloudStreamOnMyAppsOnly: Boolean
     ) {
         val parsedPlan = runCatching { PlanType.valueOf(cloudPlanType) }.getOrDefault(PlanType.FREE)
+        val effectiveCloudPro = cloudIsPro && (BuildConfig.DEBUG || parsedPlan != PlanType.PRO_SANDBOX)
         val cloudProviders = cloudProvidersCsv.split(",")
             .map { OttMoneySaverCalculator.canonicalizeProvider(it) }
             .filter { it.isNotBlank() }
             .toSet()
 
         updateAndPersist(syncCloud = false) { curr ->
-            val mergedPro = curr.isPro || cloudIsPro
+            val mergedPro = curr.isPro || effectiveCloudPro
             val mergedPlan = when {
                 !mergedPro -> PlanType.FREE
                 curr.isPro && curr.planType != PlanType.FREE -> curr.planType
-                cloudIsPro -> parsedPlan
+                effectiveCloudPro -> parsedPlan
                 else -> PlanType.FREE
             }
             val mergedProviders = if (cloudProviders.isNotEmpty()) (curr.subscribedProviders + cloudProviders) else curr.subscribedProviders
@@ -289,9 +306,17 @@ class MonetizationManager(
             .filter { it.isNotBlank() }
             .toSet()
 
+        val effectivePlanType = when {
+            !isPro -> PlanType.FREE
+            planType == PlanType.PRO_SANDBOX && !BuildConfig.DEBUG -> PlanType.FREE
+            planType == PlanType.FREE -> if (BuildConfig.DEBUG) PlanType.PRO_SANDBOX else PlanType.FREE
+            else -> planType
+        }
+        val effectiveIsPro = isPro && effectivePlanType != PlanType.FREE
+
         val raw = MonetizationState(
-            isPro = isPro,
-            planType = if (isPro && planType == PlanType.FREE) PlanType.PRO_SANDBOX else planType,
+            isPro = effectiveIsPro,
+            planType = effectivePlanType,
             snapScansUsed = prefs.getInt(KEY_SNAP_SCANS_USED, 0),
             aiConciergeUsed = prefs.getInt(KEY_CONCIERGE_USED, 0),
             matchRoomsHosted = prefs.getInt(KEY_MATCH_ROOMS_HOSTED, 0),
@@ -304,8 +329,17 @@ class MonetizationManager(
             rewardedMonthKey = prefs.getString(KEY_REWARDED_MONTH_KEY, "").orEmpty(),
             subscribedProviders = providers,
             streamOnMyAppsOnly = prefs.getBoolean(KEY_STREAM_ON_MY_APPS, false) && providers.isNotEmpty(),
-            proAlertsEnabled = isPro && prefs.getBoolean(KEY_PRO_ALERTS_ENABLED, false)
+            proAlertsEnabled = effectiveIsPro && prefs.getBoolean(KEY_PRO_ALERTS_ENABLED, false)
         )
         return MonetizationQuotaPolicy.normalizeForDate(raw)
     }
+}
+
+internal fun shouldRevokePlayEntitlementOnEmptyQuery(
+    state: MonetizationState,
+    isDebugBuild: Boolean
+): Boolean {
+    if (!state.isPro) return false
+    if (isDebugBuild && state.planType == PlanType.PRO_SANDBOX) return false
+    return true
 }

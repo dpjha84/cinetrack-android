@@ -64,6 +64,7 @@ import com.example.data.billing.MonetizationManager
 import com.example.data.model.MonetizationState
 import com.example.data.model.PlanType
 import com.example.ui.theme.WatchPilotColors
+import com.example.util.AppStoreActions
 import com.example.util.findActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -316,6 +317,30 @@ fun WatchPilotProPaywallSheet(
                         onWatchRewardedTrialAd()
                     }
                 )
+            } else if (
+                monetizationState.planType == PlanType.PRO_MONTHLY ||
+                monetizationState.planType == PlanType.PRO_ANNUAL
+            ) {
+                val activeSku = if (monetizationState.planType == PlanType.PRO_ANNUAL) {
+                    MonetizationManager.SKU_PRO_ANNUAL
+                } else {
+                    MonetizationManager.SKU_PRO_MONTHLY
+                }
+                OutlinedButton(
+                    onClick = { AppStoreActions.openPlayStoreSubscriptions(context, activeSku) },
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, paywallColors.goldChipBorder),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("manage_subscription_paywall_button")
+                ) {
+                    Text(
+                        text = "Manage Subscription in Google Play",
+                        color = paywallColors.goldAccent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             Row(

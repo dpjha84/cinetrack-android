@@ -265,6 +265,34 @@ object AnalyticsTracker {
         )
     }
 
+    fun logPaywallViewed(triggerReason: String?) {
+        logEvent(
+            name = "paywall_viewed",
+            params = mapOf(
+                "trigger_reason" to (triggerReason?.takeIf { it.isNotBlank() } ?: "direct")
+            )
+        )
+    }
+
+    fun logBeginCheckout(productId: String) {
+        logEvent(
+            name = FirebaseAnalytics.Event.BEGIN_CHECKOUT,
+            params = mapOf(
+                FirebaseAnalytics.Param.ITEM_ID to productId
+            )
+        )
+    }
+
+    fun logProUnlocked(planTypeName: String, isRealPlayBilling: Boolean) {
+        logEvent(
+            name = "pro_plan_unlocked",
+            params = mapOf(
+                "plan_type" to planTypeName,
+                "source" to if (isRealPlayBilling) "google_play" else "sandbox"
+            )
+        )
+    }
+
     // =========================================================================
     // 5. Swipe-to-Match Rooms & Matches
     // =========================================================================

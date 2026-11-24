@@ -103,6 +103,7 @@ import com.example.ui.components.LocalizationPreferencesDialog
 import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
+import com.example.util.AppStoreActions
 import com.example.util.findActivity
 import androidx.compose.ui.unit.Dp
 
@@ -332,6 +333,31 @@ fun ProfileScreen(
                             Text(
                                 text = "Upgrade to WatchPilot Pro",
                                 fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    } else if (
+                        monetizationState.planType == com.example.data.model.PlanType.PRO_MONTHLY ||
+                        monetizationState.planType == com.example.data.model.PlanType.PRO_ANNUAL
+                    ) {
+                        val subSku = if (monetizationState.planType == com.example.data.model.PlanType.PRO_ANNUAL) {
+                            com.example.data.billing.MonetizationManager.SKU_PRO_ANNUAL
+                        } else {
+                            com.example.data.billing.MonetizationManager.SKU_PRO_MONTHLY
+                        }
+                        OutlinedButton(
+                            onClick = { AppStoreActions.openPlayStoreSubscriptions(context, subSku) },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, profileColors.goldChipBorder),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = profileColors.goldAccent),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_manage_subscription_profile")
+                        ) {
+                            Text(
+                                text = "Manage Subscription in Google Play",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))

@@ -210,15 +210,17 @@ private class PlayBillingClientGateway(
 
     private suspend fun restorePurchasesInternal(silent: Boolean, currentPlanType: PlanType) {
         try {
-            val subsPurchases = billingClient.queryPurchasesAsync(
+            val subsResult = billingClient.queryPurchasesAsync(
                 QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
-            ).purchasesList
-
-            val inAppPurchases = billingClient.queryPurchasesAsync(
+            )
+            val inAppResult = billingClient.queryPurchasesAsync(
                 QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
-            ).purchasesList
+            )
 
-            val allActive = (subsPurchases + inAppPurchases).filter {
+            val subsOk = subsResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK
+            val inAppOk = inAppResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK
+
+            val allActive = (subsResult.purchasesList + inAppResult.purchasesList).filter {
                 it.purchaseState == Purchase.PurchaseState.PURCHASED
             }
 
@@ -227,8 +229,13 @@ private class PlayBillingClientGateway(
                 if (!silent) {
                     callbacks.onStatusMessage("WatchPilot Pro restored successfully!")
                 }
-            } else if (!silent) {
-                callbacks.onNoActivePurchasesOnRestore(currentPlanType)
+            } else {
+                if (subsOk && inAppOk) {
+                    callbacks.onPlayPurchasesVerifiedEmpty(currentPlanType)
+                }
+                if (!silent) {
+                    callbacks.onNoActivePurchasesOnRestore(currentPlanType)
+                }
             }
         } catch (e: Exception) {
             if (!silent) {

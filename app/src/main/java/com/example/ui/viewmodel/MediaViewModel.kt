@@ -2946,6 +2946,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun openPaywall(reason: String? = null) {
         monetizationManager.refreshQuotasIfRolledOver()
         RewardedTrialAdManager.preload(getApplication(), monetizationState.value.isPro)
+        AnalyticsTracker.logPaywallViewed(reason)
         paywallTriggerReason.value = reason
         showPaywallSheet.value = true
     }
@@ -3008,6 +3009,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun purchasePro(activity: Activity, productId: String) {
+        AnalyticsTracker.logBeginCheckout(productId)
         monetizationManager.launchPurchaseFlow(activity, productId)
     }
 

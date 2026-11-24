@@ -1,14 +1,14 @@
 Asset Type,Slot / Placement,Character Limit,Copy / Filename,Count / Dimensions,Notes
 Headline,Headline 1,30,"WatchPilot: Movie & TV Tracker",30 chars,Brand + core category keyword
-Headline,Headline 2,30,"Never Lose Episode Progress",27 chars,Pain point for TV bingers
-Headline,Headline 3,30,"Find Where Movies Stream Now",28 chars,High-intent OTT discovery hook
-Headline,Headline 4,30,"Trailers, Watchlist & Sync",26 chars,Feature trio
-Headline,Headline 5,30,"Built for Android Phone & Tab",29 chars,Highlights tablet & phone adaptive UI
-Description,Description 1,90,"Track movies, seasons & episodes. Spot Netflix, Prime & Hotstar links fast. Free app!",85 chars,Core utility + streaming providers
-Description,Description 2,90,"Watch HD trailers, save watchlists & sync Cinema DNA free across Android phone & tablet.",88 chars,Multi-device cloud sync + adaptive UX
-Description,Description 3,90,"Rate what you watch, pick personalized favorites & organize custom cinema lists easily.",87 chars,Personalization + curation value
-Description,Description 4,90,"Check instant streaming availability by region, track next episodes & cloud-sync free.",86 chars,Regional JustWatch/TMDB availability
-Description,Description 5,90,"No lost progress. Adaptive tablet two-pane view, cast bios, trailers & regional guides.",87 chars,Tablet + cast/trailer depth
+Headline,Headline 2,30,"Snap Reels to Your Watchlist",28 chars,AI Screenshot Vision Scanner hook
+Headline,Headline 3,30,"AI Picks for Movie Night Fast",29 chars,Tonight's AI Concierge value prop
+Headline,Headline 4,30,"Audit OTT Apps & Save Money",27 chars,OTT Money-Saver Radar differentiation
+Headline,Headline 5,30,"Find Where Movies Stream Now",28 chars,High-intent regional streaming lookup
+Description,Description 1,90,"Track shows & movies offline, import IMDb/Letterboxd CSVs & spot Netflix or Prime links.",88 chars,Offline Room cache + CSV migration + OTT links
+Description,Description 2,90,"Snap any Reel or TikTok screenshot with AI to add movies straight into your watchlist.",86 chars,Snap-to-Watchlist Vision Pro hook
+Description,Description 3,90,"Get Tonight's AI Concierge picks, spoiler-free recaps & swipe to match in live rooms.",85 chars,AI Concierge + Recaps + Swipe Match
+Description,Description 4,90,"Audit paid streaming apps against your watchlist, pause idle plans & cut monthly spend.",87 chars,OTT Money-Saver Radar Pro ROI pitch
+Description,Description 5,90,"Adaptive Android phone & tablet UI with cloud sync, ratings, trailers & Go Pro ad-free.",87 chars,Multi-device adaptive UX + Go Pro upsell
 Image,UAC Landscape (1.91:1),<= 5 MB,watchpilot_uac_landscape_1200x628.jpg,1200x628 px,Display / Gmail / Discover / Play promo
 Image,UAC Square (1:1),<= 5 MB,watchpilot_uac_square_1200x1200.jpg,1200x1200 px,Discovery / Native / Companion banner
 Image,UAC Portrait (4:5),<= 5 MB,watchpilot_uac_portrait_1200x1500.jpg,1200x1500 px,Mobile feed & portrait display

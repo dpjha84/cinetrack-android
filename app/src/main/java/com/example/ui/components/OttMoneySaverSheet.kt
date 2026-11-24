@@ -271,7 +271,7 @@ fun OttMoneySaverSheet(
                                 )
                             }
                             Text(
-                                text = "We detected $${String.format(Locale.US, "%.2f", summary.potentialMonthlySavingsUsd)}/mo in potential savings across your ${summary.subscribedCount} apps. Upgrade to WatchPilot Pro ($0.99/mo annual) to see exact 'Pause & Save' recommendations!",
+                                text = "We detected $${String.format(Locale.US, "%.2f", summary.potentialMonthlySavingsUsd)}/mo in potential savings across your ${summary.subscribedCount} apps. Upgrade to WatchPilot Pro (${monetizationState.annualPriceLabel}) to see exact 'Pause & Save' recommendations!",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
