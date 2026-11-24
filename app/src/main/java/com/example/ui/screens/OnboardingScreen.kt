@@ -149,6 +149,8 @@ import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.DarkBackground
+import com.example.ui.theme.LightBackground
+import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.google.firebase.auth.FirebaseUser
@@ -260,18 +262,25 @@ fun OnboardingScreen(
         else -> 640.dp
     }
 
+    val themeColors = WatchPilotColors.current
+    val rootGradientColors = if (themeColors.isDark) {
+        listOf(
+            Color(0xFF0A1119),
+            DarkBackground,
+            Color(0xFF101521)
+        )
+    } else {
+        listOf(
+            LightBackground,
+            Color(0xFFF1F5F9),
+            Color(0xFFE9EFF8)
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF0A1119),
-                        DarkBackground,
-                        Color(0xFF101521)
-                    )
-                )
-            )
+            .background(Brush.verticalGradient(colors = rootGradientColors))
             .imePadding()
             .testTag("onboarding_root")
     ) {
@@ -421,6 +430,7 @@ internal fun OnboardingProgressBar(
     totalSteps: Int,
     modifier: Modifier = Modifier
 ) {
+    val colors = WatchPilotColors.current
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -435,7 +445,7 @@ internal fun OnboardingProgressBar(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.8.sp,
-                color = CinemaGold
+                color = colors.goldAccent
             )
             Text(
                 text = when (currentStep) {
@@ -458,9 +468,13 @@ internal fun OnboardingProgressBar(
                 val isActive = index == currentStep
                 val barColor by animateColorAsState(
                     targetValue = when {
-                        isActive -> CinemaGold
-                        isCompleted -> CinemaCyan
-                        else -> MaterialTheme.colorScheme.surfaceVariant
+                        isActive -> colors.goldSolidBg
+                        isCompleted -> colors.cyanSolidBg
+                        else -> if (colors.isDark) {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant
+                        }
                     },
                     animationSpec = tween(260),
                     label = "stepBarColor_$index"
@@ -500,6 +514,38 @@ internal fun OnboardingAmbientBackdrop(
         Modifier
     }
 
+    val colors = WatchPilotColors.current
+    val effectiveImageAlpha = if (colors.isDark) imageAlpha else (imageAlpha * 0.55f)
+    val scrimColors = if (colors.isDark) {
+        if (isInteractiveStep) {
+            listOf(
+                Color(0x840A1119),
+                Color(0x9A0B0D13),
+                DarkBackground.copy(alpha = 0.86f)
+            )
+        } else {
+            listOf(
+                Color(0x880A1119),
+                Color(0x9E0B0D13),
+                DarkBackground.copy(alpha = 0.95f)
+            )
+        }
+    } else {
+        if (isInteractiveStep) {
+            listOf(
+                LightBackground.copy(alpha = 0.86f),
+                LightBackground.copy(alpha = 0.82f),
+                LightBackground.copy(alpha = 0.94f)
+            )
+        } else {
+            listOf(
+                LightBackground.copy(alpha = 0.84f),
+                LightBackground.copy(alpha = 0.78f),
+                LightBackground.copy(alpha = 0.95f)
+            )
+        }
+    }
+
     Box(modifier = modifier.testTag("onboarding_ambient_backdrop")) {
         AnimatedContent(
             targetState = activeMedia,
@@ -519,7 +565,7 @@ internal fun OnboardingAmbientBackdrop(
                         .fillMaxSize()
                         .scale(ambientScale)
                         .then(blurModifier)
-                        .alpha(imageAlpha)
+                        .alpha(effectiveImageAlpha)
                 )
             } else {
                 Image(
@@ -530,32 +576,16 @@ internal fun OnboardingAmbientBackdrop(
                         .fillMaxSize()
                         .scale(ambientScale)
                         .then(blurModifier)
-                        .alpha(imageAlpha * 0.92f)
+                        .alpha(effectiveImageAlpha * 0.92f)
                 )
             }
         }
 
-        // Scrim ensures comfortable readability while preserving vibrant cinema glow across all 3 onboarding steps
+        // Scrim ensures comfortable readability while preserving subtle cinema glow across Light & Dark themes
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = if (isInteractiveStep) {
-                            listOf(
-                                Color(0x840A1119),
-                                Color(0x9A0B0D13),
-                                DarkBackground.copy(alpha = 0.86f)
-                            )
-                        } else {
-                            listOf(
-                                Color(0x880A1119),
-                                Color(0x9E0B0D13),
-                                DarkBackground.copy(alpha = 0.95f)
-                            )
-                        }
-                    )
-                )
+                .background(Brush.verticalGradient(colors = scrimColors))
         )
 
         if (isInteractiveStep) {
@@ -565,8 +595,8 @@ internal fun OnboardingAmbientBackdrop(
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
-                                CinemaGold.copy(alpha = 0.08f),
-                                CinemaCyan.copy(alpha = 0.06f),
+                                colors.goldAccent.copy(alpha = if (colors.isDark) 0.08f else 0.05f),
+                                colors.cyanAccent.copy(alpha = if (colors.isDark) 0.06f else 0.04f),
                                 Color.Transparent
                             )
                         )
@@ -1044,10 +1074,16 @@ private fun WelcomeShowcasePosterCard(
     modifier: Modifier = Modifier
 ) {
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
+    val colors = WatchPilotColors.current
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = if (isFocused) BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)) else null,
+        border = when {
+            isFocused && colors.isDark -> BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+            isFocused -> BorderStroke(1.5.dp, Color.Black.copy(alpha = 0.14f))
+            !colors.isDark -> BorderStroke(1.dp, Color.Black.copy(alpha = 0.08f))
+            else -> null
+        },
         shadowElevation = if (isFocused) 20.dp else 4.dp,
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
@@ -1096,11 +1132,12 @@ private fun WelcomeShowcasePosterCard(
 private fun WelcomeHeadlineAndPills(
     isTablet: Boolean
 ) {
+    val colors = WatchPilotColors.current
     Text(
         text = "Welcome to WatchPilot",
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.ExtraBold,
-        color = Color.White,
+        color = MaterialTheme.colorScheme.onBackground,
         textAlign = TextAlign.Center
     )
 
@@ -1125,17 +1162,23 @@ private fun WelcomeHeadlineAndPills(
             WelcomeFeaturePill(
                 icon = Icons.Filled.AutoAwesome,
                 label = "Top Picks",
-                accent = CinemaGold
+                accent = colors.goldAccent,
+                containerColor = colors.goldChipContainer,
+                borderColor = colors.goldChipBorder
             )
             WelcomeFeaturePill(
                 icon = Icons.Filled.LiveTv,
                 label = "Streaming",
-                accent = CinemaCyan
+                accent = colors.cyanAccent,
+                containerColor = colors.cyanChipContainer,
+                borderColor = colors.cyanChipBorder
             )
             WelcomeFeaturePill(
                 icon = Icons.Filled.CloudSync,
                 label = "Cloud Sync",
-                accent = CinemaGreen
+                accent = colors.greenAccent,
+                containerColor = colors.greenChipContainer,
+                borderColor = colors.greenAccent.copy(alpha = 0.42f)
             )
         }
     } else {
@@ -1148,17 +1191,23 @@ private fun WelcomeHeadlineAndPills(
             WelcomeFeaturePill(
                 icon = Icons.Filled.AutoAwesome,
                 label = "Top Picks",
-                accent = CinemaGold
+                accent = colors.goldAccent,
+                containerColor = colors.goldChipContainer,
+                borderColor = colors.goldChipBorder
             )
             WelcomeFeaturePill(
                 icon = Icons.Filled.LiveTv,
                 label = "Streaming",
-                accent = CinemaCyan
+                accent = colors.cyanAccent,
+                containerColor = colors.cyanChipContainer,
+                borderColor = colors.cyanChipBorder
             )
             WelcomeFeaturePill(
                 icon = Icons.Filled.CloudSync,
                 label = "Cloud Sync",
-                accent = CinemaGreen
+                accent = colors.greenAccent,
+                containerColor = colors.greenChipContainer,
+                borderColor = colors.greenAccent.copy(alpha = 0.42f)
             )
         }
     }
@@ -1173,6 +1222,7 @@ private fun WelcomeAuthActionsSection(
     onContinueSignedIn: () -> Unit,
     onContinueAsGuest: () -> Unit
 ) {
+    val colors = WatchPilotColors.current
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1181,7 +1231,7 @@ private fun WelcomeAuthActionsSection(
         if (!errorMessage.isNullOrBlank()) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = if (colors.isDark) 0.35f else 0.85f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -1196,8 +1246,8 @@ private fun WelcomeAuthActionsSection(
         if (currentUser != null) {
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = CinemaGreen.copy(alpha = 0.14f),
-                border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.45f)),
+                color = colors.greenChipContainer,
+                border = BorderStroke(1.dp, colors.greenAccent.copy(alpha = 0.45f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1208,14 +1258,14 @@ private fun WelcomeAuthActionsSection(
                     Icon(
                         imageVector = Icons.Filled.CheckCircle,
                         contentDescription = "Signed in",
-                        tint = CinemaGreen
+                        tint = colors.greenAccent
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Cloud Sync Active",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
-                            color = CinemaGreen
+                            color = colors.greenAccent
                         )
                         Text(
                             text = currentUser.email ?: currentUser.displayName ?: "Signed in",
@@ -1232,8 +1282,8 @@ private fun WelcomeAuthActionsSection(
                 onClick = onContinueSignedIn,
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = CinemaGold,
-                    contentColor = DarkBackground
+                    containerColor = colors.goldSolidBg,
+                    contentColor = colors.onGoldSolid
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1257,8 +1307,8 @@ private fun WelcomeAuthActionsSection(
                 enabled = !isLoading,
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = CinemaGold,
-                    contentColor = DarkBackground
+                    containerColor = colors.goldSolidBg,
+                    contentColor = colors.onGoldSolid
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1269,7 +1319,7 @@ private fun WelcomeAuthActionsSection(
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
-                        color = DarkBackground
+                        color = colors.onGoldSolid
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
@@ -1294,7 +1344,11 @@ private fun WelcomeAuthActionsSection(
                 onClick = onContinueAsGuest,
                 enabled = !isLoading,
                 shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (colors.isDark) Color.Transparent else MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (colors.isDark) 0.55f else 0.70f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
@@ -1321,12 +1375,14 @@ private fun WelcomeAuthActionsSection(
 private fun WelcomeFeaturePill(
     icon: ImageVector,
     label: String,
-    accent: Color
+    accent: Color,
+    containerColor: Color = accent.copy(alpha = 0.14f),
+    borderColor: Color = accent.copy(alpha = 0.35f)
 ) {
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = accent.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.35f))
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -1397,12 +1453,13 @@ private fun OnboardingSyncBanner(
     message: String?,
     onDismiss: () -> Unit
 ) {
+    val colors = WatchPilotColors.current
     AnimatedVisibility(visible = !message.isNullOrBlank()) {
         if (!message.isNullOrBlank()) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = CinemaGreen.copy(alpha = 0.14f),
-                border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.4f)),
+                color = colors.greenChipContainer,
+                border = BorderStroke(1.dp, colors.greenAccent.copy(alpha = 0.42f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1413,7 +1470,7 @@ private fun OnboardingSyncBanner(
                     Icon(
                         imageVector = Icons.Filled.CloudSync,
                         contentDescription = null,
-                        tint = CinemaGreen,
+                        tint = colors.greenAccent,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
@@ -1432,7 +1489,7 @@ private fun OnboardingSyncBanner(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Dismiss sync notice",
-                            tint = CinemaGreen,
+                            tint = colors.greenAccent,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -1463,6 +1520,7 @@ internal fun OnboardingFavoritePeopleStep(
     onNext: () -> Unit
 ) {
     val adaptive = LocalAdaptiveLayoutInfo.current
+    val colors = WatchPilotColors.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val totalSelected = selectedGenres.size + favoritePeople.size
 
@@ -1513,14 +1571,14 @@ internal fun OnboardingFavoritePeopleStep(
                     if (totalSelected > 0) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = CinemaGold.copy(alpha = 0.18f),
-                            border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f))
+                            color = colors.goldChipContainer,
+                            border = BorderStroke(1.dp, colors.goldChipBorder)
                         ) {
                             Text(
                                 text = "$totalSelected picked",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = CinemaGold,
+                                color = colors.goldAccent,
                                 maxLines = 1,
                                 softWrap = false,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
@@ -1560,15 +1618,17 @@ internal fun OnboardingFavoritePeopleStep(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaCyan.copy(alpha = 0.22f),
-                                selectedLabelColor = CinemaCyan,
-                                selectedLeadingIconColor = CinemaCyan
+                                containerColor = if (colors.isDark) Color.Transparent else MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                selectedContainerColor = colors.cyanChipContainer,
+                                selectedLabelColor = colors.cyanAccent,
+                                selectedLeadingIconColor = colors.cyanAccent
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                                selectedBorderColor = CinemaCyan.copy(alpha = 0.7f)
+                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = if (colors.isDark) 0.35f else 0.55f),
+                                selectedBorderColor = colors.cyanChipBorder
                             ),
                             modifier = Modifier.testTag("onboarding_genre_$genre")
                         )
@@ -1602,15 +1662,17 @@ internal fun OnboardingFavoritePeopleStep(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaCyan.copy(alpha = 0.22f),
-                                selectedLabelColor = CinemaCyan,
-                                selectedLeadingIconColor = CinemaCyan
+                                containerColor = if (colors.isDark) Color.Transparent else MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                selectedContainerColor = colors.cyanChipContainer,
+                                selectedLabelColor = colors.cyanAccent,
+                                selectedLeadingIconColor = colors.cyanAccent
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                                selectedBorderColor = CinemaCyan.copy(alpha = 0.7f)
+                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = if (colors.isDark) 0.35f else 0.55f),
+                                selectedBorderColor = colors.cyanChipBorder
                             ),
                             modifier = Modifier.testTag("onboarding_genre_$genre")
                         )
@@ -1646,10 +1708,10 @@ internal fun OnboardingFavoritePeopleStep(
                 keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = CinemaGold,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.14f),
-                    focusedContainerColor = Color(0xAA131A26),
-                    unfocusedContainerColor = Color(0x99131A26)
+                    focusedBorderColor = colors.goldAccent,
+                    unfocusedBorderColor = if (colors.isDark) Color.White.copy(alpha = 0.16f) else MaterialTheme.colorScheme.outlineVariant,
+                    focusedContainerColor = if (colors.isDark) Color(0xAA131A26) else MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = if (colors.isDark) Color(0x99131A26) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1680,9 +1742,14 @@ internal fun OnboardingFavoritePeopleStep(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CinemaGold.copy(alpha = 0.22f),
-                                selectedLabelColor = CinemaGold,
-                                selectedTrailingIconColor = CinemaGold
+                                selectedContainerColor = colors.goldChipContainer,
+                                selectedLabelColor = colors.goldAccent,
+                                selectedTrailingIconColor = colors.goldAccent
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = true,
+                                selectedBorderColor = colors.goldChipBorder
                             )
                         )
                     }
@@ -1699,7 +1766,7 @@ internal fun OnboardingFavoritePeopleStep(
         ) {
             if (isLoading && people.isEmpty()) {
                 CircularProgressIndicator(
-                    color = CinemaGold,
+                    color = colors.goldAccent,
                     modifier = Modifier.align(Alignment.Center)
                 )
             } else if (people.isEmpty()) {
@@ -1757,6 +1824,7 @@ private fun OnboardingPersonCard(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val colors = WatchPilotColors.current
     val cardScale by animateFloatAsState(
         targetValue = if (isSelected) 0.97f else 1f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -1770,12 +1838,19 @@ private fun OnboardingPersonCard(
             .scale(cardScale)
             .clip(RoundedCornerShape(14.dp))
             .background(
-                if (isSelected) CinemaGold.copy(alpha = 0.16f)
-                else Color(0x88131A26)
+                when {
+                    isSelected -> colors.goldChipContainer
+                    colors.isDark -> Color(0x88131A26)
+                    else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+                }
             )
             .border(
                 width = if (isSelected) 1.5.dp else 1.dp,
-                color = if (isSelected) CinemaGold else Color.White.copy(alpha = 0.08f),
+                color = when {
+                    isSelected -> colors.goldAccent
+                    colors.isDark -> Color.White.copy(alpha = 0.08f)
+                    else -> MaterialTheme.colorScheme.outlineVariant
+                },
                 shape = RoundedCornerShape(14.dp)
             )
             .clickable(onClick = onClick)
@@ -1788,7 +1863,7 @@ private fun OnboardingPersonCard(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 border = BorderStroke(
                     width = if (isSelected) 2.5.dp else 1.dp,
-                    color = if (isSelected) CinemaGold else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                    color = if (isSelected) colors.goldAccent else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
                 ),
                 modifier = Modifier.size(72.dp)
             ) {
@@ -1820,15 +1895,15 @@ private fun OnboardingPersonCard(
             if (isSelected) {
                 Surface(
                     shape = CircleShape,
-                    color = CinemaGold,
-                    border = BorderStroke(1.5.dp, DarkBackground),
+                    color = colors.goldSolidBg,
+                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surface),
                     modifier = Modifier.size(22.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = "Selected",
-                            tint = DarkBackground,
+                            tint = colors.onGoldSolid,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -1842,7 +1917,7 @@ private fun OnboardingPersonCard(
             text = person.name,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
-            color = if (isSelected) CinemaGold else MaterialTheme.colorScheme.onSurface,
+            color = if (isSelected) colors.goldAccent else MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center
@@ -1942,121 +2017,161 @@ internal fun OnboardingWatchedTitlesStep(
                 )
             }
 
+            val colors = WatchPilotColors.current
             OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium,
-                placeholder = {
-                    Text(
-                        text = "Search titles",
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(
-                            onClick = { onQueryChange("") },
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
-                        }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = CinemaGold,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.14f),
-                    focusedContainerColor = Color(0xAA131A26),
-                    unfocusedContainerColor = Color(0x99131A26)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("onboarding_titles_search")
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilterChip(
-                    selected = selectedType == null,
-                    onClick = { selectedType = null },
-                    label = { Text("All", maxLines = 1, softWrap = false) }
-                )
-                FilterChip(
-                    selected = selectedType == MediaType.MOVIE,
-                    onClick = {
-                        selectedType = if (selectedType == MediaType.MOVIE) null else MediaType.MOVIE
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Movie,
-                            contentDescription = null,
-                            modifier = Modifier.size(15.dp)
-                        )
-                    },
-                    label = { Text("Movies", maxLines = 1, softWrap = false) }
-                )
-                FilterChip(
-                    selected = selectedType == MediaType.TV_SHOW,
-                    onClick = {
-                        selectedType = if (selectedType == MediaType.TV_SHOW) null else MediaType.TV_SHOW
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Tv,
-                            contentDescription = null,
-                            modifier = Modifier.size(15.dp)
-                        )
-                    },
-                    label = { Text("Series", maxLines = 1, softWrap = false) }
-                )
-
-                if (favoriteCount > 0 || watchedCount > 0 || watchlistCount > 0) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = CinemaGreen.copy(alpha = 0.16f),
-                        border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.35f))
-                    ) {
+                    value = query,
+                    onValueChange = onQueryChange,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = {
                         Text(
-                            text = buildList {
-                                if (favoriteCount > 0) add("$favoriteCount ♥")
-                                if (watchedCount > 0) add("$watchedCount watched")
-                                if (watchlistCount > 0) add("$watchlistCount saved")
-                            }.joinToString(" • "),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CinemaGreen,
+                            text = "Search titles",
+                            style = MaterialTheme.typography.bodyMedium,
                             maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            overflow = TextOverflow.Ellipsis
                         )
+                    },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(
+                                onClick = { onQueryChange("") },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                            }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.goldAccent,
+                        unfocusedBorderColor = if (colors.isDark) Color.White.copy(alpha = 0.16f) else MaterialTheme.colorScheme.outlineVariant,
+                        focusedContainerColor = if (colors.isDark) Color(0xAA131A26) else MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = if (colors.isDark) Color(0x99131A26) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("onboarding_titles_search")
+                )
+
+                val chipColors = FilterChipDefaults.filterChipColors(
+                    containerColor = if (colors.isDark) Color(0x88131A26) else MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                    labelColor = MaterialTheme.colorScheme.onSurface,
+                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedContainerColor = colors.goldSolidBg,
+                    selectedLabelColor = colors.onGoldSolid,
+                    selectedLeadingIconColor = colors.onGoldSolid
+                )
+                val chipBorder = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = false,
+                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = if (colors.isDark) 0.35f else 0.55f),
+                    selectedBorderColor = colors.goldChipBorder
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = selectedType == null,
+                        onClick = { selectedType = null },
+                        label = { Text("All", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
+                        colors = chipColors,
+                        border = if (selectedType == null) {
+                            FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = true,
+                                selectedBorderColor = colors.goldChipBorder
+                            )
+                        } else chipBorder
+                    )
+                    FilterChip(
+                        selected = selectedType == MediaType.MOVIE,
+                        onClick = {
+                            selectedType = if (selectedType == MediaType.MOVIE) null else MediaType.MOVIE
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Movie,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        },
+                        label = { Text("Movies", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
+                        colors = chipColors,
+                        border = if (selectedType == MediaType.MOVIE) {
+                            FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = true,
+                                selectedBorderColor = colors.goldChipBorder
+                            )
+                        } else chipBorder
+                    )
+                    FilterChip(
+                        selected = selectedType == MediaType.TV_SHOW,
+                        onClick = {
+                            selectedType = if (selectedType == MediaType.TV_SHOW) null else MediaType.TV_SHOW
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Tv,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        },
+                        label = { Text("Series", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
+                        colors = chipColors,
+                        border = if (selectedType == MediaType.TV_SHOW) {
+                            FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = true,
+                                selectedBorderColor = colors.goldChipBorder
+                            )
+                        } else chipBorder
+                    )
+
+                    if (favoriteCount > 0 || watchedCount > 0 || watchlistCount > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = colors.greenChipContainer,
+                            border = BorderStroke(1.dp, colors.greenAccent.copy(alpha = 0.42f))
+                        ) {
+                            Text(
+                                text = buildList {
+                                    if (favoriteCount > 0) add("$favoriteCount ♥")
+                                    if (watchedCount > 0) add("$watchedCount watched")
+                                    if (watchlistCount > 0) add("$watchlistCount saved")
+                                }.joinToString(" • "),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.greenAccent,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            if (isLoading && displayedTitles.isEmpty()) {
-                CircularProgressIndicator(
-                    color = CinemaGold,
-                    modifier = Modifier.align(Alignment.Center)
-                )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                if (isLoading && displayedTitles.isEmpty()) {
+                    CircularProgressIndicator(
+                        color = WatchPilotColors.current.goldAccent,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
             } else if (displayedTitles.isEmpty()) {
                 Text(
                     text = "No titles found",
@@ -2124,15 +2239,19 @@ private fun OnboardingTitlePickerCard(
         label = "heartScale_${media.id}"
     )
 
+    val colors = WatchPilotColors.current
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0x99131A26)),
+        colors = CardDefaults.cardColors(
+            containerColor = if (colors.isDark) Color(0x99131A26) else MaterialTheme.colorScheme.surface
+        ),
         border = when {
-            isFavorite -> BorderStroke(1.5.dp, CinemaRed)
-            isWatched -> BorderStroke(1.5.dp, CinemaGreen)
-            isWatchlist -> BorderStroke(1.5.dp, CinemaCyan)
-            else -> BorderStroke(1.dp, Color.White.copy(alpha = 0.09f))
+            isFavorite -> BorderStroke(1.5.dp, colors.redAccent)
+            isWatched -> BorderStroke(1.5.dp, colors.greenAccent)
+            isWatchlist -> BorderStroke(1.5.dp, colors.cyanAccent)
+            else -> BorderStroke(1.dp, if (colors.isDark) Color.White.copy(alpha = 0.09f) else MaterialTheme.colorScheme.outlineVariant)
         },
+        elevation = CardDefaults.cardElevation(defaultElevation = if (colors.isDark) 0.dp else 2.dp),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("onboarding_title_card_${media.id}")
@@ -2305,29 +2424,33 @@ private fun OnboardingTitlePickerCard(
                 Surface(
                     onClick = onMarkWatched,
                     shape = RoundedCornerShape(10.dp),
-                    color = if (isWatched) CinemaGreen else MaterialTheme.colorScheme.surface,
+                    color = when {
+                        isWatched -> colors.greenSolidBg
+                        colors.isDark -> MaterialTheme.colorScheme.surface
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 48.dp)
                         .testTag("onboarding_title_watched_${media.id}")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = if (isWatched) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
                             contentDescription = "Mark ${media.title} as watched",
-                            tint = if (isWatched) DarkBackground else CinemaGreen,
-                            modifier = Modifier.size(16.dp)
+                            tint = if (isWatched) colors.onGreenSolid else colors.greenAccent,
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = "Watched",
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isWatched) DarkBackground else MaterialTheme.colorScheme.onSurface,
+                            color = if (isWatched) colors.onGreenSolid else MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -2337,29 +2460,33 @@ private fun OnboardingTitlePickerCard(
                 Surface(
                     onClick = onMarkWatchlist,
                     shape = RoundedCornerShape(10.dp),
-                    color = if (isWatchlist) CinemaCyan else MaterialTheme.colorScheme.surface,
+                    color = when {
+                        isWatchlist -> colors.cyanSolidBg
+                        colors.isDark -> MaterialTheme.colorScheme.surface
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 48.dp)
                         .testTag("onboarding_title_watchlist_${media.id}")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = if (isWatchlist) Icons.Filled.Bookmark else Icons.Outlined.BookmarkAdd,
                             contentDescription = "Add ${media.title} to watchlist",
-                            tint = if (isWatchlist) DarkBackground else CinemaCyan,
-                            modifier = Modifier.size(16.dp)
+                            tint = if (isWatchlist) colors.onCyanSolid else colors.cyanAccent,
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = "Save",
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isWatchlist) DarkBackground else MaterialTheme.colorScheme.onSurface,
+                            color = if (isWatchlist) colors.onCyanSolid else MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -2380,72 +2507,76 @@ private fun OnboardingBottomActionBar(
     onSkip: () -> Unit,
     onNext: () -> Unit
 ) {
+    val colors = WatchPilotColors.current
     Surface(
-        color = Color(0xB80A1119),
+        color = if (colors.isDark) Color(0xCC0A1119) else MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         tonalElevation = 0.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+            HorizontalDivider(
+                color = if (colors.isDark) Color.White.copy(alpha = 0.08f) else MaterialTheme.colorScheme.outlineVariant
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .testTag(backTag)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back"
-                    )
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag(backTag)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    TextButton(
+                        onClick = onSkip,
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .testTag(skipTag)
+                    ) {
+                        Text(
+                            text = "Skip",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
-                TextButton(
-                    onClick = onSkip,
+
+                Button(
+                    onClick = onNext,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.goldSolidBg,
+                        contentColor = colors.onGoldSolid
+                    ),
                     modifier = Modifier
                         .heightIn(min = 48.dp)
-                        .testTag(skipTag)
+                        .testTag(nextTag)
                 ) {
                     Text(
-                        text = "Skip",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold
+                        text = nextLabel,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
-
-            Button(
-                onClick = onNext,
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = CinemaGold,
-                    contentColor = DarkBackground
-                ),
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .testTag(nextTag)
-            ) {
-                Text(
-                    text = nextLabel,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
         }
     }
 }
@@ -2456,6 +2587,7 @@ private fun OnboardingRegionBadge(
     onClick: () -> Unit,
     testTag: String
 ) {
+    val colors = WatchPilotColors.current
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -2466,8 +2598,8 @@ private fun OnboardingRegionBadge(
     ) {
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = CinemaCyan.copy(alpha = 0.14f),
-            border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.42f))
+            color = colors.cyanChipContainer,
+            border = BorderStroke(1.dp, colors.cyanChipBorder)
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -2482,7 +2614,7 @@ private fun OnboardingRegionBadge(
                     text = stringResource(R.string.onboarding_region_popular, region.code),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = CinemaCyan,
+                    color = colors.cyanAccent,
                     maxLines = 1,
                     softWrap = false
                 )

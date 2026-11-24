@@ -95,7 +95,7 @@ fun LocalizationPreferencesDialog(
                         Icon(
                             imageVector = Icons.Default.Public,
                             contentDescription = null,
-                            tint = CinemaGold,
+                            tint = WatchPilotColors.current.goldAccent,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -135,7 +135,7 @@ fun LocalizationPreferencesDialog(
                         Text(
                             text = "Detected: ${detected.flag} ${detected.name}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = CinemaCyan
+                            color = WatchPilotColors.current.cyanAccent
                         )
                     }
                     Switch(
