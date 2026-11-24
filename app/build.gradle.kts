@@ -9,10 +9,6 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
-val watchPilotEdition =
-  providers.gradleProperty("WATCHPILOT_EDITION").orNull?.trim()?.lowercase() ?: "v2"
-val isV1Edition = watchPilotEdition == "v1"
-
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -21,21 +17,13 @@ android {
     applicationId = "com.dpjha.moviebuddy"
     minSdk = 24
     targetSdk = 36
-    versionCode = if (isV1Edition) 1003 else 2000
-    versionName = if (isV1Edition) "5.0.2" else "6.0.0"
-    buildConfigField("boolean", "IS_V1_EDITION", isV1Edition.toString())
-    buildConfigField("String", "EDITION_NAME", "\"${if (isV1Edition) "v1.0" else "v2.0"}\"")
+    versionCode = 1006
+    versionName = "5.1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     androidResources {
       localeFilters += listOf("en", "hi", "es", "fr", "ja", "ko", "ta", "te")
-    }
-  }
-
-  sourceSets {
-    getByName("main") {
-      kotlin.directories.add(if (isV1Edition) "src/editionV1/java" else "src/editionV2/java")
     }
   }
 
@@ -140,9 +128,7 @@ dependencies {
   // implementation(libs.moshi.kotlin) // All DTOs use KSP codegen (@JsonClass(generateAdapter = true))
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
-  if (!isV1Edition) {
-    implementation(libs.billing.ktx)
-  }
+  implementation(libs.billing.ktx)
   implementation(libs.play.services.ads)
   implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
