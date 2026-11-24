@@ -79,6 +79,7 @@ import com.example.data.model.TmdbSearchResultItem
 import com.example.ui.components.CompactMediaPosterCard
 import com.example.ui.components.CompactPersonCircleCard
 import com.example.ui.components.ContinueWatchingCard
+import com.example.ui.components.HomeCardWatchlistPill
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -90,8 +91,6 @@ import com.example.ui.components.SponsoredBannerCard
 import com.example.ui.components.WatchStatusPill
 import com.example.ui.theme.CinemaCyan
 import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
@@ -147,6 +146,8 @@ fun HomeScreen(
     val topSpotlightItems = remember(trendingList, discoverItems) {
         if (trendingList.isNotEmpty()) trendingList.take(10) else discoverItems.take(10)
     }
+    val themeColors = WatchPilotColors.current
+    val trackedById = remember(trackedMediaList) { trackedMediaList.associateBy { it.id } }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyVerticalGrid(
@@ -197,8 +198,8 @@ fun HomeScreen(
 
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = if (monetizationState.isPro) CinemaGold else CinemaGold.copy(alpha = 0.16f),
-                            border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.6f)),
+                            color = if (monetizationState.isPro) themeColors.goldSolidBg else themeColors.goldChipContainer,
+                            border = BorderStroke(1.dp, themeColors.goldChipBorder),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
                                 .clickable { viewModel.openPaywall() }
@@ -211,7 +212,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Filled.WorkspacePremium,
                                     contentDescription = "WatchPilot Pro",
-                                    tint = if (monetizationState.isPro) DarkBackground else CinemaGold,
+                                    tint = if (monetizationState.isPro) themeColors.onGoldSolid else themeColors.goldAccent,
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
@@ -219,7 +220,7 @@ fun HomeScreen(
                                     text = if (monetizationState.isPro) "PRO ACTIVE" else "GO PRO",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = if (monetizationState.isPro) DarkBackground else CinemaGold,
+                                    color = if (monetizationState.isPro) themeColors.onGoldSolid else themeColors.goldAccent,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -236,7 +237,8 @@ fun HomeScreen(
                             icon = Icons.Filled.AutoAwesome,
                             title = "Tonight's Pick",
                             subtitle = "AI Concierge",
-                            accent = CinemaGold,
+                            accent = themeColors.goldAccent,
+                            borderColor = themeColors.goldChipBorder,
                             onClick = { viewModel.openAiConcierge() },
                             modifier = Modifier.weight(1f),
                             testTag = "home_btn_ai_concierge"
@@ -245,7 +247,8 @@ fun HomeScreen(
                             icon = Icons.Filled.Favorite,
                             title = "Swipe Match",
                             subtitle = "Live Room",
-                            accent = CinemaGreen,
+                            accent = themeColors.greenAccent,
+                            borderColor = themeColors.greenChipBorder,
                             onClick = { viewModel.openSwipeMatch() },
                             modifier = Modifier.weight(1f),
                             testTag = "home_btn_swipe_match"
@@ -254,7 +257,8 @@ fun HomeScreen(
                             icon = Icons.Filled.PhotoCamera,
                             title = "Snap Scan",
                             subtitle = "Screenshot AI",
-                            accent = CinemaCyan,
+                            accent = themeColors.cyanAccent,
+                            borderColor = themeColors.cyanChipBorder,
                             onClick = { viewModel.openSnapScanner() },
                             modifier = Modifier.weight(1f),
                             testTag = "home_btn_snap_scan"
@@ -287,7 +291,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Filled.AutoAwesome,
                                     contentDescription = null,
-                                    tint = CinemaCyan,
+                                    tint = themeColors.cyanAccent,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -304,8 +308,8 @@ fun HomeScreen(
                             Surface(
                                 onClick = { viewModel.reopenTastePersonalization() },
                                 shape = RoundedCornerShape(12.dp),
-                                color = CinemaCyan.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.35f)),
+                                color = themeColors.cyanChipContainer,
+                                border = BorderStroke(1.dp, themeColors.cyanChipBorder),
                                 modifier = Modifier.testTag("home_tune_top_picks_button")
                             ) {
                                 Row(
@@ -316,12 +320,12 @@ fun HomeScreen(
                                     Icon(
                                         imageVector = Icons.Filled.Tune,
                                         contentDescription = "Tune Top Picks",
-                                        tint = CinemaCyan,
+                                        tint = themeColors.cyanAccent,
                                         modifier = Modifier.size(12.dp)
                                     )
                                     Text(
                                         text = "TUNE",
-                                        color = CinemaCyan,
+                                        color = themeColors.cyanAccent,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         maxLines = 1,
@@ -347,11 +351,11 @@ fun HomeScreen(
                                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                                         modifier = Modifier
                                             .width(136.dp)
-                                            .height(236.dp)
+                                            .height(266.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             CircularProgressIndicator(
-                                                color = CinemaCyan,
+                                                color = themeColors.cyanAccent,
                                                 strokeWidth = 2.dp,
                                                 modifier = Modifier.size(22.dp)
                                             )
@@ -384,10 +388,18 @@ fun HomeScreen(
                                             preferredGenres = onboardingSelectedGenres
                                         )
                                     }
+                                    val resolvedMedia = trackedById[item.id] ?: item
+                                    val isInLibrary = item.id in trackedById ||
+                                        resolvedMedia.getWatchStatusEnum() != WatchStatus.NONE ||
+                                        resolvedMedia.isFavorite ||
+                                        resolvedMedia.userRating > 0f ||
+                                        !resolvedMedia.customWatchlist.isNullOrBlank()
                                     PickedForYouCard(
-                                        media = item,
+                                        media = resolvedMedia,
                                         reasonLabel = reasonLabel,
-                                        onClick = { viewModel.openMediaFromSearch(item) }
+                                        isInLibrary = isInLibrary,
+                                        onClick = { viewModel.openMediaFromSearch(resolvedMedia) },
+                                        onAddToWatchlist = { viewModel.addToWatchlistIfUntracked(item) }
                                     )
                                 }
                             }
@@ -420,7 +432,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                     contentDescription = null,
-                                    tint = CinemaGold,
+                                    tint = themeColors.goldAccent,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -434,14 +446,14 @@ fun HomeScreen(
                                 )
                             }
 
-                            val homeColors = WatchPilotColors.current
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = homeColors.goldChipContainer
+                                color = themeColors.goldChipContainer,
+                                border = BorderStroke(1.dp, themeColors.goldChipBorder)
                             ) {
                                 Text(
                                     text = "TOP PICKS",
-                                    color = homeColors.goldAccent,
+                                    color = themeColors.goldAccent,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     maxLines = 1,
@@ -464,10 +476,18 @@ fun HomeScreen(
                                 items = topSpotlightItems,
                                 key = { index, item -> "top_spotlight_${item.id}_$index" }
                             ) { index, item ->
+                                val resolvedMedia = trackedById[item.id] ?: item
+                                val isInLibrary = item.id in trackedById ||
+                                    resolvedMedia.getWatchStatusEnum() != WatchStatus.NONE ||
+                                    resolvedMedia.isFavorite ||
+                                    resolvedMedia.userRating > 0f ||
+                                    !resolvedMedia.customWatchlist.isNullOrBlank()
                                 SpotlightBannerCard(
                                     rank = index + 1,
-                                    media = item,
-                                    onClick = { onMediaClick(item.id) }
+                                    media = resolvedMedia,
+                                    isInLibrary = isInLibrary,
+                                    onClick = { onMediaClick(resolvedMedia.id) },
+                                    onAddToWatchlist = { viewModel.addToWatchlistIfUntracked(item) }
                                 )
                             }
                         }
@@ -490,8 +510,16 @@ fun HomeScreen(
                             onClick = { viewModel.selectedTypeFilter.value = null },
                             label = { Text("All Media", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = chipColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
                                 selectedContainerColor = chipColors.goldSolidBg,
                                 selectedLabelColor = chipColors.onGoldSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedType == null,
+                                borderColor = chipColors.neutralChipBorder,
+                                selectedBorderColor = chipColors.goldChipBorder
                             )
                         )
                         FilterChip(
@@ -506,9 +534,18 @@ fun HomeScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = chipColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 selectedContainerColor = chipColors.goldSolidBg,
                                 selectedLabelColor = chipColors.onGoldSolid,
                                 selectedLeadingIconColor = chipColors.onGoldSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedType == MediaType.MOVIE,
+                                borderColor = chipColors.neutralChipBorder,
+                                selectedBorderColor = chipColors.goldChipBorder
                             )
                         )
                         FilterChip(
@@ -523,9 +560,18 @@ fun HomeScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = chipColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 selectedContainerColor = chipColors.cyanSolidBg,
                                 selectedLabelColor = chipColors.onCyanSolid,
                                 selectedLeadingIconColor = chipColors.onCyanSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedType == MediaType.TV_SHOW,
+                                borderColor = chipColors.neutralChipBorder,
+                                selectedBorderColor = chipColors.cyanChipBorder
                             )
                         )
                     }
@@ -542,7 +588,19 @@ fun HomeScreen(
                         FilterChip(
                             selected = selectedGenre == null,
                             onClick = { viewModel.selectedGenreFilter.value = null },
-                            label = { Text("All Genres", fontSize = 12.sp) }
+                            label = { Text("All Genres", fontSize = 12.sp, fontWeight = if (selectedGenre == null) FontWeight.Bold else FontWeight.Medium) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = chipColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                selectedContainerColor = chipColors.goldSolidBg,
+                                selectedLabelColor = chipColors.onGoldSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedGenre == null,
+                                borderColor = chipColors.neutralChipBorder,
+                                selectedBorderColor = chipColors.goldChipBorder
+                            )
                         )
 
                         availableGenres.forEach { genre ->
@@ -561,13 +619,15 @@ fun HomeScreen(
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = chipColors.neutralChipContainer,
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
                                     selectedContainerColor = chipColors.goldChipContainer,
                                     selectedLabelColor = chipColors.goldAccent
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
                                     enabled = true,
                                     selected = isGenreSelected,
-                                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                                    borderColor = chipColors.neutralChipBorder,
                                     selectedBorderColor = chipColors.goldChipBorder
                                 )
                             )
@@ -602,7 +662,7 @@ fun HomeScreen(
                             Text(
                                 text = "${continueWatchingList.size} active",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = CinemaCyan,
+                                color = themeColors.cyanAccent,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -674,17 +734,17 @@ fun HomeScreen(
                 Triple(
                     HomeCatalogSection.POPULAR,
                     popularHomeItems,
-                    Pair(Icons.Filled.LocalFireDepartment, CinemaGold)
+                    Pair(Icons.Filled.LocalFireDepartment, themeColors.goldAccent)
                 ),
                 Triple(
                     HomeCatalogSection.NOW_PLAYING,
                     nowPlayingHomeItems,
-                    Pair(Icons.Filled.Theaters, CinemaCyan)
+                    Pair(Icons.Filled.Theaters, themeColors.cyanAccent)
                 ),
                 Triple(
                     HomeCatalogSection.UPCOMING,
                     upcomingHomeItems,
-                    Pair(Icons.Filled.Upcoming, CinemaGreen)
+                    Pair(Icons.Filled.Upcoming, themeColors.greenAccent)
                 )
             )
 
@@ -701,11 +761,13 @@ fun HomeScreen(
                         icon = sectionIcon,
                         accentColor = accentColor,
                         items = sectionItems.take(20),
+                        trackedById = trackedById,
                         totalCount = sectionItems.size,
                         isRefreshing = isHomeCatalogRefreshing,
                         isCompactCardTablet = adaptive.isTabletOrWide,
                         onOpenSection = { onOpenSection(section) },
-                        onMediaClick = onMediaClick
+                        onMediaClick = onMediaClick,
+                        onAddToWatchlist = { media -> viewModel.addToWatchlistIfUntracked(media) }
                     )
                 }
             }
@@ -795,6 +857,7 @@ private fun HomeHorizontalPeopleSection(
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = accentColor.copy(alpha = 0.14f),
+                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.45f)),
                     modifier = Modifier.padding(end = 8.dp)
                 ) {
                     Text(
@@ -940,11 +1003,13 @@ private fun HomeHorizontalCatalogSection(
     icon: ImageVector,
     accentColor: Color,
     items: List<MediaEntity>,
+    trackedById: Map<String, MediaEntity>,
     totalCount: Int,
     isRefreshing: Boolean,
     isCompactCardTablet: Boolean,
     onOpenSection: () -> Unit,
-    onMediaClick: (String) -> Unit
+    onMediaClick: (String) -> Unit,
+    onAddToWatchlist: (MediaEntity) -> Unit
 ) {
     val cardWidth = if (isCompactCardTablet) 128.dp else 108.dp
     val sectionTitle = section.formattedTitle(regionName, selectedType)
@@ -999,6 +1064,7 @@ private fun HomeHorizontalCatalogSection(
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = accentColor.copy(alpha = 0.14f),
+                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.45f)),
                     modifier = Modifier.padding(end = 8.dp)
                 ) {
                     Text(
@@ -1075,11 +1141,19 @@ private fun HomeHorizontalCatalogSection(
                     items = items.distinctBy { it.id },
                     key = { media -> "${section.name}_${media.id}" }
                 ) { media ->
+                    val resolvedMedia = trackedById[media.id] ?: media
+                    val isInLibrary = media.id in trackedById ||
+                        resolvedMedia.getWatchStatusEnum() != WatchStatus.NONE ||
+                        resolvedMedia.isFavorite ||
+                        resolvedMedia.userRating > 0f ||
+                        !resolvedMedia.customWatchlist.isNullOrBlank()
                     CompactMediaPosterCard(
-                        media = media,
-                        onClick = { onMediaClick(media.id) },
+                        media = resolvedMedia,
+                        onClick = { onMediaClick(resolvedMedia.id) },
                         modifier = Modifier.width(cardWidth),
-                        testTagPrefix = "home_${section.name.lowercase()}_card"
+                        testTagPrefix = "home_${section.name.lowercase()}_card",
+                        isInLibrary = isInLibrary,
+                        onAddToWatchlist = { onAddToWatchlist(media) }
                     )
                 }
 
@@ -1141,7 +1215,12 @@ fun SpotlightBannerCard(
     rank: Int,
     media: MediaEntity,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isInLibrary: Boolean = media.getWatchStatusEnum() != WatchStatus.NONE ||
+        media.isFavorite ||
+        media.userRating > 0f ||
+        !media.customWatchlist.isNullOrBlank(),
+    onAddToWatchlist: (() -> Unit)? = null
 ) {
     val adaptive = LocalAdaptiveLayoutInfo.current
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
@@ -1251,31 +1330,47 @@ fun SpotlightBannerCard(
                 }
             }
 
-            // Bottom Info + At-a-Glance Watch Status Pill
-            Column(
+            // Bottom Info + At-a-Glance Watch Status Pill + Quick Watchlist Pill (when untracked)
+            Row(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(12.dp)
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom
             ) {
-                if (media.getWatchStatusEnum() != WatchStatus.NONE) {
-                    WatchStatusPill(status = media.getWatchStatusEnum())
-                    Spacer(modifier = Modifier.height(4.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    if (media.getWatchStatusEnum() != WatchStatus.NONE) {
+                        WatchStatusPill(status = media.getWatchStatusEnum())
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    Text(
+                        text = media.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${media.releaseYear} • ${media.genres.ifBlank { "Drama" }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                Text(
-                    text = media.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "${media.releaseYear} • ${media.genres.ifBlank { "Drama" }}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.8f),
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
+
+                if (!isInLibrary && onAddToWatchlist != null) {
+                    HomeCardWatchlistPill(
+                        media = media,
+                        isInLibrary = false,
+                        onAddToWatchlist = onAddToWatchlist,
+                        compact = false,
+                        useBackdropContrastSurface = true,
+                        testTag = "btn_home_watchlist_spotlight_${media.id}"
+                    )
+                }
             }
         }
     }
@@ -1287,14 +1382,15 @@ private fun HomeQuickFeatureChip(
     title: String,
     subtitle: String,
     accent: Color,
+    borderColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     testTag: String
 ) {
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.32f)),
+        colors = CardDefaults.cardColors(containerColor = WatchPilotColors.current.neutralChipContainer),
+        border = BorderStroke(1.dp, borderColor),
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
@@ -1333,7 +1429,9 @@ private fun HomeQuickFeatureChip(
 private fun PickedForYouCard(
     media: MediaEntity,
     reasonLabel: String,
+    isInLibrary: Boolean,
     onClick: () -> Unit,
+    onAddToWatchlist: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val adaptive = LocalAdaptiveLayoutInfo.current
@@ -1471,7 +1569,8 @@ private fun PickedForYouCard(
                 val cardColors = WatchPilotColors.current
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = if (isStarReason) cardColors.goldChipContainer else cardColors.cyanChipContainer
+                    color = if (isStarReason) cardColors.goldChipContainer else cardColors.cyanChipContainer,
+                    border = BorderStroke(1.dp, if (isStarReason) cardColors.goldChipBorder else cardColors.cyanChipBorder)
                 ) {
                     Text(
                         text = reasonLabel,
@@ -1483,6 +1582,15 @@ private fun PickedForYouCard(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
+                Spacer(modifier = Modifier.height(2.dp))
+                HomeCardWatchlistPill(
+                    media = media,
+                    isInLibrary = isInLibrary,
+                    onAddToWatchlist = onAddToWatchlist,
+                    compact = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    testTag = "btn_home_watchlist_picked_${media.id}"
+                )
             }
         }
     }

@@ -9,5 +9,6 @@
         <item name="android:windowSplashScreenBackground">@color/splash_obsidian</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/splash_obsidian</item>
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>

@@ -137,4 +137,39 @@ class WatchPilotRulesTest : FirestoreEmulatorTestBase() {
         assertNotNull(crossUserError)
         assertEquals(FirebaseFirestoreException.Code.PERMISSION_DENIED, crossUserError?.code)
     }
+
+    @Test
+    fun searchHistory_ownerSyncsWithResultCount_andCrossUserDenied() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val aliceUid = signInTestUser("alice_search@test.com")
+        val syncManager = FirestoreSyncManager(context, firestore)
+
+        withTimeout(5000L) {
+            syncManager.uploadSearchHistory(
+                userId = aliceUid,
+                query = "Dune Part Two",
+                resultCount = 12
+            )
+        }
+
+        val pulled = withTimeout(5000L) {
+            syncManager.pullCloudData(aliceUid)
+        }
+        assertNotNull(pulled)
+        assertTrue(pulled?.searchHistory?.any { it.query == "Dune Part Two" && it.resultCount == 12 } == true)
+
+        signInTestUser("bob_search_snooper@test.com")
+        var crossUserError: FirebaseFirestoreException? = null
+        try {
+            withTimeout(5000L) {
+                firestore.collection("users").document(aliceUid)
+                    .collection("search_history")
+                    .get().await()
+            }
+        } catch (e: FirebaseFirestoreException) {
+            crossUserError = e
+        }
+        assertNotNull(crossUserError)
+        assertEquals(FirebaseFirestoreException.Code.PERMISSION_DENIED, crossUserError?.code)
+    }
 }

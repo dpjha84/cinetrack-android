@@ -37,7 +37,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.WatchPilotColors
 
 @Composable
@@ -88,6 +87,8 @@ fun WatchlistSelectDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                val selectColors = WatchPilotColors.current
+
                 // Option: None / Remove from collection
                 Row(
                     modifier = Modifier
@@ -99,7 +100,7 @@ fun WatchlistSelectDialog(
                     RadioButton(
                         selected = selected == null,
                         onClick = { selected = null },
-                        colors = RadioButtonDefaults.colors(selectedColor = CinemaGold)
+                        colors = RadioButtonDefaults.colors(selectedColor = selectColors.goldAccent)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("None (Default Watchlist)")
@@ -116,13 +117,13 @@ fun WatchlistSelectDialog(
                         RadioButton(
                             selected = selected == collection,
                             onClick = { selected = collection },
-                            colors = RadioButtonDefaults.colors(selectedColor = CinemaGold)
+                            colors = RadioButtonDefaults.colors(selectedColor = selectColors.goldAccent)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
                             imageVector = Icons.Default.Bookmark,
                             contentDescription = null,
-                            tint = CinemaGold,
+                            tint = selectColors.goldAccent,
                             modifier = Modifier.padding(end = 6.dp)
                         )
                         Text(collection, fontWeight = FontWeight.Medium)

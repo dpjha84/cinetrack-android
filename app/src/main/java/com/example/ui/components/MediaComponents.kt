@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Movie
@@ -252,11 +253,12 @@ fun MediaPosterCard(
                         softWrap = false
                     )
 
+                    val cardColors = WatchPilotColors.current
                     if (media.getMediaTypeEnum() == MediaType.TV_SHOW && media.totalEpisodes > 0) {
                         Text(
                             text = "${media.watchedEpisodes}/${media.totalEpisodes} eps",
                             style = MaterialTheme.typography.bodySmall,
-                            color = CinemaCyan,
+                            color = cardColors.cyanAccent,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             softWrap = false
@@ -281,7 +283,7 @@ fun MediaPosterCard(
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(CircleShape),
-                        color = CinemaGold,
+                        color = WatchPilotColors.current.goldSolidBg,
                         trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                 }
@@ -295,7 +297,12 @@ fun CompactMediaPosterCard(
     media: MediaEntity,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    testTagPrefix: String = "compact_media_card"
+    testTagPrefix: String = "compact_media_card",
+    isInLibrary: Boolean = media.getWatchStatusEnum() != WatchStatus.NONE ||
+        media.isFavorite ||
+        media.userRating > 0f ||
+        !media.customWatchlist.isNullOrBlank(),
+    onAddToWatchlist: (() -> Unit)? = null
 ) {
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
     val isUserRated = media.userRating > 0f
@@ -418,8 +425,8 @@ fun CompactMediaPosterCard(
                     }
                 }
 
-                // Watch status pill at bottom-start if tracked
-                if (media.getWatchStatusEnum() != WatchStatus.NONE) {
+                // Watch status pill at bottom-start if tracked and not showing footer watchlist slot
+                if (onAddToWatchlist == null && media.getWatchStatusEnum() != WatchStatus.NONE) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
@@ -463,6 +470,17 @@ fun CompactMediaPosterCard(
                         softWrap = false
                     )
                 }
+                if (onAddToWatchlist != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    HomeCardWatchlistPill(
+                        media = media,
+                        isInLibrary = isInLibrary,
+                        onAddToWatchlist = onAddToWatchlist,
+                        compact = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        testTag = "${testTagPrefix}_watchlist_${media.id}"
+                    )
+                }
             }
         }
     }
@@ -477,6 +495,7 @@ fun CompactPersonCircleCard(
 ) {
     val context = LocalContext.current
     val deptLabel = person.department.ifBlank { "Acting" }
+    val personColors = WatchPilotColors.current
 
     Card(
         modifier = modifier
@@ -498,7 +517,7 @@ fun CompactPersonCircleCard(
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                border = BorderStroke(1.5.dp, CinemaGold.copy(alpha = 0.45f)),
+                border = BorderStroke(1.5.dp, personColors.goldChipBorder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 4.dp)
@@ -546,7 +565,7 @@ fun CompactPersonCircleCard(
                 text = deptLabel,
                 style = MaterialTheme.typography.labelSmall,
                 fontSize = 10.sp,
-                color = CinemaGold,
+                color = personColors.goldAccent,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -627,6 +646,7 @@ fun ContinueWatchingCard(
 
             Spacer(modifier = Modifier.width(12.dp))
 
+            val episodeBtnColors = WatchPilotColors.current
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -635,12 +655,13 @@ fun ContinueWatchingCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = CinemaCyan.copy(alpha = 0.15f),
+                        color = episodeBtnColors.cyanChipContainer,
+                        border = BorderStroke(1.dp, episodeBtnColors.cyanChipBorder),
                         modifier = Modifier.padding(end = 6.dp)
                     ) {
                         Text(
                             text = "TV SERIES",
-                            color = CinemaCyan,
+                            color = episodeBtnColors.cyanAccent,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -685,7 +706,7 @@ fun ContinueWatchingCard(
                         .fillMaxWidth()
                         .height(5.dp)
                         .clip(CircleShape),
-                    color = CinemaGold,
+                    color = episodeBtnColors.goldSolidBg,
                     trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 )
             }
@@ -693,7 +714,6 @@ fun ContinueWatchingCard(
             Spacer(modifier = Modifier.width(10.dp))
 
             // Quick +1 Episode Button
-            val episodeBtnColors = WatchPilotColors.current
             FilledTonalButton(
                 onClick = onIncrementEpisode,
                 modifier = Modifier
@@ -703,6 +723,7 @@ fun ContinueWatchingCard(
                     containerColor = episodeBtnColors.goldChipContainer,
                     contentColor = episodeBtnColors.goldAccent
                 ),
+                border = BorderStroke(1.dp, episodeBtnColors.goldChipBorder),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Row(
@@ -733,20 +754,15 @@ fun WatchStatusPill(
     modifier: Modifier = Modifier
 ) {
     val pillColors = WatchPilotColors.current
-    val (bgColor, textColor) = when (status) {
-        WatchStatus.COMPLETED -> Pair(pillColors.greenChipContainer, pillColors.greenAccent)
-        WatchStatus.WATCHING -> Pair(pillColors.cyanChipContainer, pillColors.cyanAccent)
-        WatchStatus.PLAN_TO_WATCH -> Pair(pillColors.goldChipContainer, pillColors.goldAccent)
-        WatchStatus.ON_HOLD -> Pair(
-            pillColors.orangeAccent.copy(alpha = if (pillColors.isDark) 0.22f else 0.14f),
-            pillColors.orangeAccent
-        )
-        WatchStatus.DROPPED -> Pair(
-            pillColors.redAccent.copy(alpha = if (pillColors.isDark) 0.22f else 0.14f),
-            pillColors.redAccent
-        )
-        WatchStatus.NONE -> Pair(
-            MaterialTheme.colorScheme.surfaceContainerHigh,
+    val (bgColor, borderColor, textColor) = when (status) {
+        WatchStatus.COMPLETED -> Triple(pillColors.greenChipContainer, pillColors.greenChipBorder, pillColors.greenAccent)
+        WatchStatus.WATCHING -> Triple(pillColors.cyanChipContainer, pillColors.cyanChipBorder, pillColors.cyanAccent)
+        WatchStatus.PLAN_TO_WATCH -> Triple(pillColors.goldChipContainer, pillColors.goldChipBorder, pillColors.goldAccent)
+        WatchStatus.ON_HOLD -> Triple(pillColors.orangeChipContainer, pillColors.orangeChipBorder, pillColors.orangeAccent)
+        WatchStatus.DROPPED -> Triple(pillColors.redChipContainer, pillColors.redChipBorder, pillColors.redAccent)
+        WatchStatus.NONE -> Triple(
+            pillColors.neutralChipContainer,
+            pillColors.neutralChipBorder,
             MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -754,6 +770,7 @@ fun WatchStatusPill(
     Surface(
         shape = RoundedCornerShape(6.dp),
         color = bgColor,
+        border = BorderStroke(1.dp, borderColor),
         modifier = modifier
     ) {
         Text(
@@ -766,6 +783,102 @@ fun WatchStatusPill(
             softWrap = false,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
+    }
+}
+
+@Composable
+fun HomeCardWatchlistPill(
+    media: MediaEntity,
+    isInLibrary: Boolean,
+    onAddToWatchlist: () -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = true,
+    useBackdropContrastSurface: Boolean = false,
+    testTag: String = "home_watchlist_btn_${media.id}"
+) {
+    val colors = WatchPilotColors.current
+    val status = media.getWatchStatusEnum()
+    val (bgColor, borderColor, contentColor) = if (!isInLibrary) {
+        Triple(colors.goldChipContainer, colors.goldChipBorder, colors.goldAccent)
+    } else {
+        when (status) {
+            WatchStatus.WATCHING -> Triple(colors.cyanChipContainer, colors.cyanChipBorder, colors.cyanAccent)
+            WatchStatus.ON_HOLD -> Triple(colors.orangeChipContainer, colors.orangeChipBorder, colors.orangeAccent)
+            WatchStatus.DROPPED -> Triple(colors.redChipContainer, colors.redChipBorder, colors.redAccent)
+            WatchStatus.COMPLETED, WatchStatus.PLAN_TO_WATCH, WatchStatus.NONE ->
+                Triple(colors.greenChipContainer, colors.greenChipBorder, colors.greenAccent)
+        }
+    }
+
+    val label = if (!isInLibrary) {
+        "+ Watchlist"
+    } else {
+        when (status) {
+            WatchStatus.PLAN_TO_WATCH -> "In Watchlist"
+            WatchStatus.WATCHING -> "Watching"
+            WatchStatus.COMPLETED -> "Completed"
+            WatchStatus.ON_HOLD -> "On Hold"
+            WatchStatus.DROPPED -> "Dropped"
+            WatchStatus.NONE -> "In Library"
+        }
+    }
+
+    val surfaceModifier = modifier
+        .clip(RoundedCornerShape(16.dp))
+        .then(if (!isInLibrary) Modifier.clickable(onClick = onAddToWatchlist) else Modifier)
+        .testTag(testTag)
+
+    val pillContent: @Composable () -> Unit = {
+        Row(
+            modifier = Modifier.padding(
+                horizontal = if (compact) 5.dp else 10.dp,
+                vertical = 4.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = if (isInLibrary) Icons.Default.Check else Icons.Default.BookmarkBorder,
+                contentDescription = if (isInLibrary) label else "Add to Watchlist",
+                tint = contentColor,
+                modifier = Modifier.size(if (compact) 11.dp else 14.dp)
+            )
+            Spacer(modifier = Modifier.width(if (compact) 3.dp else 4.dp))
+            Text(
+                text = label,
+                fontSize = if (compact) 10.sp else 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = contentColor,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+
+    if (useBackdropContrastSurface) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+            modifier = surfaceModifier
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = bgColor,
+                border = BorderStroke(1.dp, borderColor)
+            ) {
+                pillContent()
+            }
+        }
+    } else {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = bgColor,
+            border = BorderStroke(1.dp, borderColor),
+            modifier = surfaceModifier
+        ) {
+            pillContent()
+        }
     }
 }
 

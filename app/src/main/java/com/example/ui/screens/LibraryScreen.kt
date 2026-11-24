@@ -27,6 +27,8 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,8 +69,10 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,15 +95,12 @@ import com.example.data.model.MediaType
 import com.example.data.model.WatchStatus
 import com.example.ui.components.SponsoredBannerCard
 import com.example.ui.components.WatchStatusPill
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.LibraryTab
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.ui.viewmodel.SortOption
+import kotlinx.coroutines.launch
 
 @Composable
 fun LibraryScreen(
@@ -115,11 +116,30 @@ fun LibraryScreen(
     val selectedCollection by viewModel.selectedCollectionFilter.collectAsStateWithLifecycle()
     val customCollections by viewModel.customCollections.collectAsStateWithLifecycle()
     val libraryItems by viewModel.filteredLibrary.collectAsStateWithLifecycle()
+    val libraryItemsByTab by viewModel.libraryItemsByTab.collectAsStateWithLifecycle()
     val favoritePeople by viewModel.favoritePeople.collectAsStateWithLifecycle()
     val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
     val isImportingCsv by viewModel.isImportingCsv.collectAsStateWithLifecycle()
     val csvImportMessage by viewModel.csvImportMessage.collectAsStateWithLifecycle()
     val isOffline by viewModel.isOffline.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
+    val pagerState = rememberPagerState(
+        initialPage = selectedTab.ordinal,
+        pageCount = { LibraryTab.entries.size }
+    )
+
+    LaunchedEffect(pagerState.settledPage) {
+        val settledTab = LibraryTab.entries[pagerState.settledPage]
+        if (viewModel.selectedLibraryTab.value != settledTab) {
+            viewModel.selectedLibraryTab.value = settledTab
+        }
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (!pagerState.isScrollInProgress && pagerState.currentPage != selectedTab.ordinal) {
+            pagerState.animateScrollToPage(selectedTab.ordinal)
+        }
+    }
 
     val csvPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -161,6 +181,8 @@ fun LibraryScreen(
         }
     }
 
+    val headerColors = WatchPilotColors.current
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -196,16 +218,17 @@ fun LibraryScreen(
                 enabled = !isImportingCsv,
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                border = BorderStroke(1.dp, headerColors.goldChipBorder),
                 colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = CinemaGold.copy(alpha = 0.16f),
-                    contentColor = CinemaGold
+                    containerColor = headerColors.goldChipContainer,
+                    contentColor = headerColors.goldAccent
                 ),
                 modifier = Modifier.testTag("btn_import_csv_library")
             ) {
                 if (isImportingCsv) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(14.dp),
-                        color = CinemaGold,
+                        color = headerColors.goldAccent,
                         strokeWidth = 2.dp
                     )
                 } else {
@@ -230,8 +253,9 @@ fun LibraryScreen(
             Card(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = CinemaCyan.copy(alpha = 0.14f)
+                    containerColor = headerColors.cyanChipContainer
                 ),
+                border = BorderStroke(1.dp, headerColors.cyanChipBorder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp)
@@ -329,7 +353,12 @@ fun LibraryScreen(
                 }
                 Tab(
                     selected = selected,
-                    onClick = { viewModel.selectedLibraryTab.value = tab },
+                    onClick = {
+                        viewModel.selectedLibraryTab.value = tab
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(tab.ordinal)
+                        }
+                    },
                     text = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -387,13 +416,15 @@ fun LibraryScreen(
                     )
                 },
                 colors = FilterChipDefaults.filterChipColors(
+                    containerColor = libColors.neutralChipContainer,
+                    labelColor = MaterialTheme.colorScheme.onSurface,
                     selectedContainerColor = libColors.cyanChipContainer,
                     selectedLabelColor = libColors.cyanAccent
                 ),
                 border = FilterChipDefaults.filterChipBorder(
                     enabled = true,
                     selected = monetizationState.streamOnMyAppsOnly,
-                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                    borderColor = libColors.neutralChipBorder,
                     selectedBorderColor = libColors.cyanChipBorder
                 ),
                 modifier = Modifier.testTag("chip_on_my_apps")
@@ -420,6 +451,15 @@ fun LibraryScreen(
                         softWrap = false
                     )
                 },
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = libColors.greenChipContainer,
+                    labelColor = libColors.greenAccent
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = false,
+                    borderColor = libColors.greenChipBorder
+                ),
                 modifier = Modifier.testTag("chip_ott_money_saver")
             )
 
@@ -445,13 +485,15 @@ fun LibraryScreen(
                         )
                     },
                     colors = FilterChipDefaults.filterChipColors(
+                        containerColor = libColors.neutralChipContainer,
+                        labelColor = MaterialTheme.colorScheme.onSurface,
                         selectedContainerColor = libColors.goldChipContainer,
                         selectedLabelColor = libColors.goldAccent
                     ),
                     border = FilterChipDefaults.filterChipBorder(
                         enabled = true,
                         selected = isSortSelected,
-                        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                        borderColor = libColors.neutralChipBorder,
                         selectedBorderColor = libColors.goldChipBorder
                     )
                 )
@@ -462,14 +504,35 @@ fun LibraryScreen(
                 FilterChip(
                     selected = selectedCollection == null,
                     onClick = { viewModel.selectedCollectionFilter.value = null },
-                    label = { Text("All Lists", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                    label = {
+                        Text(
+                            "All Lists",
+                            fontSize = 11.sp,
+                            fontWeight = if (selectedCollection == null) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = libColors.neutralChipContainer,
+                        labelColor = MaterialTheme.colorScheme.onSurface,
+                        selectedContainerColor = libColors.goldChipContainer,
+                        selectedLabelColor = libColors.goldAccent
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = selectedCollection == null,
+                        borderColor = libColors.neutralChipBorder,
+                        selectedBorderColor = libColors.goldChipBorder
+                    )
                 )
                 customCollections.forEach { col ->
+                    val isColSelected = selectedCollection == col
                     FilterChip(
-                        selected = selectedCollection == col,
+                        selected = isColSelected,
                         onClick = {
                             viewModel.selectedCollectionFilter.value =
-                                if (selectedCollection == col) null else col
+                                if (isColSelected) null else col
                         },
                         leadingIcon = {
                             Icon(
@@ -478,7 +541,29 @@ fun LibraryScreen(
                                 modifier = Modifier.size(12.dp)
                             )
                         },
-                        label = { Text(col, fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                        label = {
+                            Text(
+                                col,
+                                fontSize = 11.sp,
+                                fontWeight = if (isColSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = libColors.neutralChipContainer,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                            iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            selectedContainerColor = libColors.goldChipContainer,
+                            selectedLabelColor = libColors.goldAccent,
+                            selectedLeadingIconColor = libColors.goldAccent
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isColSelected,
+                            borderColor = libColors.neutralChipBorder,
+                            selectedBorderColor = libColors.goldChipBorder
+                        )
                     )
                 }
             }
@@ -486,208 +571,236 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Library Items List
-        val isTabEmpty = libraryItems.isEmpty() && visibleFavoritePeople.isEmpty()
-        if (isTabEmpty) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = if (selectedTab == LibraryTab.FAVORITES) Icons.Default.Favorite else Icons.Default.Movie,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = if (monetizationState.streamOnMyAppsOnly) {
-                            "No ${selectedTab.label} on your apps"
-                        } else {
-                            "Nothing in ${selectedTab.label}"
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = if (monetizationState.streamOnMyAppsOnly) {
-                            "Turn off 'On My Apps' or add more streaming apps."
-                        } else if (selectedTab == LibraryTab.FAVORITES) {
-                            "Heart titles or people to save them here."
-                        } else {
-                            "Explore titles or import a CSV watchlist."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = onExploreClick,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = WatchPilotColors.current.goldSolidBg,
-                            contentColor = WatchPilotColors.current.onGoldSolid
-                        ),
-                        modifier = Modifier.testTag("btn_explore_from_empty_library")
-                    ) {
-                        Icon(imageVector = Icons.Default.Explore, contentDescription = null)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Explore Titles", fontWeight = FontWeight.Bold)
+        // Swipeable Library Tabs Content
+        HorizontalPager(
+            state = pagerState,
+            beyondViewportPageCount = 1,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .testTag("library_tab_pager")
+        ) { pageIndex ->
+            val pageTab = LibraryTab.entries[pageIndex]
+            val pageItems = libraryItemsByTab[pageTab]
+                ?: if (pageTab == selectedTab) libraryItems else emptyList()
+            val pageFavoritePeople = remember(pageTab, selectedCollection, favoritePeople, sortOption) {
+                if (pageTab == LibraryTab.FAVORITES && selectedCollection == null) {
+                    when (sortOption) {
+                        SortOption.TITLE -> favoritePeople.sortedBy { it.name.lowercase() }
+                        else -> favoritePeople.sortedByDescending { it.createdAt }
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedButton(
-                        onClick = launchCsvImport,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.testTag("btn_import_csv_empty_state")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FileUpload,
-                            contentDescription = null,
-                            tint = CinemaGold,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Import CSV")
-                    }
+                } else {
+                    emptyList()
                 }
             }
-        } else {
-            if (adaptive.isTabletOrWide) {
-                val gridColumns = adaptive.cardGridColumns
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(gridColumns),
-                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 96.dp, top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
+            val isTabEmpty = pageItems.isEmpty() && pageFavoritePeople.isEmpty()
+            val tabColors = WatchPilotColors.current
+
+            if (isTabEmpty) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    if (visibleFavoritePeople.isNotEmpty()) {
-                        item(
-                            key = "fav_people_header",
-                            span = { GridItemSpan(gridColumns) }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = if (pageTab == LibraryTab.FAVORITES) Icons.Default.Favorite else Icons.Default.Movie,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = if (monetizationState.streamOnMyAppsOnly) {
+                                "No ${pageTab.label} on your apps"
+                            } else {
+                                "Nothing in ${pageTab.label}"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (monetizationState.streamOnMyAppsOnly) {
+                                "Turn off 'On My Apps' or add more streaming apps."
+                            } else if (pageTab == LibraryTab.FAVORITES) {
+                                "Heart titles or people to save them here."
+                            } else {
+                                "Explore titles or import a CSV watchlist."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onExploreClick,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = tabColors.goldSolidBg,
+                                contentColor = tabColors.onGoldSolid
+                            ),
+                            modifier = Modifier.testTag("btn_explore_from_empty_library")
                         ) {
-                            Text(
-                                text = "People (${visibleFavoritePeople.size})",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = CinemaGold,
-                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
-                            )
+                            Icon(imageVector = Icons.Default.Explore, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Explore Titles", fontWeight = FontWeight.Bold)
                         }
-
-                        items(visibleFavoritePeople, key = { "person_${it.id}" }) { person ->
-                            FavoritePersonLibraryCard(
-                                person = person,
-                                onClick = { viewModel.openFavoritePerson(person) },
-                                onToggleFavorite = { viewModel.removeFavoritePerson(person) }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = launchCsvImport,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = tabColors.goldChipContainer,
+                                contentColor = tabColors.goldAccent
+                            ),
+                            border = BorderStroke(1.dp, tabColors.goldChipBorder),
+                            modifier = Modifier.testTag("btn_import_csv_empty_state")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FileUpload,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Import CSV", fontWeight = FontWeight.Bold)
                         }
-
-                        if (libraryItems.isNotEmpty()) {
+                    }
+                }
+            } else {
+                if (adaptive.isTabletOrWide) {
+                    val gridColumns = adaptive.cardGridColumns
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(gridColumns),
+                        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 96.dp, top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        if (pageFavoritePeople.isNotEmpty()) {
                             item(
-                                key = "fav_media_header",
+                                key = "fav_people_header",
                                 span = { GridItemSpan(gridColumns) }
                             ) {
                                 Text(
-                                    text = "Movies & Series (${libraryItems.size})",
+                                    text = "People (${pageFavoritePeople.size})",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaGold,
-                                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                    color = tabColors.goldAccent,
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                                )
+                            }
+
+                            items(pageFavoritePeople, key = { "person_${it.id}" }) { person ->
+                                FavoritePersonLibraryCard(
+                                    person = person,
+                                    onClick = { viewModel.openFavoritePerson(person) },
+                                    onToggleFavorite = { viewModel.removeFavoritePerson(person) }
+                                )
+                            }
+
+                            if (pageItems.isNotEmpty()) {
+                                item(
+                                    key = "fav_media_header",
+                                    span = { GridItemSpan(gridColumns) }
+                                ) {
+                                    Text(
+                                        text = "Movies & Series (${pageItems.size})",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = tabColors.goldAccent,
+                                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        items(pageItems, key = { it.id }) { item ->
+                            LibraryItemCard(
+                                media = item,
+                                onClick = { onMediaClick(item.id) },
+                                onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
+                            )
+                        }
+
+                        item(
+                            key = "library_sponsored_${pageTab.name}",
+                            span = { GridItemSpan(gridColumns) }
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SponsoredBannerCard(
+                                    isPro = monetizationState.isPro,
+                                    onRemoveAdsClick = {
+                                        viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
+                                    },
+                                    tagSuffix = "library",
+                                    modifier = Modifier
+                                        .widthIn(max = 728.dp)
+                                        .padding(top = 6.dp)
                                 )
                             }
                         }
                     }
-
-                    items(libraryItems, key = { it.id }) { item ->
-                        LibraryItemCard(
-                            media = item,
-                            onClick = { onMediaClick(item.id) },
-                            onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
-                        )
-                    }
-
-                    item(
-                        key = "library_sponsored_slot",
-                        span = { GridItemSpan(gridColumns) }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp, top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        if (pageFavoritePeople.isNotEmpty()) {
+                            item(key = "fav_people_header") {
+                                Text(
+                                    text = "People (${pageFavoritePeople.size})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = tabColors.goldAccent,
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                                )
+                            }
+
+                            items(pageFavoritePeople, key = { "person_${it.id}" }) { person ->
+                                FavoritePersonLibraryCard(
+                                    person = person,
+                                    onClick = { viewModel.openFavoritePerson(person) },
+                                    onToggleFavorite = { viewModel.removeFavoritePerson(person) }
+                                )
+                            }
+
+                            if (pageItems.isNotEmpty()) {
+                                item(key = "fav_media_header") {
+                                    Text(
+                                        text = "Movies & Series (${pageItems.size})",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = tabColors.goldAccent,
+                                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        items(pageItems, key = { it.id }) { item ->
+                            LibraryItemCard(
+                                media = item,
+                                onClick = { onMediaClick(item.id) },
+                                onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
+                            )
+                        }
+
+                        item(key = "library_sponsored_${pageTab.name}") {
                             SponsoredBannerCard(
                                 isPro = monetizationState.isPro,
                                 onRemoveAdsClick = {
                                     viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
                                 },
                                 tagSuffix = "library",
-                                modifier = Modifier
-                                    .widthIn(max = 728.dp)
-                                    .padding(top = 6.dp)
+                                modifier = Modifier.padding(top = 6.dp)
                             )
                         }
-                    }
-                }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp, top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    if (visibleFavoritePeople.isNotEmpty()) {
-                        item(key = "fav_people_header") {
-                            Text(
-                                text = "People (${visibleFavoritePeople.size})",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = CinemaGold,
-                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
-                            )
-                        }
-
-                        items(visibleFavoritePeople, key = { "person_${it.id}" }) { person ->
-                            FavoritePersonLibraryCard(
-                                person = person,
-                                onClick = { viewModel.openFavoritePerson(person) },
-                                onToggleFavorite = { viewModel.removeFavoritePerson(person) }
-                            )
-                        }
-
-                        if (libraryItems.isNotEmpty()) {
-                            item(key = "fav_media_header") {
-                                Text(
-                                    text = "Movies & Series (${libraryItems.size})",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = CinemaGold,
-                                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    items(libraryItems, key = { it.id }) { item ->
-                        LibraryItemCard(
-                            media = item,
-                            onClick = { onMediaClick(item.id) },
-                            onIncrementEpisode = { viewModel.incrementEpisode(item.id) }
-                        )
-                    }
-
-                    item(key = "library_sponsored_slot") {
-                        SponsoredBannerCard(
-                            isPro = monetizationState.isPro,
-                            onRemoveAdsClick = {
-                                viewModel.openPaywall("Remove all ads across WatchPilot with WatchPilot Pro.")
-                            },
-                            tagSuffix = "library",
-                            modifier = Modifier.padding(top = 6.dp)
-                        )
                     }
                 }
             }
@@ -702,6 +815,7 @@ fun FavoritePersonLibraryCard(
     onToggleFavorite: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val cardColors = WatchPilotColors.current
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -723,7 +837,7 @@ fun FavoritePersonLibraryCard(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(CinemaGold.copy(alpha = 0.16f)),
+                    .background(cardColors.goldChipContainer),
                 contentAlignment = Alignment.Center
             ) {
                 if (person.profileUrl.isNotBlank()) {
@@ -737,7 +851,7 @@ fun FavoritePersonLibraryCard(
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = person.name,
-                        tint = CinemaGold,
+                        tint = cardColors.goldAccent,
                         modifier = Modifier.size(30.dp)
                     )
                 }
@@ -748,13 +862,14 @@ fun FavoritePersonLibraryCard(
             Column(modifier = Modifier.weight(1f)) {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = CinemaCyan.copy(alpha = 0.18f)
+                    color = cardColors.cyanChipContainer,
+                    border = BorderStroke(1.dp, cardColors.cyanChipBorder)
                 ) {
                     Text(
                         text = person.department.ifBlank { "Acting" }.uppercase(),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = CinemaCyan,
+                        color = cardColors.cyanAccent,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
@@ -806,7 +921,7 @@ fun FavoritePersonLibraryCard(
                 Icon(
                     imageVector = Icons.Default.Favorite,
                     contentDescription = "Remove ${person.name} from Favorites",
-                    tint = CinemaRed
+                    tint = cardColors.redAccent
                 )
             }
         }
@@ -820,6 +935,7 @@ fun LibraryItemCard(
     onIncrementEpisode: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val itemColors = WatchPilotColors.current
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -880,7 +996,7 @@ fun LibraryItemCard(
                         Icon(
                             imageVector = Icons.Default.Favorite,
                             contentDescription = "Favorite",
-                            tint = CinemaRed,
+                            tint = itemColors.redAccent,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -914,7 +1030,7 @@ fun LibraryItemCard(
                         Text(
                             text = "• ${media.customWatchlist}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = CinemaGold,
+                            color = itemColors.goldAccent,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -940,7 +1056,7 @@ fun LibraryItemCard(
                             Icon(
                                 imageVector = Icons.Default.Star,
                                 contentDescription = null,
-                                tint = CinemaGold,
+                                tint = itemColors.goldAccent,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(3.dp))
@@ -948,7 +1064,7 @@ fun LibraryItemCard(
                                 text = media.getFormattedUserRating(),
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
-                                color = CinemaGold,
+                                color = itemColors.goldAccent,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -971,7 +1087,7 @@ fun LibraryItemCard(
                             text = "${media.watchedEpisodes} / ${media.totalEpisodes} eps",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = CinemaCyan,
+                            color = itemColors.cyanAccent,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -987,7 +1103,7 @@ fun LibraryItemCard(
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = CinemaGold,
+                        color = itemColors.goldSolidBg,
                         trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                 }
@@ -1016,9 +1132,10 @@ fun LibraryItemCard(
                     onClick = onIncrementEpisode,
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    border = BorderStroke(1.dp, itemColors.goldChipBorder),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = CinemaGold.copy(alpha = 0.2f),
-                        contentColor = CinemaGold
+                        containerColor = itemColors.goldChipContainer,
+                        contentColor = itemColors.goldAccent
                     )
                 ) {
                     Icon(

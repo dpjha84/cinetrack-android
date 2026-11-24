@@ -83,8 +83,6 @@ import com.example.data.model.WatchStatus
 import com.example.data.remote.tmdb.TmdbClient
 import com.example.data.remote.tmdb.TmdbKnownForDto
 import com.example.data.remote.tmdb.TmdbPersonDetailDto
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
@@ -426,6 +424,8 @@ private fun PersonHeroBanner(
 
                     Spacer(modifier = Modifier.height(18.dp))
 
+                    val heroColors = WatchPilotColors.current
+
                     // Portrait + Actor Identity
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -436,7 +436,7 @@ private fun PersonHeroBanner(
                                 .size(if (isTablet) 128.dp else 108.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .border(2.dp, CinemaGold.copy(alpha = 0.85f), CircleShape),
+                                .border(2.dp, heroColors.goldAccent.copy(alpha = 0.85f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             if (!profileUrl.isNullOrBlank()) {
@@ -453,7 +453,7 @@ private fun PersonHeroBanner(
                                 Icon(
                                     imageVector = Icons.Default.Person,
                                     contentDescription = displayName,
-                                    tint = CinemaGold,
+                                    tint = heroColors.goldAccent,
                                     modifier = Modifier.size(48.dp)
                                 )
                             }
@@ -475,14 +475,14 @@ private fun PersonHeroBanner(
 
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = CinemaGold.copy(alpha = 0.2f),
-                                border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.5f))
+                                color = heroColors.goldChipContainer,
+                                border = BorderStroke(1.dp, heroColors.goldChipBorder)
                             ) {
                                 Text(
                                     text = department.uppercase(),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaGold,
+                                    color = heroColors.goldAccent,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
@@ -496,7 +496,7 @@ private fun PersonHeroBanner(
                                     Icon(
                                         imageVector = Icons.Default.CalendarToday,
                                         contentDescription = null,
-                                        tint = CinemaCyan,
+                                        tint = heroColors.cyanAccent,
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Text(
@@ -516,7 +516,7 @@ private fun PersonHeroBanner(
                                     Icon(
                                         imageVector = Icons.Default.LocationOn,
                                         contentDescription = null,
-                                        tint = CinemaCyan,
+                                        tint = heroColors.cyanAccent,
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Text(
@@ -545,7 +545,7 @@ private fun PersonLoadingRow() {
     ) {
         CircularProgressIndicator(
             modifier = Modifier.size(20.dp),
-            color = CinemaGold,
+            color = WatchPilotColors.current.goldAccent,
             strokeWidth = 2.dp
         )
         Spacer(modifier = Modifier.width(10.dp))
@@ -590,7 +590,7 @@ private fun PersonBiographySection(
             ) {
                 Text(
                     text = if (isBioExpanded) "Show less" else "Read full biography",
-                    color = CinemaCyan,
+                    color = WatchPilotColors.current.cyanAccent,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp
                 )
@@ -656,13 +656,15 @@ private fun PersonFilmographyHeader(
                             )
                         },
                         colors = FilterChipDefaults.filterChipColors(
+                            containerColor = chipColors.neutralChipContainer,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
                             selectedContainerColor = chipColors.goldChipContainer,
                             selectedLabelColor = chipColors.goldAccent
                         ),
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = selected,
-                            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                            borderColor = chipColors.neutralChipBorder,
                             selectedBorderColor = chipColors.goldChipBorder
                         ),
                         modifier = Modifier.testTag("person_filter_${filter.name.lowercase()}")
@@ -767,7 +769,11 @@ private fun PersonCreditCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isMovie) creditColors.goldChipContainer else creditColors.cyanChipContainer
+                        color = if (isMovie) creditColors.goldChipContainer else creditColors.cyanChipContainer,
+                        border = BorderStroke(
+                            1.dp,
+                            if (isMovie) creditColors.goldChipBorder else creditColors.cyanChipBorder
+                        )
                     ) {
                         Text(
                             text = if (isMovie) "MOVIE" else "SERIES",
@@ -827,7 +833,7 @@ private fun PersonCreditCard(
                 Icon(
                     imageVector = if (isInWatchlist) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                     contentDescription = if (isInWatchlist) "Remove from Watchlist" else "Add to Watchlist",
-                    tint = if (isInWatchlist) CinemaGold else MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (isInWatchlist) WatchPilotColors.current.goldAccent else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

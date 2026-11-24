@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_window_background</item>
+        <item name="android:colorBackground">@color/watchpilot_dark_bg</item>
+        <item name="android:statusBarColor">@color/splash_obsidian</item>
+        <item name="android:navigationBarColor">@color/splash_obsidian</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

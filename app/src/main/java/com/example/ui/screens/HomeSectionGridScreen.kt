@@ -55,10 +55,9 @@ import com.example.data.local.MediaEntity
 import com.example.data.model.HomeCatalogSection
 import com.example.data.model.MediaType
 import com.example.data.model.TmdbSearchResultItem
+import com.example.data.model.WatchStatus
 import com.example.ui.components.CompactMediaPosterCard
 import com.example.ui.components.CompactPersonCircleCard
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -83,7 +82,9 @@ fun HomeSectionGridScreen(
     people: List<TmdbSearchResultItem.Person> = emptyList(),
     onPersonClick: (TmdbSearchResultItem.Person) -> Unit = {},
     isFilterLocked: Boolean = false,
-    isGenreFilterLocked: Boolean = false
+    isGenreFilterLocked: Boolean = false,
+    trackedMediaById: Map<String, MediaEntity> = emptyMap(),
+    onAddToWatchlist: ((MediaEntity) -> Unit)? = null
 ) {
     BackHandler(onBack = onBack)
 
@@ -202,8 +203,16 @@ fun HomeSectionGridScreen(
                             onClick = { onSelectType(null) },
                             label = { Text("All Media", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = chipColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
                                 selectedContainerColor = chipColors.goldSolidBg,
                                 selectedLabelColor = chipColors.onGoldSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedType == null,
+                                borderColor = chipColors.neutralChipBorder,
+                                selectedBorderColor = chipColors.goldChipBorder
                             ),
                             modifier = Modifier.testTag("section_filter_all")
                         )
@@ -219,9 +228,18 @@ fun HomeSectionGridScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = chipColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 selectedContainerColor = chipColors.goldSolidBg,
                                 selectedLabelColor = chipColors.onGoldSolid,
                                 selectedLeadingIconColor = chipColors.onGoldSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedType == MediaType.MOVIE,
+                                borderColor = chipColors.neutralChipBorder,
+                                selectedBorderColor = chipColors.goldChipBorder
                             ),
                             modifier = Modifier.testTag("section_filter_movies")
                         )
@@ -237,9 +255,18 @@ fun HomeSectionGridScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = chipColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 selectedContainerColor = chipColors.cyanSolidBg,
                                 selectedLabelColor = chipColors.onCyanSolid,
                                 selectedLeadingIconColor = chipColors.onCyanSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedType == MediaType.TV_SHOW,
+                                borderColor = chipColors.neutralChipBorder,
+                                selectedBorderColor = chipColors.cyanChipBorder
                             ),
                             modifier = Modifier.testTag("section_filter_tv")
                         )
@@ -262,7 +289,25 @@ fun HomeSectionGridScreen(
                         FilterChip(
                             selected = selectedGenre == null,
                             onClick = { onSelectGenre(null) },
-                            label = { Text("All Genres", fontSize = 12.sp) },
+                            label = {
+                                Text(
+                                    "All Genres",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (selectedGenre == null) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = chipColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                selectedContainerColor = chipColors.goldChipContainer,
+                                selectedLabelColor = chipColors.goldAccent
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedGenre == null,
+                                borderColor = chipColors.neutralChipBorder,
+                                selectedBorderColor = chipColors.goldChipBorder
+                            ),
                             modifier = Modifier.testTag("section_genre_all")
                         )
 
@@ -281,13 +326,15 @@ fun HomeSectionGridScreen(
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = chipColors.neutralChipContainer,
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
                                     selectedContainerColor = chipColors.goldChipContainer,
                                     selectedLabelColor = chipColors.goldAccent
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
                                     enabled = true,
                                     selected = isGenreSelected,
-                                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                                    borderColor = chipColors.neutralChipBorder,
                                     selectedBorderColor = chipColors.goldChipBorder
                                 ),
                                 modifier = Modifier.testTag("section_genre_${genre.lowercase().replace(" ", "_")}")
@@ -379,11 +426,19 @@ fun HomeSectionGridScreen(
                         items = items,
                         key = { media -> "grid_${section.name}_${media.id}" }
                     ) { media ->
+                        val resolvedMedia = trackedMediaById[media.id] ?: media
+                        val isInLibrary = media.id in trackedMediaById ||
+                            resolvedMedia.getWatchStatusEnum() != WatchStatus.NONE ||
+                            resolvedMedia.isFavorite ||
+                            resolvedMedia.userRating > 0f ||
+                            !resolvedMedia.customWatchlist.isNullOrBlank()
                         CompactMediaPosterCard(
-                            media = media,
-                            onClick = { onMediaClick(media.id) },
+                            media = resolvedMedia,
+                            onClick = { onMediaClick(resolvedMedia.id) },
                             modifier = Modifier.fillMaxWidth(),
-                            testTagPrefix = "grid_${section.name.lowercase()}_card"
+                            testTagPrefix = "grid_${section.name.lowercase()}_card",
+                            isInLibrary = isInLibrary,
+                            onAddToWatchlist = onAddToWatchlist?.let { addFn -> { addFn(media) } }
                         )
                     }
                 }
@@ -407,7 +462,7 @@ fun HomeSectionGridScreen(
                                     modifier = Modifier.testTag("section_grid_loading_more")
                                 ) {
                                     CircularProgressIndicator(
-                                        color = CinemaGold,
+                                        color = WatchPilotColors.current.goldAccent,
                                         strokeWidth = 2.dp,
                                         modifier = Modifier.size(18.dp)
                                     )

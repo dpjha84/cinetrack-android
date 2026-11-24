@@ -62,11 +62,9 @@ import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
 import com.example.data.billing.MonetizationManager
 import com.example.data.model.MonetizationState
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.DarkBackground
+import com.example.data.model.PlanType
 import com.example.ui.theme.WatchPilotColors
+import com.example.util.findActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,7 +80,16 @@ fun WatchPilotProPaywallSheet(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var selectedSku by remember { mutableStateOf(MonetizationManager.SKU_PRO_ANNUAL) }
+    val paywallColors = WatchPilotColors.current
+    var selectedSku by remember(monetizationState.planType) {
+        mutableStateOf(
+            when (monetizationState.planType) {
+                PlanType.PRO_LIFETIME -> MonetizationManager.SKU_PRO_LIFETIME
+                PlanType.PRO_MONTHLY -> MonetizationManager.SKU_PRO_MONTHLY
+                else -> MonetizationManager.SKU_PRO_ANNUAL
+            }
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -116,7 +123,7 @@ fun WatchPilotProPaywallSheet(
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
-                                    listOf(CinemaGold, CinemaCyan)
+                                    listOf(paywallColors.goldSolidBg, paywallColors.cyanSolidBg)
                                 )
                             ),
                         contentAlignment = Alignment.Center
@@ -124,7 +131,7 @@ fun WatchPilotProPaywallSheet(
                         Icon(
                             imageVector = Icons.Filled.WorkspacePremium,
                             contentDescription = "WatchPilot Pro",
-                            tint = DarkBackground
+                            tint = paywallColors.onGoldSolid
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
@@ -137,7 +144,6 @@ fun WatchPilotProPaywallSheet(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        val paywallColors = WatchPilotColors.current
                         Text(
                             text = "Track Smarter • Decide Faster • Save on OTT",
                             fontSize = 12.sp,
@@ -257,16 +263,26 @@ fun WatchPilotProPaywallSheet(
                 Text(
                     text = monetizationState.billingStatusMessage,
                     fontSize = 12.sp,
-                    color = CinemaCyan,
+                    color = paywallColors.cyanAccent,
                     modifier = Modifier.padding(horizontal = 4.dp)
                 )
             }
 
+            val selectedSkuMatchesCurrentPlan =
+                (monetizationState.planType == PlanType.PRO_LIFETIME && selectedSku == MonetizationManager.SKU_PRO_LIFETIME) ||
+                    (monetizationState.planType == PlanType.PRO_ANNUAL && selectedSku == MonetizationManager.SKU_PRO_ANNUAL) ||
+                    (monetizationState.planType == PlanType.PRO_MONTHLY && selectedSku == MonetizationManager.SKU_PRO_MONTHLY)
+            val isLifetimePro = monetizationState.planType == PlanType.PRO_LIFETIME
+            val shouldDismissOnCta = monetizationState.isPro && (isLifetimePro || selectedSkuMatchesCurrentPlan)
+
             Button(
                 onClick = {
-                    val act = context as? Activity
-                    if (act != null) {
-                        onPurchaseSku(act, selectedSku)
+                    if (shouldDismissOnCta) {
+                        onDismiss()
+                    } else {
+                        context.findActivity()?.let { act ->
+                            onPurchaseSku(act, selectedSku)
+                        }
                     }
                 },
                 modifier = Modifier
@@ -275,12 +291,18 @@ fun WatchPilotProPaywallSheet(
                     .testTag("continue_play_billing_button"),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = CinemaGold,
-                    contentColor = DarkBackground
+                    containerColor = paywallColors.goldSolidBg,
+                    contentColor = paywallColors.onGoldSolid
                 )
             ) {
                 Text(
-                    text = if (monetizationState.isPro) "Active: ${monetizationState.planType.displayLabel}" else "Continue with Google Play",
+                    text = when {
+                        isLifetimePro -> "Active: Lifetime Pro • Done"
+                        monetizationState.isPro && selectedSkuMatchesCurrentPlan ->
+                            "Active: ${monetizationState.planType.displayLabel} • Done"
+                        monetizationState.isPro -> "Switch / Upgrade Plan"
+                        else -> "Continue with Google Play"
+                    },
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp
                 )
@@ -337,13 +359,17 @@ fun WatchPilotProPaywallSheet(
                                 onActivateSandboxPro()
                                 onDismiss()
                             },
-                            border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.6f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = paywallColors.cyanChipContainer,
+                                contentColor = paywallColors.cyanAccent
+                            ),
+                            border = BorderStroke(1.dp, paywallColors.cyanChipBorder),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.testTag("try_pro_sandbox_button")
                         ) {
                             Text(
                                 text = "Pro Preview (Sandbox)",
-                                color = CinemaCyan,
+                                color = paywallColors.cyanAccent,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
@@ -378,7 +404,7 @@ private fun ProBenefitRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = CinemaGold,
+            tint = WatchPilotColors.current.goldAccent,
             modifier = Modifier
                 .padding(top = 2.dp)
                 .size(20.dp)

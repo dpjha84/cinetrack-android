@@ -41,9 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.R
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.WatchPilotColors
 
 @Composable
@@ -54,11 +51,12 @@ fun RateAppDialog(
     onMaybeLater: () -> Unit,
     onNeverAskAgain: () -> Unit
 ) {
+    val dialogColors = WatchPilotColors.current
     Dialog(onDismissRequest = onMaybeLater) {
         Card(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.35f)),
+            border = BorderStroke(1.dp, dialogColors.goldChipBorder),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("rate_app_dialog")
@@ -74,24 +72,24 @@ fun RateAppDialog(
                         .size(60.dp)
                         .clip(CircleShape)
                         .background(
-                            Brush.linearGradient(listOf(CinemaGold, CinemaCyan))
+                            Brush.linearGradient(listOf(dialogColors.goldSolidBg, dialogColors.cyanSolidBg))
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Star,
                         contentDescription = stringResource(R.string.rate_app_dialog_title),
-                        tint = DarkBackground,
+                        tint = dialogColors.onGoldSolid,
                         modifier = Modifier.size(30.dp)
                     )
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                val dialogColors = WatchPilotColors.current
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = dialogColors.goldChipContainer
+                    color = dialogColors.goldChipContainer,
+                    border = BorderStroke(1.dp, dialogColors.goldChipBorder)
                 ) {
                     Text(
                         text = stringResource(R.string.rate_app_milestone_badge, maxOf(5, watchedCount)),

@@ -64,13 +64,9 @@ import coil.compose.AsyncImage
 import com.example.data.model.MatchCandidateCard
 import com.example.data.model.MatchRoomUiState
 import com.example.data.model.MonetizationState
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.CinemaRed
-import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.WatchPilotColors
 import com.example.util.OttMoneySaverCalculator
+import com.example.util.findActivity
 import com.google.firebase.auth.FirebaseUser
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -90,6 +86,7 @@ fun SwipeToMatchSheet(
     onWatchRewardedTrialAd: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val matchColors = WatchPilotColors.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var joinCodeInput by remember { mutableStateOf("") }
     val selectedProviders = remember {
@@ -147,7 +144,7 @@ fun SwipeToMatchSheet(
                         Icon(
                             imageVector = Icons.Filled.Group,
                             contentDescription = null,
-                            tint = CinemaGold,
+                            tint = matchColors.goldAccent,
                             modifier = Modifier.size(38.dp)
                         )
                         Text(
@@ -163,11 +160,11 @@ fun SwipeToMatchSheet(
                         )
                         Button(
                             onClick = {
-                                (context as? Activity)?.let { onSignInWithGoogle(it) }
+                                context.findActivity()?.let { onSignInWithGoogle(it) }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = CinemaGold,
-                                contentColor = DarkBackground
+                                containerColor = matchColors.goldSolidBg,
+                                contentColor = matchColors.onGoldSolid
                             ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.testTag("match_room_google_signin_button")
@@ -179,8 +176,8 @@ fun SwipeToMatchSheet(
                         if (matchRoomState is MatchRoomUiState.Error) {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = CinemaRed.copy(alpha = 0.14f)),
-                                border = BorderStroke(1.dp, CinemaRed.copy(alpha = 0.45f)),
+                                colors = CardDefaults.cardColors(containerColor = matchColors.redChipContainer),
+                                border = BorderStroke(1.dp, matchColors.redChipBorder),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text(
@@ -200,8 +197,8 @@ fun SwipeToMatchSheet(
                 is MatchRoomUiState.Idle, is MatchRoomUiState.Error -> {
                     if (matchRoomState is MatchRoomUiState.Error) {
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = CinemaRed.copy(alpha = 0.14f)),
-                            border = BorderStroke(1.dp, CinemaRed.copy(alpha = 0.45f)),
+                            colors = CardDefaults.cardColors(containerColor = matchColors.redChipContainer),
+                            border = BorderStroke(1.dp, matchColors.redChipBorder),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
@@ -245,7 +242,7 @@ fun SwipeToMatchSheet(
                                     },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaGold,
+                                    color = matchColors.goldAccent,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -267,10 +264,24 @@ fun SwipeToMatchSheet(
                                             if (selected) selectedProviders.remove(svc.canonicalName)
                                             else selectedProviders.add(svc.canonicalName)
                                         },
-                                        label = { Text(svc.shortLabel, fontSize = 11.sp) },
+                                        label = {
+                                            Text(
+                                                text = svc.shortLabel,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                            )
+                                        },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = CinemaGold,
-                                            selectedLabelColor = DarkBackground
+                                            containerColor = matchColors.neutralChipContainer,
+                                            labelColor = MaterialTheme.colorScheme.onSurface,
+                                            selectedContainerColor = matchColors.goldSolidBg,
+                                            selectedLabelColor = matchColors.onGoldSolid
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = selected,
+                                            borderColor = matchColors.neutralChipBorder,
+                                            selectedBorderColor = matchColors.goldChipBorder
                                         )
                                     )
                                 }
@@ -290,8 +301,8 @@ fun SwipeToMatchSheet(
                                     .testTag("create_match_room_button"),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = CinemaGold,
-                                    contentColor = DarkBackground
+                                    containerColor = matchColors.goldSolidBg,
+                                    contentColor = matchColors.onGoldSolid
                                 )
                             ) {
                                 Text(
@@ -330,7 +341,7 @@ fun SwipeToMatchSheet(
                                     text = "ALWAYS FREE",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaGreen,
+                                    color = matchColors.greenAccent,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -357,8 +368,8 @@ fun SwipeToMatchSheet(
                                         .testTag("join_match_room_button"),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = CinemaCyan,
-                                        contentColor = DarkBackground
+                                        containerColor = matchColors.cyanSolidBg,
+                                        contentColor = matchColors.onCyanSolid
                                     )
                                 ) {
                                     Text("Join", fontWeight = FontWeight.Bold)
@@ -375,7 +386,7 @@ fun SwipeToMatchSheet(
                             .padding(vertical = 36.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = CinemaGold)
+                        CircularProgressIndicator(color = matchColors.goldAccent)
                     }
                 }
 
@@ -443,8 +454,8 @@ fun SwipeToMatchSheet(
                     if (room.status == "MATCHED" && !room.matchedMediaId.isNullOrBlank()) {
                         val matchedCandidate = room.candidates.find { it.id == room.matchedMediaId }
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = CinemaGreen.copy(alpha = 0.16f)),
-                            border = BorderStroke(2.dp, CinemaGreen),
+                            colors = CardDefaults.cardColors(containerColor = matchColors.greenChipContainer),
+                            border = BorderStroke(2.dp, matchColors.greenChipBorder),
                             shape = RoundedCornerShape(18.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -458,14 +469,14 @@ fun SwipeToMatchSheet(
                                 Icon(
                                     imageVector = Icons.Filled.Celebration,
                                     contentDescription = null,
-                                    tint = CinemaGreen,
+                                    tint = matchColors.greenAccent,
                                     modifier = Modifier.size(36.dp)
                                 )
                                 Text(
                                     text = "IT'S A MUTUAL MATCH!",
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 18.sp,
-                                    color = CinemaGreen
+                                    color = matchColors.greenAccent
                                 )
                                 AsyncImage(
                                     model = room.matchedPosterUrl,
@@ -491,8 +502,8 @@ fun SwipeToMatchSheet(
                                         )
                                     },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = CinemaGold,
-                                        contentColor = DarkBackground
+                                        containerColor = matchColors.goldSolidBg,
+                                        contentColor = matchColors.onGoldSolid
                                     ),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.fillMaxWidth()
@@ -556,7 +567,7 @@ fun SwipeToMatchSheet(
                                         modifier = Modifier
                                             .size(width = 165.dp, height = 245.dp)
                                             .clip(RoundedCornerShape(14.dp))
-                                            .background(DarkBackground)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                     )
                                     Text(
                                         text = nextCandidate.title,
@@ -574,7 +585,7 @@ fun SwipeToMatchSheet(
                                             text = nextCandidate.providersLabel,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = CinemaCyan
+                                            color = matchColors.cyanAccent
                                         )
                                     }
 
@@ -587,17 +598,21 @@ fun SwipeToMatchSheet(
                                         OutlinedButton(
                                             onClick = { onSwipeCandidate(nextCandidate, false) },
                                             shape = CircleShape,
-                                            border = BorderStroke(1.5.dp, CinemaRed),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                containerColor = matchColors.redChipContainer,
+                                                contentColor = matchColors.redAccent
+                                            ),
+                                            border = BorderStroke(1.5.dp, matchColors.redChipBorder),
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .height(50.dp)
                                                 .testTag("swipe_pass_button")
                                         ) {
-                                            Icon(Icons.Filled.Close, contentDescription = null, tint = CinemaRed)
+                                            Icon(Icons.Filled.Close, contentDescription = null, tint = matchColors.redAccent)
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 text = "Pass",
-                                                color = CinemaRed,
+                                                color = matchColors.redAccent,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 1,
                                                 softWrap = false
@@ -608,8 +623,8 @@ fun SwipeToMatchSheet(
                                             onClick = { onSwipeCandidate(nextCandidate, true) },
                                             shape = CircleShape,
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = CinemaGreen,
-                                                contentColor = DarkBackground
+                                                containerColor = matchColors.greenSolidBg,
+                                                contentColor = matchColors.onGreenSolid
                                             ),
                                             modifier = Modifier
                                                 .weight(1.35f)

@@ -238,30 +238,75 @@ private class PlayBillingClientGateway(
     }
 
     private suspend fun handlePurchases(purchases: List<Purchase>) {
-        var resolvedPlan: PlanType? = null
+        val purchasedProductSets = mutableListOf<Collection<String>>()
+        var hasPending = false
+        var ackFailureMessage: String? = null
+
         for (purchase in purchases) {
-            if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) continue
-            if (!purchase.isAcknowledged) {
-                val ackParams = AcknowledgePurchaseParams.newBuilder()
-                    .setPurchaseToken(purchase.purchaseToken)
-                    .build()
-                billingClient.acknowledgePurchase(ackParams)
-            }
-            val products = purchase.products
-            resolvedPlan = when {
-                MonetizationManager.SKU_PRO_LIFETIME in products -> PlanType.PRO_LIFETIME
-                MonetizationManager.SKU_PRO_ANNUAL in products -> PlanType.PRO_ANNUAL
-                MonetizationManager.SKU_PRO_MONTHLY in products -> PlanType.PRO_MONTHLY
-                else -> PlanType.PRO_ANNUAL
+            when (purchase.purchaseState) {
+                Purchase.PurchaseState.PENDING -> {
+                    hasPending = true
+                }
+                Purchase.PurchaseState.PURCHASED -> {
+                    if (!purchase.isAcknowledged) {
+                        val ackParams = AcknowledgePurchaseParams.newBuilder()
+                            .setPurchaseToken(purchase.purchaseToken)
+                            .build()
+                        val ackResult = billingClient.acknowledgePurchase(ackParams)
+                        if (ackResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                            Log.w(TAG, "acknowledgePurchase failed (${ackResult.responseCode}): ${ackResult.debugMessage}")
+                            ackFailureMessage =
+                                "Purchase acknowledgment delayed (${ackResult.debugMessage.ifBlank { "code ${ackResult.responseCode}" }}). Try Restore Purchases shortly."
+                        }
+                    }
+                    purchasedProductSets.add(purchase.products)
+                }
+                else -> Unit
             }
         }
 
-        if (resolvedPlan != null) {
-            callbacks.onPlansUnlocked(resolvedPlan, "${resolvedPlan.displayLabel} unlocked!")
+        val resolvedPlan = resolveHighestTierPlan(purchasedProductSets)
+        when {
+            resolvedPlan != null -> {
+                val unlockMsg = ackFailureMessage ?: "${resolvedPlan.displayLabel} unlocked!"
+                callbacks.onPlansUnlocked(resolvedPlan, unlockMsg)
+            }
+            hasPending -> {
+                callbacks.onStatusMessage(
+                    "Purchase is pending confirmation in Google Play. WatchPilot Pro will unlock automatically once payment settles."
+                )
+            }
+            ackFailureMessage != null -> {
+                callbacks.onStatusMessage(ackFailureMessage)
+            }
         }
     }
 
     override fun destroy() {
         runCatching { billingClient.endConnection() }
     }
+}
+
+internal fun resolveHighestTierPlan(purchasedProductSets: List<Collection<String>>): PlanType? {
+    var bestPlan: PlanType? = null
+    for (products in purchasedProductSets) {
+        val planForPurchase = when {
+            MonetizationManager.SKU_PRO_LIFETIME in products -> PlanType.PRO_LIFETIME
+            MonetizationManager.SKU_PRO_ANNUAL in products -> PlanType.PRO_ANNUAL
+            MonetizationManager.SKU_PRO_MONTHLY in products -> PlanType.PRO_MONTHLY
+            else -> PlanType.PRO_ANNUAL
+        }
+        if (bestPlan == null || planTierRank(planForPurchase) > planTierRank(bestPlan)) {
+            bestPlan = planForPurchase
+        }
+    }
+    return bestPlan
+}
+
+private fun planTierRank(plan: PlanType): Int = when (plan) {
+    PlanType.PRO_LIFETIME -> 4
+    PlanType.PRO_ANNUAL -> 3
+    PlanType.PRO_MONTHLY -> 2
+    PlanType.PRO_SANDBOX -> 1
+    PlanType.FREE -> 0
 }

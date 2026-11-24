@@ -47,8 +47,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.local.UserPreferencesEntity
 import com.example.data.model.RegionalDefaults
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.WatchPilotColors
 
 @Composable
@@ -65,6 +63,7 @@ fun LocalizationPreferencesDialog(
     var filterOnlyLanguage by remember { mutableStateOf(currentPreferences.filterCatalogByLanguage) }
 
     val detected = remember { RegionalDefaults.detectDeviceRegion() }
+    val locColors = WatchPilotColors.current
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -147,8 +146,8 @@ fun LocalizationPreferencesDialog(
                             }
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = CinemaGold,
-                            checkedTrackColor = CinemaGold.copy(alpha = 0.3f)
+                            checkedThumbColor = locColors.onGoldSolid,
+                            checkedTrackColor = locColors.goldSolidBg
                         )
                     )
                 }
@@ -179,7 +178,7 @@ fun LocalizationPreferencesDialog(
                                 RadioButton(
                                     selected = selectedRegion.equals(region.code, ignoreCase = true),
                                     onClick = { selectedRegion = region.code },
-                                    colors = RadioButtonDefaults.colors(selectedColor = CinemaGold)
+                                    colors = RadioButtonDefaults.colors(selectedColor = locColors.goldAccent)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
@@ -209,7 +208,6 @@ fun LocalizationPreferencesDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val locColors = WatchPilotColors.current
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     RegionalDefaults.supportedLanguages.chunked(2).forEach { rowLangs ->
                         Row(
@@ -231,8 +229,16 @@ fun LocalizationPreferencesDialog(
                                         )
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = locColors.neutralChipContainer,
+                                        labelColor = MaterialTheme.colorScheme.onSurface,
                                         selectedContainerColor = locColors.goldSolidBg,
                                         selectedLabelColor = locColors.onGoldSolid
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = isLangSelected,
+                                        borderColor = locColors.neutralChipBorder,
+                                        selectedBorderColor = locColors.goldChipBorder
                                     ),
                                     modifier = Modifier.weight(1f)
                                 )
@@ -273,8 +279,8 @@ fun LocalizationPreferencesDialog(
                         onCheckedChange = { filterOnlyLanguage = it },
                         enabled = !selectedLanguage.equals("all", ignoreCase = true),
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = CinemaCyan,
-                            checkedTrackColor = CinemaCyan.copy(alpha = 0.3f)
+                            checkedThumbColor = locColors.onCyanSolid,
+                            checkedTrackColor = locColors.cyanSolidBg
                         )
                     )
                 }

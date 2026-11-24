@@ -46,8 +46,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.model.MediaType
 import com.example.data.model.WatchStatus
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.WatchPilotColors
 
 @Composable
@@ -145,8 +143,16 @@ fun AddCustomMediaDialog(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = customMediaColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
                                 selectedContainerColor = customMediaColors.goldSolidBg,
                                 selectedLabelColor = customMediaColors.onGoldSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = customMediaColors.neutralChipBorder,
+                                selectedBorderColor = customMediaColors.goldChipBorder
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -316,8 +322,16 @@ fun AddCustomMediaDialog(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = statusChipColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
                                 selectedContainerColor = statusChipColors.cyanSolidBg,
                                 selectedLabelColor = statusChipColors.onCyanSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = statusChipColors.neutralChipBorder,
+                                selectedBorderColor = statusChipColors.cyanChipBorder
                             )
                         )
                     }

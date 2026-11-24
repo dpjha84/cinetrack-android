@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,11 +52,6 @@ import com.example.R
 import com.example.data.model.MonetizationState
 import com.example.data.model.OttMoneySaverSummary
 import com.example.data.model.OttRecommendation
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.CinemaRed
-import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.WatchPilotColors
 import com.example.util.OttMoneySaverCalculator
 import java.util.Locale
@@ -72,6 +68,7 @@ fun OttMoneySaverSheet(
     onUpgradePro: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val ottColors = WatchPilotColors.current
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -127,12 +124,21 @@ fun OttMoneySaverSheet(
                         label = {
                             Text(
                                 text = "${svc.shortLabel} ($${String.format(Locale.US, "%.0f", svc.defaultMonthlyUsd)})",
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                             )
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaGold,
-                            selectedLabelColor = DarkBackground
+                            containerColor = ottColors.neutralChipContainer,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                            selectedContainerColor = ottColors.goldSolidBg,
+                            selectedLabelColor = ottColors.onGoldSolid
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selected,
+                            borderColor = ottColors.neutralChipBorder,
+                            selectedBorderColor = ottColors.goldChipBorder
                         )
                     )
                 }
@@ -169,7 +175,10 @@ fun OttMoneySaverSheet(
                     Switch(
                         checked = monetizationState.streamOnMyAppsOnly,
                         onCheckedChange = onToggleStreamOnMyAppsOnly,
-                        colors = SwitchDefaults.colors(checkedThumbColor = DarkBackground, checkedTrackColor = CinemaGold)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = ottColors.onGoldSolid,
+                            checkedTrackColor = ottColors.goldSolidBg
+                        )
                     )
                 }
             }
@@ -191,7 +200,7 @@ fun OttMoneySaverSheet(
                 // Spend & Savings Hero Banner
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, ottColors.goldChipBorder),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Row(
@@ -216,7 +225,7 @@ fun OttMoneySaverSheet(
                             Text(
                                 text = "${summary.coveredWatchlistCount}/${summary.totalAuditedWatchlistCount} watchlist titles covered",
                                 fontSize = 11.sp,
-                                color = CinemaCyan,
+                                color = ottColors.cyanAccent,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -227,14 +236,14 @@ fun OttMoneySaverSheet(
                                 text = "$${String.format(Locale.US, "%.2f", summary.potentialMonthlySavingsUsd)}/mo",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 20.sp,
-                                color = if (summary.potentialMonthlySavingsUsd > 0f) CinemaGreen else CinemaGold,
+                                color = if (summary.potentialMonthlySavingsUsd > 0f) ottColors.greenAccent else ottColors.goldAccent,
                                 maxLines = 1,
                                 softWrap = false
                             )
                             Text(
                                 text = "Pause 0-match apps",
                                 fontSize = 11.sp,
-                                color = CinemaGreen,
+                                color = ottColors.greenAccent,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -244,8 +253,8 @@ fun OttMoneySaverSheet(
 
                 if (!monetizationState.isPro) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = CinemaGold.copy(alpha = 0.12f)),
-                        border = BorderStroke(1.dp, CinemaGold),
+                        colors = CardDefaults.cardColors(containerColor = ottColors.goldChipContainer),
+                        border = BorderStroke(1.dp, ottColors.goldChipBorder),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(
@@ -253,7 +262,7 @@ fun OttMoneySaverSheet(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Savings, contentDescription = null, tint = CinemaGold)
+                                Icon(Icons.Filled.Savings, contentDescription = null, tint = ottColors.goldAccent)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Unlock Full Per-Service Breakdown",
@@ -269,8 +278,8 @@ fun OttMoneySaverSheet(
                             Button(
                                 onClick = onUpgradePro,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = CinemaGold,
-                                    contentColor = DarkBackground
+                                    containerColor = ottColors.goldSolidBg,
+                                    contentColor = ottColors.onGoldSolid
                                 ),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -284,10 +293,10 @@ fun OttMoneySaverSheet(
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         summary.items.forEach { audit ->
-                            val badgeColor = when (audit.recommendation) {
-                                OttRecommendation.PAUSE_AND_SAVE -> CinemaRed
-                                OttRecommendation.CONSIDER_ROTATING -> CinemaGold
-                                OttRecommendation.KEEP_ACTIVE -> CinemaGreen
+                            val (badgeContainer, badgeBorder, badgeText) = when (audit.recommendation) {
+                                OttRecommendation.PAUSE_AND_SAVE -> Triple(ottColors.redChipContainer, ottColors.redChipBorder, ottColors.redAccent)
+                                OttRecommendation.CONSIDER_ROTATING -> Triple(ottColors.goldChipContainer, ottColors.goldChipBorder, ottColors.goldAccent)
+                                OttRecommendation.KEEP_ACTIVE -> Triple(ottColors.greenChipContainer, ottColors.greenChipBorder, ottColors.greenAccent)
                             }
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -317,14 +326,15 @@ fun OttMoneySaverSheet(
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(6.dp))
-                                                .background(badgeColor.copy(alpha = 0.18f))
+                                                .background(badgeContainer)
+                                                .border(1.dp, badgeBorder, RoundedCornerShape(6.dp))
                                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                                         ) {
                                             Text(
                                                 text = audit.recommendation.badgeText,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = badgeColor,
+                                                color = badgeText,
                                                 maxLines = 1,
                                                 softWrap = false
                                             )

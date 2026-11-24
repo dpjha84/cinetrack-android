@@ -1,11 +1,11 @@
 package com.example.ui.screens
 
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -86,6 +86,7 @@ import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.ui.viewmodel.TrailerCategory
 import com.example.util.TrailerInterstitialAdManager
+import com.example.util.findActivity
 
 @Composable
 fun TrailersScreen(
@@ -95,7 +96,7 @@ fun TrailersScreen(
 ) {
     val adaptive = LocalAdaptiveLayoutInfo.current
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = remember(context) { context.findActivity() }
     val trailers by viewModel.filteredTrailers.collectAsStateWithLifecycle()
     val allTrailers by viewModel.trailers.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.trailerCategoryFilter.collectAsStateWithLifecycle()
@@ -181,7 +182,8 @@ fun TrailersScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = trailerColors.goldChipContainer
+                                    color = trailerColors.goldChipContainer,
+                                    border = BorderStroke(1.dp, trailerColors.goldChipBorder)
                                 ) {
                                     Text(
                                         text = "${regionOption.flag} ${regionOption.code}",
@@ -263,9 +265,18 @@ fun TrailersScreen(
                                 else -> null
                             },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = trailerColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 selectedContainerColor = trailerColors.goldSolidBg,
                                 selectedLabelColor = trailerColors.onGoldSolid,
                                 selectedLeadingIconColor = trailerColors.onGoldSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selected,
+                                borderColor = trailerColors.neutralChipBorder,
+                                selectedBorderColor = trailerColors.goldChipBorder
                             ),
                             modifier = Modifier.testTag("trailer_filter_${category.name.lowercase()}")
                         )
@@ -275,7 +286,7 @@ fun TrailersScreen(
                 if (isLoading && trailers.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(6.dp))
                     LinearProgressIndicator(
-                        color = CinemaGold,
+                        color = WatchPilotColors.current.goldSolidBg,
                         trackColor = Color.Transparent,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -295,7 +306,7 @@ fun TrailersScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = CinemaGold)
+                        CircularProgressIndicator(color = WatchPilotColors.current.goldAccent)
                         Spacer(modifier = Modifier.height(14.dp))
                         Text(
                             text = "Loading trailers...",
@@ -307,6 +318,7 @@ fun TrailersScreen(
             }
 
             trailers.isEmpty() -> {
+                val emptyColors = WatchPilotColors.current
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -317,7 +329,7 @@ fun TrailersScreen(
                         Icon(
                             imageVector = Icons.Default.PlayCircle,
                             contentDescription = null,
-                            tint = CinemaGold.copy(alpha = 0.5f),
+                            tint = emptyColors.goldAccent.copy(alpha = 0.6f),
                             modifier = Modifier.size(64.dp)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -329,9 +341,12 @@ fun TrailersScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                         Button(
                             onClick = { viewModel.setTrailerCategory(TrailerCategory.ALL) },
-                            colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = emptyColors.goldSolidBg,
+                                contentColor = emptyColors.onGoldSolid
+                            )
                         ) {
-                            Text("Show All")
+                            Text("Show All", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -661,7 +676,12 @@ fun TrailerCard(
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (isInWatchlist) trailerCardColors.greenChipContainer else trailerCardColors.goldChipContainer,
                             contentColor = if (isInWatchlist) trailerCardColors.greenAccent else trailerCardColors.goldAccent
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isInWatchlist) trailerCardColors.greenChipBorder else trailerCardColors.goldChipBorder
                         ),
                         modifier = Modifier
                             .weight(1f)
@@ -687,6 +707,10 @@ fun TrailerCard(
                         onClick = onCardClick,
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = BorderStroke(1.dp, trailerCardColors.neutralChipBorder),
                         modifier = Modifier
                             .weight(1f)
                             .testTag("btn_details_trailer_${trailer.id}")

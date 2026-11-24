@@ -130,9 +130,10 @@ service cloud.firestore {
 
     function isValidSearchHistory(data, userId) {
       return data.keys().hasAll(['query', 'timestamp', 'userId']) &&
-             data.keys().hasOnly(['query', 'timestamp', 'userId']) &&
+             data.keys().hasOnly(['query', 'timestamp', 'resultCount', 'userId']) &&
              data.query is string && data.query.size() >= 1 && data.query.size() <= 200 &&
              data.timestamp is int &&
+             optionalInt(data, 'resultCount') &&
              data.userId is string && data.userId == userId;
     }
 

@@ -41,5 +41,11 @@ val CinemaCyanBorderLight = Color(0xFF38BDF8)  // Clean sky border for light-mod
 val CinemaGreenOnLight = Color(0xFF047857)     // Deep emerald for text & icons on light surfaces
 val CinemaGreenSolidLight = Color(0xFF047857)  // Crisp emerald fill paired with white ink
 val CinemaGreenTintLight = Color(0xFFD1FAE5)   // Soft mint container for watched badges
+val CinemaGreenBorderLight = Color(0xFF10B981) // Emerald border for light-mode green chips
 val CinemaAmberOnLight = Color(0xFFC2410C)     // Deep burnt-orange for On Hold pills in light mode
+val CinemaOrangeTintLight = Color(0xFFFFEDD5)  // Warm peach tint for orange chips in light mode
+val CinemaOrangeBorderLight = Color(0xFFF97316)// Crisp orange border for light-mode amber chips
 val CinemaRedOnLight = Color(0xFFBE123C)       // Deep crimson for Dropped pills in light mode
+val CinemaRedTintLight = Color(0xFFFFE4E6)     // Soft rose tint for error/dropped chips in light mode
+val CinemaNeutralBorderLight = Color(0xFFCBD5E1) // Clean slate border for neutral light chips
+

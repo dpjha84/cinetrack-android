@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -56,11 +57,6 @@ import com.example.data.model.ConciergePick
 import com.example.data.model.ConciergeUiState
 import com.example.data.model.MonetizationState
 import com.example.data.model.WatchStatus
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.CinemaRed
-import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.WatchPilotColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,6 +139,7 @@ fun AiConciergeSheet(
                         .padding(end = 8.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(conciergeColors.goldChipContainer)
+                        .border(1.dp, conciergeColors.goldChipBorder, RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -171,13 +168,28 @@ fun AiConciergeSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 moods.forEach { mood ->
+                    val isMoodSelected = selectedMood == mood
                     FilterChip(
-                        selected = selectedMood == mood,
+                        selected = isMoodSelected,
                         onClick = { selectedMood = mood },
-                        label = { Text(mood, fontSize = 12.sp) },
+                        label = {
+                            Text(
+                                text = mood,
+                                fontSize = 12.sp,
+                                fontWeight = if (isMoodSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaGold,
-                            selectedLabelColor = DarkBackground
+                            containerColor = conciergeColors.neutralChipContainer,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                            selectedContainerColor = conciergeColors.goldSolidBg,
+                            selectedLabelColor = conciergeColors.onGoldSolid
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isMoodSelected,
+                            borderColor = conciergeColors.neutralChipBorder,
+                            selectedBorderColor = conciergeColors.goldChipBorder
                         )
                     )
                 }
@@ -189,13 +201,28 @@ fun AiConciergeSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 budgets.forEach { budget ->
+                    val isBudgetSelected = selectedBudget == budget
                     FilterChip(
-                        selected = selectedBudget == budget,
+                        selected = isBudgetSelected,
                         onClick = { selectedBudget = budget },
-                        label = { Text(budget, fontSize = 12.sp) },
+                        label = {
+                            Text(
+                                text = budget,
+                                fontSize = 12.sp,
+                                fontWeight = if (isBudgetSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaCyan,
-                            selectedLabelColor = DarkBackground
+                            containerColor = conciergeColors.neutralChipContainer,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                            selectedContainerColor = conciergeColors.cyanSolidBg,
+                            selectedLabelColor = conciergeColors.onCyanSolid
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isBudgetSelected,
+                            borderColor = conciergeColors.neutralChipBorder,
+                            selectedBorderColor = conciergeColors.cyanChipBorder
                         )
                     )
                 }
@@ -207,13 +234,28 @@ fun AiConciergeSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 audiences.forEach { aud ->
+                    val isAudienceSelected = selectedAudience == aud
                     FilterChip(
-                        selected = selectedAudience == aud,
+                        selected = isAudienceSelected,
                         onClick = { selectedAudience = aud },
-                        label = { Text(aud, fontSize = 12.sp) },
+                        label = {
+                            Text(
+                                text = aud,
+                                fontSize = 12.sp,
+                                fontWeight = if (isAudienceSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaGold,
-                            selectedLabelColor = DarkBackground
+                            containerColor = conciergeColors.neutralChipContainer,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                            selectedContainerColor = conciergeColors.goldSolidBg,
+                            selectedLabelColor = conciergeColors.onGoldSolid
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isAudienceSelected,
+                            borderColor = conciergeColors.neutralChipBorder,
+                            selectedBorderColor = conciergeColors.goldChipBorder
                         )
                     )
                 }
@@ -242,8 +284,8 @@ fun AiConciergeSheet(
                     .testTag("generate_tonights_picks_button"),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = CinemaGold,
-                    contentColor = DarkBackground
+                    containerColor = conciergeColors.goldSolidBg,
+                    contentColor = conciergeColors.onGoldSolid
                 )
             ) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -264,7 +306,7 @@ fun AiConciergeSheet(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        CircularProgressIndicator(color = CinemaGold)
+                        CircularProgressIndicator(color = conciergeColors.goldAccent)
                         Text(
                             text = "Curating 3 high-match picks for your $selectedMood vibe...",
                             fontSize = 13.sp,
@@ -275,8 +317,8 @@ fun AiConciergeSheet(
                 is ConciergeUiState.Error -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = CinemaRed.copy(alpha = 0.14f)),
-                        border = BorderStroke(1.dp, CinemaRed.copy(alpha = 0.4f)),
+                        colors = CardDefaults.cardColors(containerColor = conciergeColors.redChipContainer),
+                        border = BorderStroke(1.dp, conciergeColors.redChipBorder),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text(
@@ -305,7 +347,7 @@ fun AiConciergeSheet(
                                     },
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.25f))
+                                border = BorderStroke(1.dp, conciergeColors.goldChipBorder)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp),
@@ -318,7 +360,7 @@ fun AiConciergeSheet(
                                         modifier = Modifier
                                             .size(width = 64.dp, height = 96.dp)
                                             .clip(RoundedCornerShape(10.dp))
-                                            .background(DarkBackground)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
@@ -330,14 +372,15 @@ fun AiConciergeSheet(
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(6.dp))
-                                                    .background(CinemaGreen.copy(alpha = 0.2f))
+                                                    .background(conciergeColors.greenChipContainer)
+                                                    .border(1.dp, conciergeColors.greenChipBorder, RoundedCornerShape(6.dp))
                                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                                             ) {
                                                 Text(
                                                     text = "${pick.matchScore}% MATCH",
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.ExtraBold,
-                                                    color = CinemaGreen,
+                                                    color = conciergeColors.greenAccent,
                                                     maxLines = 1,
                                                     softWrap = false
                                                 )
@@ -369,7 +412,7 @@ fun AiConciergeSheet(
                                             Text(
                                                 text = "Stream on: ${regionalProviders.joinToString(", ")}",
                                                 fontSize = 11.sp,
-                                                color = CinemaCyan,
+                                                color = conciergeColors.cyanAccent,
                                                 fontWeight = FontWeight.SemiBold,
                                                 modifier = Modifier.padding(top = 4.dp)
                                             )
@@ -379,7 +422,7 @@ fun AiConciergeSheet(
                                         Icon(
                                             imageVector = if (isTracked) Icons.Filled.Check else Icons.Filled.Add,
                                             contentDescription = "Save ${pick.title}",
-                                            tint = if (isTracked) CinemaGreen else CinemaGold
+                                            tint = if (isTracked) conciergeColors.greenAccent else conciergeColors.goldAccent
                                         )
                                     }
                                 }

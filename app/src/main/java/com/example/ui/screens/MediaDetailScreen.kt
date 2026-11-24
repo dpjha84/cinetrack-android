@@ -101,9 +101,6 @@ import com.example.data.model.WatchStatus
 import com.example.ui.components.RatingReviewDialog
 import com.example.ui.components.WatchStatusPill
 import com.example.ui.components.WatchlistSelectDialog
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
 import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.WatchPilotColors
 import androidx.compose.foundation.layout.defaultMinSize
@@ -357,13 +354,14 @@ fun MediaDetailScreen(
                     Spacer(modifier = Modifier.width(16.dp))
 
                     Column {
+                        val heroColors = WatchPilotColors.current
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = if (media.getMediaTypeEnum() == MediaType.MOVIE) CinemaGold else CinemaCyan
+                            color = if (isMovie) heroColors.goldSolidBg else heroColors.cyanSolidBg
                         ) {
                             Text(
-                                text = if (media.getMediaTypeEnum() == MediaType.MOVIE) "MOVIE" else "TV SERIES",
-                                color = MaterialTheme.colorScheme.surface,
+                                text = if (isMovie) "MOVIE" else "TV SERIES",
+                                color = if (isMovie) heroColors.onGoldSolid else heroColors.onCyanSolid,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -647,6 +645,7 @@ private fun MediaGenresAndOriginStrip(
     media: MediaEntity,
     isTablet: Boolean
 ) {
+    val stripColors = WatchPilotColors.current
     if (isTablet) {
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -655,12 +654,13 @@ private fun MediaGenresAndOriginStrip(
         ) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = CinemaCyan.copy(alpha = 0.15f)
+                color = stripColors.cyanChipContainer,
+                border = BorderStroke(1.dp, stripColors.cyanChipBorder)
             ) {
                 Text(
                     text = "${media.getOriginFlag()} ${media.originCountry} • ${media.getLanguageFlagAndName()}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = CinemaCyan,
+                    color = stripColors.cyanAccent,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                 )
@@ -669,11 +669,13 @@ private fun MediaGenresAndOriginStrip(
             media.getGenreList().forEach { genre ->
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant
+                    color = stripColors.neutralChipContainer,
+                    border = BorderStroke(1.dp, stripColors.neutralChipBorder)
                 ) {
                     Text(
                         text = genre,
                         style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
@@ -689,12 +691,13 @@ private fun MediaGenresAndOriginStrip(
             // Origin and Language Badges
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = CinemaCyan.copy(alpha = 0.15f)
+                color = stripColors.cyanChipContainer,
+                border = BorderStroke(1.dp, stripColors.cyanChipBorder)
             ) {
                 Text(
                     text = "${media.getOriginFlag()} ${media.originCountry} • ${media.getLanguageFlagAndName()}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = CinemaCyan,
+                    color = stripColors.cyanAccent,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                 )
@@ -703,11 +706,13 @@ private fun MediaGenresAndOriginStrip(
             media.getGenreList().forEach { genre ->
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant
+                    color = stripColors.neutralChipContainer,
+                    border = BorderStroke(1.dp, stripColors.neutralChipBorder)
                 ) {
                     Text(
                         text = genre,
                         style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
@@ -732,6 +737,7 @@ private fun MediaWhereToWatchCard(
     onSelectEpisode: (Int) -> Unit
 ) {
     val context = LocalContext.current
+    val whereColors = WatchPilotColors.current
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -754,7 +760,7 @@ private fun MediaWhereToWatchCard(
                                 Icon(
                                     imageVector = Icons.Default.LiveTv,
                                     contentDescription = null,
-                                    tint = CinemaGold,
+                                    tint = whereColors.goldAccent,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -770,11 +776,12 @@ private fun MediaWhereToWatchCard(
                             // Region badge
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = CinemaGold.copy(alpha = 0.15f)
+                                color = whereColors.goldChipContainer,
+                                border = BorderStroke(1.dp, whereColors.goldChipBorder)
                             ) {
                                 Text(
                                     text = "${RegionalDefaults.supportedRegions.find { it.code.equals(effectiveRegionCode, ignoreCase = true) }?.flag ?: "🌐"} ${RegionalDefaults.getRegionLabel(effectiveRegionCode)}",
-                                    color = CinemaGold,
+                                    color = whereColors.goldAccent,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
@@ -789,7 +796,7 @@ private fun MediaWhereToWatchCard(
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                                border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.2f)),
+                                border = BorderStroke(1.dp, whereColors.cyanChipBorder),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 12.dp)
@@ -817,12 +824,12 @@ private fun MediaWhereToWatchCard(
                                         }
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = CinemaCyan.copy(alpha = 0.16f),
-                                            border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.35f))
+                                            color = whereColors.cyanChipContainer,
+                                            border = BorderStroke(1.dp, whereColors.cyanChipBorder)
                                         ) {
                                             Text(
                                                 text = "S$selectedSeason · E$selectedEpisode",
-                                                color = CinemaCyan,
+                                                color = whereColors.cyanAccent,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 12.sp,
                                                 maxLines = 1,
@@ -894,7 +901,7 @@ private fun MediaWhereToWatchCard(
                             ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
-                                    color = CinemaGold,
+                                    color = whereColors.goldAccent,
                                     strokeWidth = 2.dp
                                 )
                                 Text(
@@ -910,7 +917,7 @@ private fun MediaWhereToWatchCard(
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
                                     contentDescription = null,
-                                    tint = CinemaGreen,
+                                    tint = whereColors.greenAccent,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -918,7 +925,7 @@ private fun MediaWhereToWatchCard(
                                     text = if (isMovie) "STREAM NOW" else "WATCH S$selectedSeason:E$selectedEpisode NOW",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = CinemaGreen
+                                    color = whereColors.greenAccent
                                 )
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -931,8 +938,9 @@ private fun MediaWhereToWatchCard(
                                 streamAndFree.forEach { provider ->
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = MaterialTheme.colorScheme.surface,
-                                        shadowElevation = 2.dp,
+                                        color = whereColors.neutralChipContainer,
+                                        border = BorderStroke(1.dp, whereColors.neutralChipBorder),
+                                        shadowElevation = 1.dp,
                                         modifier = Modifier
                                             .clickable {
                                                 WatchProviderLauncher.launchProvider(
@@ -967,7 +975,7 @@ private fun MediaWhereToWatchCard(
                                                 Icon(
                                                     imageVector = Icons.Default.PlayArrow,
                                                     contentDescription = null,
-                                                    tint = CinemaGold,
+                                                    tint = whereColors.goldAccent,
                                                     modifier = Modifier.size(18.dp)
                                                 )
                                             }
@@ -996,7 +1004,7 @@ private fun MediaWhereToWatchCard(
                                 Icon(
                                     imageVector = Icons.Default.ShoppingCart,
                                     contentDescription = null,
-                                    tint = CinemaCyan,
+                                    tint = whereColors.cyanAccent,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -1004,7 +1012,7 @@ private fun MediaWhereToWatchCard(
                                     text = "RENT OR BUY",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaCyan
+                                    color = whereColors.cyanAccent
                                 )
                             }
                             Spacer(modifier = Modifier.height(6.dp))
@@ -1017,7 +1025,8 @@ private fun MediaWhereToWatchCard(
                                 rentOrBuy.forEach { provider ->
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                                        color = whereColors.neutralChipContainer,
+                                        border = BorderStroke(1.dp, whereColors.neutralChipBorder),
                                         modifier = Modifier
                                             .clickable {
                                                 WatchProviderLauncher.launchProvider(
@@ -1082,6 +1091,11 @@ private fun MediaWhereToWatchCard(
                                         webLink = providersInfo.justWatchLink
                                     )
                                 },
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = whereColors.neutralChipContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                border = BorderStroke(1.dp, whereColors.neutralChipBorder),
                                 modifier = Modifier.testTag("btn_search_digital_stores")
                             ) {
                                 Icon(
@@ -1150,8 +1164,16 @@ private fun MediaWatchStatusSelectorSection(
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = detailChipColors.neutralChipContainer,
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
                                     selectedContainerColor = detailChipColors.goldSolidBg,
                                     selectedLabelColor = detailChipColors.onGoldSolid
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    borderColor = detailChipColors.neutralChipBorder,
+                                    selectedBorderColor = detailChipColors.goldChipBorder
                                 )
                             )
                         }
@@ -1175,8 +1197,16 @@ private fun MediaWatchStatusSelectorSection(
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = detailChipColors.neutralChipContainer,
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
                                     selectedContainerColor = detailChipColors.goldSolidBg,
                                     selectedLabelColor = detailChipColors.onGoldSolid
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    borderColor = detailChipColors.neutralChipBorder,
+                                    selectedBorderColor = detailChipColors.goldChipBorder
                                 )
                             )
                         }
@@ -1199,6 +1229,7 @@ private fun MediaEpisodeProgressCard(
     onIncrementEpisode: () -> Unit
 ) {
     val context = LocalContext.current
+    val progressColors = WatchPilotColors.current
     val hasStartedWatching = media.watchedEpisodes > 0
     val isSeriesCompleted = media.watchedEpisodes >= media.totalEpisodes
     val progressPercent = (media.progressFraction * 100).toInt().coerceIn(0, 100)
@@ -1233,7 +1264,7 @@ private fun MediaEpisodeProgressCard(
                                         style = MaterialTheme.typography.bodySmall,
                                         fontWeight = if (hasStartedWatching) FontWeight.Bold else FontWeight.Medium,
                                         color = if (hasStartedWatching) {
-                                            CinemaCyan
+                                            progressColors.cyanAccent
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant
                                         },
@@ -1243,13 +1274,17 @@ private fun MediaEpisodeProgressCard(
                                     if (hasStartedWatching) {
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = (if (isSeriesCompleted) CinemaGreen else CinemaGold).copy(alpha = 0.16f)
+                                            color = if (isSeriesCompleted) progressColors.greenChipContainer else progressColors.goldChipContainer,
+                                            border = BorderStroke(
+                                                1.dp,
+                                                if (isSeriesCompleted) progressColors.greenChipBorder else progressColors.goldChipBorder
+                                            )
                                         ) {
                                             Text(
                                                 text = "$progressPercent%",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isSeriesCompleted) CinemaGreen else CinemaGold,
+                                                color = if (isSeriesCompleted) progressColors.greenAccent else progressColors.goldAccent,
                                                 maxLines = 1,
                                                 softWrap = false,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1267,7 +1302,7 @@ private fun MediaEpisodeProgressCard(
                                     .fillMaxWidth()
                                     .height(7.dp)
                                     .clip(CircleShape),
-                                color = if (isSeriesCompleted) CinemaGreen else CinemaGold,
+                                color = if (isSeriesCompleted) progressColors.greenSolidBg else progressColors.goldSolidBg,
                                 trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
                             )
 
@@ -1288,8 +1323,8 @@ private fun MediaEpisodeProgressCard(
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     color = when {
-                                        isSeriesCompleted -> CinemaGreen
-                                        hasStartedWatching -> CinemaCyan
+                                        isSeriesCompleted -> progressColors.greenAccent
+                                        hasStartedWatching -> progressColors.cyanAccent
                                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                                     },
                                     maxLines = 1,
@@ -1299,10 +1334,18 @@ private fun MediaEpisodeProgressCard(
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = when {
-                                        isSeriesCompleted -> CinemaGreen.copy(alpha = 0.14f)
-                                        hasStartedWatching -> CinemaCyan.copy(alpha = 0.12f)
-                                        else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
-                                    }
+                                        isSeriesCompleted -> progressColors.greenChipContainer
+                                        hasStartedWatching -> progressColors.cyanChipContainer
+                                        else -> progressColors.neutralChipContainer
+                                    },
+                                    border = BorderStroke(
+                                        1.dp,
+                                        when {
+                                            isSeriesCompleted -> progressColors.greenChipBorder
+                                            hasStartedWatching -> progressColors.cyanChipBorder
+                                            else -> progressColors.neutralChipBorder
+                                        }
+                                    )
                                 ) {
                                     Text(
                                         text = when {
@@ -1313,8 +1356,8 @@ private fun MediaEpisodeProgressCard(
                                         style = MaterialTheme.typography.bodySmall,
                                         fontWeight = FontWeight.Bold,
                                         color = when {
-                                            isSeriesCompleted -> CinemaGreen
-                                            hasStartedWatching -> MaterialTheme.colorScheme.onSurface
+                                            isSeriesCompleted -> progressColors.greenAccent
+                                            hasStartedWatching -> progressColors.cyanAccent
                                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                                         },
                                         maxLines = 1,
@@ -1335,11 +1378,8 @@ private fun MediaEpisodeProgressCard(
                                 if (hasStartedWatching) {
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                        border = BorderStroke(
-                                            1.dp,
-                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
-                                        ),
+                                        color = progressColors.neutralChipContainer,
+                                        border = BorderStroke(1.dp, progressColors.neutralChipBorder),
                                         modifier = Modifier
                                             .heightIn(min = 40.dp)
                                             .clip(RoundedCornerShape(10.dp))
@@ -1374,16 +1414,16 @@ private fun MediaEpisodeProgressCard(
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = if (isSeriesCompleted) {
-                                        CinemaGreen.copy(alpha = 0.16f)
+                                        progressColors.greenChipContainer
                                     } else {
-                                        CinemaCyan.copy(alpha = 0.14f)
+                                        progressColors.cyanChipContainer
                                     },
                                     border = BorderStroke(
                                         1.dp,
                                         if (isSeriesCompleted) {
-                                            CinemaGreen.copy(alpha = 0.45f)
+                                            progressColors.greenChipBorder
                                         } else {
-                                            CinemaCyan.copy(alpha = 0.5f)
+                                            progressColors.cyanChipBorder
                                         }
                                     ),
                                     modifier = Modifier
@@ -1411,7 +1451,7 @@ private fun MediaEpisodeProgressCard(
                                             } else {
                                                 "Mark episode $nextUpEpisode watched"
                                             },
-                                            tint = if (isSeriesCompleted) CinemaGreen else CinemaCyan,
+                                            tint = if (isSeriesCompleted) progressColors.greenAccent else progressColors.cyanAccent,
                                             modifier = Modifier.size(15.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
@@ -1423,7 +1463,7 @@ private fun MediaEpisodeProgressCard(
                                             },
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isSeriesCompleted) CinemaGreen else CinemaCyan,
+                                            color = if (isSeriesCompleted) progressColors.greenAccent else progressColors.cyanAccent,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -1436,8 +1476,8 @@ private fun MediaEpisodeProgressCard(
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = CinemaGreen.copy(alpha = 0.14f),
-                                    border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.28f)),
+                                    color = progressColors.greenChipContainer,
+                                    border = BorderStroke(1.dp, progressColors.greenChipBorder),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.dp))
@@ -1464,7 +1504,7 @@ private fun MediaEpisodeProgressCard(
                                         Icon(
                                             imageVector = Icons.Default.PlayArrow,
                                             contentDescription = null,
-                                            tint = CinemaGreen,
+                                            tint = progressColors.greenAccent,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
@@ -1472,7 +1512,7 @@ private fun MediaEpisodeProgressCard(
                                             text = "Watch S$selectedSeason · E$selectedEpisode on ${topProvider.name}",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = CinemaGreen,
+                                            color = progressColors.greenAccent,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -1480,7 +1520,7 @@ private fun MediaEpisodeProgressCard(
                                         Icon(
                                             imageVector = Icons.Default.OpenInNew,
                                             contentDescription = null,
-                                            tint = CinemaGreen.copy(alpha = 0.8f),
+                                            tint = progressColors.greenAccent.copy(alpha = 0.8f),
                                             modifier = Modifier.size(13.dp)
                                         )
                                     }
@@ -1498,6 +1538,7 @@ private fun MediaSeasonsSection(
     onSetSeasonStatus: (Int, TvWatchStatus) -> Unit,
     onOpenSeasonDetail: (SeasonItem) -> Unit
 ) {
+                    val seasonSecColors = WatchPilotColors.current
                     Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1513,7 +1554,7 @@ private fun MediaSeasonsSection(
                                 Icon(
                                     imageVector = Icons.Default.Tv,
                                     contentDescription = null,
-                                    tint = CinemaCyan,
+                                    tint = seasonSecColors.cyanAccent,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -1533,7 +1574,7 @@ private fun MediaSeasonsSection(
                         if (isLoadingSeasons) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
-                                color = CinemaGold,
+                                color = seasonSecColors.goldAccent,
                                 strokeWidth = 2.dp
                             )
                         }
@@ -1563,6 +1604,7 @@ private fun MediaRatingAndReviewCard(
     media: MediaEntity,
     onEditRating: () -> Unit
 ) {
+                val ratingColors = WatchPilotColors.current
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1585,7 +1627,7 @@ private fun MediaRatingAndReviewCard(
                                     .padding(end = 8.dp)
                             )
                             IconButton(onClick = onEditRating) {
-                                Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit Rating", tint = CinemaGold)
+                                Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit Rating", tint = ratingColors.goldAccent)
                             }
                         }
 
@@ -1598,7 +1640,7 @@ private fun MediaRatingAndReviewCard(
                                     Icon(
                                         imageVector = Icons.Default.Star,
                                         contentDescription = null,
-                                        tint = if (isFilled) CinemaGold else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                        tint = if (isFilled) ratingColors.goldAccent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -1607,7 +1649,7 @@ private fun MediaRatingAndReviewCard(
                                     text = "${media.getFormattedUserRating()} Stars",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaGold
+                                    color = ratingColors.goldAccent
                                 )
                             }
                             if (media.userReview.isNotBlank()) {
@@ -1629,9 +1671,10 @@ private fun MediaRatingAndReviewCard(
                             FilledTonalButton(
                                 onClick = onEditRating,
                                 colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = CinemaGold.copy(alpha = 0.2f),
-                                    contentColor = CinemaGold
-                                )
+                                    containerColor = ratingColors.goldChipContainer,
+                                    contentColor = ratingColors.goldAccent
+                                ),
+                                border = BorderStroke(1.dp, ratingColors.goldChipBorder)
                             ) {
                                 Icon(imageVector = Icons.Default.Star, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -1647,6 +1690,7 @@ private fun MediaCustomCollectionCard(
     media: MediaEntity,
     onChangeClick: () -> Unit
 ) {
+                val collectionColors = WatchPilotColors.current
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1672,7 +1716,7 @@ private fun MediaCustomCollectionCard(
                             Text(
                                 text = media.customWatchlist ?: "Default Watchlist",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = CinemaGold,
+                                color = collectionColors.goldAccent,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1682,6 +1726,11 @@ private fun MediaCustomCollectionCard(
                         FilledTonalButton(
                             onClick = onChangeClick,
                             shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = collectionColors.neutralChipContainer,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            border = BorderStroke(1.dp, collectionColors.neutralChipBorder),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                             modifier = Modifier.widthIn(min = 104.dp)
                         ) {
@@ -1761,6 +1810,7 @@ private fun MediaSynopsisAndCastSection(
                                     .joinToString("")
                                     .ifBlank { "?" }
                             }
+                            val castColors = WatchPilotColors.current
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
@@ -1773,7 +1823,7 @@ private fun MediaSynopsisAndCastSection(
                                 Surface(
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.surfaceVariant,
-                                    border = BorderStroke(1.5.dp, CinemaCyan.copy(alpha = 0.45f)),
+                                    border = BorderStroke(1.5.dp, castColors.cyanChipBorder),
                                     modifier = Modifier.size(64.dp)
                                 ) {
                                     Box(
@@ -1784,7 +1834,7 @@ private fun MediaSynopsisAndCastSection(
                                             text = initials,
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = CinemaCyan
+                                            color = castColors.cyanAccent
                                         )
                                         if (!member.profileUrl.isNullOrBlank()) {
                                             AsyncImage(
@@ -1841,6 +1891,7 @@ fun SeasonOverviewCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val cardColors = WatchPilotColors.current
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1905,13 +1956,13 @@ fun SeasonOverviewCard(
                         // Rating badge
                         if (season.rating > 0f) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Star, null, tint = CinemaGold, modifier = Modifier.size(13.dp))
+                                Icon(Icons.Default.Star, null, tint = cardColors.goldAccent, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
                                     text = String.format("%.1f", season.rating),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaGold,
+                                    color = cardColors.goldAccent,
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -1936,7 +1987,7 @@ fun SeasonOverviewCard(
                             .fillMaxWidth()
                             .height(5.dp)
                             .clip(CircleShape),
-                        color = CinemaGold,
+                        color = cardColors.goldSolidBg,
                         trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
 
@@ -1951,7 +2002,7 @@ fun SeasonOverviewCard(
                             text = "${season.watchedEpisodesCount}/${season.episodeCount} eps watched",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
-                            color = CinemaCyan,
+                            color = cardColors.cyanAccent,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
@@ -1967,7 +2018,7 @@ fun SeasonOverviewCard(
                                 text = "Episodes",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = CinemaGold,
+                                color = cardColors.goldAccent,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -1975,7 +2026,7 @@ fun SeasonOverviewCard(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = "View episodes",
-                                tint = CinemaGold,
+                                tint = cardColors.goldAccent,
                                 modifier = Modifier.size(13.dp)
                             )
                         }
@@ -1999,18 +2050,28 @@ fun SeasonOverviewCard(
                     TvWatchStatus.UNWATCHED to "Clear"
                 ).forEach { (status, label) ->
                     val isSelected = season.watchStatus == status
+                    val selectedBg = when (status) {
+                        TvWatchStatus.WATCHED -> cardColors.greenSolidBg
+                        TvWatchStatus.WATCHING -> cardColors.cyanSolidBg
+                        TvWatchStatus.PLAN_TO_WATCH -> cardColors.goldSolidBg
+                        TvWatchStatus.UNWATCHED -> MaterialTheme.colorScheme.surfaceContainerHigh
+                    }
+                    val selectedFg = when (status) {
+                        TvWatchStatus.WATCHED -> cardColors.onGreenSolid
+                        TvWatchStatus.WATCHING -> cardColors.onCyanSolid
+                        TvWatchStatus.PLAN_TO_WATCH -> cardColors.onGoldSolid
+                        TvWatchStatus.UNWATCHED -> MaterialTheme.colorScheme.onSurface
+                    }
+                    val selectedBorder = when (status) {
+                        TvWatchStatus.WATCHED -> cardColors.greenChipBorder
+                        TvWatchStatus.WATCHING -> cardColors.cyanChipBorder
+                        TvWatchStatus.PLAN_TO_WATCH -> cardColors.goldChipBorder
+                        TvWatchStatus.UNWATCHED -> cardColors.neutralChipBorder
+                    }
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSelected) {
-                            when (status) {
-                                TvWatchStatus.WATCHED -> CinemaGreen
-                                TvWatchStatus.WATCHING -> CinemaCyan
-                                TvWatchStatus.PLAN_TO_WATCH -> CinemaGold
-                                TvWatchStatus.UNWATCHED -> MaterialTheme.colorScheme.surfaceContainerHigh
-                            }
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f)
-                        },
+                        color = if (isSelected) selectedBg else cardColors.neutralChipContainer,
+                        border = BorderStroke(1.dp, if (isSelected) selectedBorder else cardColors.neutralChipBorder),
                         modifier = Modifier
                             .clickable { onStatusChange(status) }
                             .testTag("chip_s_${season.seasonNumber}_${status.name.lowercase()}")
@@ -2028,22 +2089,14 @@ fun SeasonOverviewCard(
                                     TvWatchStatus.UNWATCHED -> Icons.Default.Close
                                 },
                                 contentDescription = null,
-                                tint = if (isSelected) {
-                                    if (status == TvWatchStatus.UNWATCHED) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
+                                tint = if (isSelected) selectedFg else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(12.dp)
                             )
                             Text(
                                 text = label,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) {
-                                    if (status == TvWatchStatus.UNWATCHED) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
+                                color = if (isSelected) selectedFg else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -2188,15 +2241,26 @@ private fun MediaAiCompanionCard(
     onOpenPaywall: () -> Unit,
     onRewardEarned: () -> Unit
 ) {
+    val aiColors = WatchPilotColors.current
     val pillText = when {
         monetizationState.isPro -> "PRO"
         monetizationState.rewardedTrialCredits > 0 -> "${monetizationState.rewardedTrialCredits} Ad Pass"
         else -> "${monetizationState.remainingFreeAiRecaps}/${MonetizationState.FREE_AI_RECAPS_LIMIT} Free/mo"
     }
-    val pillColor = when {
-        monetizationState.isPro -> CinemaGold
-        monetizationState.canUseAiRecap -> CinemaCyan
-        else -> CinemaRed
+    val pillBg = when {
+        monetizationState.isPro -> aiColors.goldChipContainer
+        monetizationState.canUseAiRecap -> aiColors.cyanChipContainer
+        else -> aiColors.redChipContainer
+    }
+    val pillBorder = when {
+        monetizationState.isPro -> aiColors.goldChipBorder
+        monetizationState.canUseAiRecap -> aiColors.cyanChipBorder
+        else -> aiColors.redChipBorder
+    }
+    val pillFg = when {
+        monetizationState.isPro -> aiColors.goldAccent
+        monetizationState.canUseAiRecap -> aiColors.cyanAccent
+        else -> aiColors.redAccent
     }
 
     Card(
@@ -2207,7 +2271,7 @@ private fun MediaAiCompanionCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
         ),
-        border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.35f))
+        border = BorderStroke(1.dp, aiColors.cyanChipBorder)
     ) {
         Column(
             modifier = Modifier
@@ -2227,14 +2291,14 @@ private fun MediaAiCompanionCard(
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = CinemaCyan.copy(alpha = 0.16f),
+                        color = aiColors.cyanChipContainer,
                         modifier = Modifier.size(34.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Filled.AutoAwesome,
                                 contentDescription = "AI Companion",
-                                tint = CinemaCyan,
+                                tint = aiColors.cyanAccent,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -2262,14 +2326,14 @@ private fun MediaAiCompanionCard(
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = pillColor.copy(alpha = 0.16f),
-                    border = BorderStroke(1.dp, pillColor.copy(alpha = 0.4f))
+                    color = pillBg,
+                    border = BorderStroke(1.dp, pillBorder)
                 ) {
                     Text(
                         text = pillText,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = pillColor,
+                        color = pillFg,
                         maxLines = 1,
                         softWrap = false,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -2293,8 +2357,8 @@ private fun MediaAiCompanionCard(
                         },
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (monetizationState.canUseAiRecap) CinemaCyan else CinemaGold,
-                            contentColor = Color(0xFF0A0E17)
+                            containerColor = if (monetizationState.canUseAiRecap) aiColors.cyanSolidBg else aiColors.goldSolidBg,
+                            contentColor = if (monetizationState.canUseAiRecap) aiColors.onCyanSolid else aiColors.onGoldSolid
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2333,7 +2397,7 @@ private fun MediaAiCompanionCard(
                         CircularProgressIndicator(
                             modifier = Modifier.size(22.dp),
                             strokeWidth = 2.5.dp,
-                            color = CinemaCyan
+                            color = aiColors.cyanAccent
                         )
                         Text(
                             text = "Generating spoiler-free AI brief...",
@@ -2352,28 +2416,28 @@ private fun MediaAiCompanionCard(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = CinemaGreen.copy(alpha = 0.16f),
-                            border = BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.4f))
+                            color = aiColors.greenChipContainer,
+                            border = BorderStroke(1.dp, aiColors.greenChipBorder)
                         ) {
                             Text(
                                 text = "${brief.personalMatchScore}% Match",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = CinemaGreen,
+                                color = aiColors.greenAccent,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
                         }
                         if (brief.watchPriorityTag.isNotBlank()) {
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = CinemaGold.copy(alpha = 0.16f),
-                                border = BorderStroke(1.dp, CinemaGold.copy(alpha = 0.35f))
+                                color = aiColors.goldChipContainer,
+                                border = BorderStroke(1.dp, aiColors.goldChipBorder)
                             ) {
                                 Text(
                                     text = brief.watchPriorityTag,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaGold,
+                                    color = aiColors.goldAccent,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
@@ -2395,7 +2459,7 @@ private fun MediaAiCompanionCard(
                                 text = "WHY IT FITS YOU",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = CinemaCyan,
+                                color = aiColors.cyanAccent,
                                 letterSpacing = 0.7.sp
                             )
                             Text(
@@ -2419,7 +2483,7 @@ private fun MediaAiCompanionCard(
                                 text = if (isMovie) "SPOILER-FREE HOOK" else "SPOILER-FREE RECAP",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = CinemaGold,
+                                color = aiColors.goldAccent,
                                 letterSpacing = 0.7.sp
                             )
                             Text(
@@ -2443,6 +2507,7 @@ private fun MediaAiCompanionCard(
                             if (monetizationState.canUseAiRecap) onGenerate() else onOpenPaywall()
                         },
                         shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, aiColors.neutralChipBorder),
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)
@@ -2472,8 +2537,8 @@ private fun MediaAiCompanionCard(
                 is TitleAiBriefUiState.Error -> {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = CinemaRed.copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, CinemaRed.copy(alpha = 0.35f)),
+                        color = aiColors.redChipContainer,
+                        border = BorderStroke(1.dp, aiColors.redChipBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
@@ -2488,6 +2553,11 @@ private fun MediaAiCompanionCard(
                             if (monetizationState.canUseAiRecap) onGenerate() else onOpenPaywall()
                         },
                         shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = aiColors.neutralChipContainer,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = BorderStroke(1.dp, aiColors.neutralChipBorder),
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)

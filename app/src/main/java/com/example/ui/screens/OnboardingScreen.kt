@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -153,6 +152,7 @@ import com.example.ui.theme.LightBackground
 import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
+import com.example.util.findActivity
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -182,7 +182,7 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = remember(context) { context.findActivity() }
 
     val step by viewModel.onboardingStep.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
@@ -907,6 +907,7 @@ private fun WelcomeAmbientCinemaShowcase(
             .fillMaxWidth()
             .testTag("welcome_ambient_showcase")
     ) {
+        val spotlightColors = WatchPilotColors.current
         // Subtle breathing radial cinema spotlight behind the sliding title posters
         Box(
             modifier = Modifier
@@ -916,8 +917,8 @@ private fun WelcomeAmbientCinemaShowcase(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            CinemaGold.copy(alpha = 0.20f),
-                            CinemaCyan.copy(alpha = 0.14f),
+                            spotlightColors.goldAccent.copy(alpha = if (spotlightColors.isDark) 0.20f else 0.14f),
+                            spotlightColors.cyanAccent.copy(alpha = if (spotlightColors.isDark) 0.14f else 0.10f),
                             Color.Transparent
                         )
                     )
@@ -1178,7 +1179,7 @@ private fun WelcomeHeadlineAndPills(
                 label = "Cloud Sync",
                 accent = colors.greenAccent,
                 containerColor = colors.greenChipContainer,
-                borderColor = colors.greenAccent.copy(alpha = 0.42f)
+                borderColor = colors.greenChipBorder
             )
         }
     } else {
@@ -1207,7 +1208,7 @@ private fun WelcomeHeadlineAndPills(
                 label = "Cloud Sync",
                 accent = colors.greenAccent,
                 containerColor = colors.greenChipContainer,
-                borderColor = colors.greenAccent.copy(alpha = 0.42f)
+                borderColor = colors.greenChipBorder
             )
         }
     }
@@ -1247,7 +1248,7 @@ private fun WelcomeAuthActionsSection(
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = colors.greenChipContainer,
-                border = BorderStroke(1.dp, colors.greenAccent.copy(alpha = 0.45f)),
+                border = BorderStroke(1.dp, colors.greenChipBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1459,7 +1460,7 @@ private fun OnboardingSyncBanner(
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = colors.greenChipContainer,
-                border = BorderStroke(1.dp, colors.greenAccent.copy(alpha = 0.42f)),
+                border = BorderStroke(1.dp, colors.greenChipBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1618,7 +1619,7 @@ internal fun OnboardingFavoritePeopleStep(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = if (colors.isDark) Color.Transparent else MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                                containerColor = colors.neutralChipContainer,
                                 labelColor = MaterialTheme.colorScheme.onSurface,
                                 selectedContainerColor = colors.cyanChipContainer,
                                 selectedLabelColor = colors.cyanAccent,
@@ -1627,7 +1628,7 @@ internal fun OnboardingFavoritePeopleStep(
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = if (colors.isDark) 0.35f else 0.55f),
+                                borderColor = colors.neutralChipBorder,
                                 selectedBorderColor = colors.cyanChipBorder
                             ),
                             modifier = Modifier.testTag("onboarding_genre_$genre")
@@ -1662,7 +1663,7 @@ internal fun OnboardingFavoritePeopleStep(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = if (colors.isDark) Color.Transparent else MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                                containerColor = colors.neutralChipContainer,
                                 labelColor = MaterialTheme.colorScheme.onSurface,
                                 selectedContainerColor = colors.cyanChipContainer,
                                 selectedLabelColor = colors.cyanAccent,
@@ -1671,7 +1672,7 @@ internal fun OnboardingFavoritePeopleStep(
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = if (colors.isDark) 0.35f else 0.55f),
+                                borderColor = colors.neutralChipBorder,
                                 selectedBorderColor = colors.cyanChipBorder
                             ),
                             modifier = Modifier.testTag("onboarding_genre_$genre")
@@ -2057,18 +2058,12 @@ internal fun OnboardingWatchedTitlesStep(
                 )
 
                 val chipColors = FilterChipDefaults.filterChipColors(
-                    containerColor = if (colors.isDark) Color(0x88131A26) else MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                    containerColor = colors.neutralChipContainer,
                     labelColor = MaterialTheme.colorScheme.onSurface,
                     iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     selectedContainerColor = colors.goldSolidBg,
                     selectedLabelColor = colors.onGoldSolid,
                     selectedLeadingIconColor = colors.onGoldSolid
-                )
-                val chipBorder = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = false,
-                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = if (colors.isDark) 0.35f else 0.55f),
-                    selectedBorderColor = colors.goldChipBorder
                 )
 
                 Row(
@@ -2083,13 +2078,12 @@ internal fun OnboardingWatchedTitlesStep(
                         onClick = { selectedType = null },
                         label = { Text("All", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                         colors = chipColors,
-                        border = if (selectedType == null) {
-                            FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = true,
-                                selectedBorderColor = colors.goldChipBorder
-                            )
-                        } else chipBorder
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selectedType == null,
+                            borderColor = colors.neutralChipBorder,
+                            selectedBorderColor = colors.goldChipBorder
+                        )
                     )
                     FilterChip(
                         selected = selectedType == MediaType.MOVIE,
@@ -2105,13 +2099,12 @@ internal fun OnboardingWatchedTitlesStep(
                         },
                         label = { Text("Movies", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                         colors = chipColors,
-                        border = if (selectedType == MediaType.MOVIE) {
-                            FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = true,
-                                selectedBorderColor = colors.goldChipBorder
-                            )
-                        } else chipBorder
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selectedType == MediaType.MOVIE,
+                            borderColor = colors.neutralChipBorder,
+                            selectedBorderColor = colors.goldChipBorder
+                        )
                     )
                     FilterChip(
                         selected = selectedType == MediaType.TV_SHOW,
@@ -2127,20 +2120,19 @@ internal fun OnboardingWatchedTitlesStep(
                         },
                         label = { Text("Series", maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold) },
                         colors = chipColors,
-                        border = if (selectedType == MediaType.TV_SHOW) {
-                            FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = true,
-                                selectedBorderColor = colors.goldChipBorder
-                            )
-                        } else chipBorder
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selectedType == MediaType.TV_SHOW,
+                            borderColor = colors.neutralChipBorder,
+                            selectedBorderColor = colors.goldChipBorder
+                        )
                     )
 
                     if (favoriteCount > 0 || watchedCount > 0 || watchlistCount > 0) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = colors.greenChipContainer,
-                            border = BorderStroke(1.dp, colors.greenAccent.copy(alpha = 0.42f))
+                            border = BorderStroke(1.dp, colors.greenChipBorder)
                         ) {
                             Text(
                                 text = buildList {
@@ -2424,11 +2416,8 @@ private fun OnboardingTitlePickerCard(
                 Surface(
                     onClick = onMarkWatched,
                     shape = RoundedCornerShape(10.dp),
-                    color = when {
-                        isWatched -> colors.greenSolidBg
-                        colors.isDark -> MaterialTheme.colorScheme.surface
-                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
-                    },
+                    color = if (isWatched) colors.greenSolidBg else colors.neutralChipContainer,
+                    border = BorderStroke(1.dp, if (isWatched) colors.greenChipBorder else colors.neutralChipBorder),
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 48.dp)
@@ -2460,11 +2449,8 @@ private fun OnboardingTitlePickerCard(
                 Surface(
                     onClick = onMarkWatchlist,
                     shape = RoundedCornerShape(10.dp),
-                    color = when {
-                        isWatchlist -> colors.cyanSolidBg
-                        colors.isDark -> MaterialTheme.colorScheme.surface
-                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
-                    },
+                    color = if (isWatchlist) colors.cyanSolidBg else colors.neutralChipContainer,
+                    border = BorderStroke(1.dp, if (isWatchlist) colors.cyanChipBorder else colors.neutralChipBorder),
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 48.dp)

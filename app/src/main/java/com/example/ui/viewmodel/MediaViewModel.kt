@@ -163,6 +163,48 @@ internal fun <T> mergeAppendOnlyById(
     return existingOrderedIds.mapNotNull { candidateById[it] }
 }
 
+internal fun filterAndSortLibraryForTab(
+    items: List<MediaEntity>,
+    tab: LibraryTab,
+    sort: SortOption,
+    collection: String?,
+    monState: MonetizationState,
+    regionCode: String
+): List<MediaEntity> {
+    val filtered = items.filter { item ->
+        val matchesTab = when (tab) {
+            LibraryTab.WATCHING -> item.getWatchStatusEnum() == WatchStatus.WATCHING
+            LibraryTab.PLAN_TO_WATCH -> item.getWatchStatusEnum() == WatchStatus.PLAN_TO_WATCH
+            LibraryTab.COMPLETED -> item.getWatchStatusEnum() == WatchStatus.COMPLETED
+            LibraryTab.FAVORITES -> item.isFavorite
+            LibraryTab.ALL_TRACKED -> true
+        }
+
+        val matchesCollection = collection == null || item.customWatchlist == collection
+
+        val matchesMyApps = if (monState.streamOnMyAppsOnly && monState.subscribedProviders.isNotEmpty()) {
+            OttMoneySaverCalculator.matchesAnySubscribedApp(
+                media = item,
+                regionCode = regionCode,
+                subscribedCanonicalNames = monState.subscribedProviders
+            )
+        } else {
+            true
+        }
+
+        matchesTab && matchesCollection && matchesMyApps
+    }
+
+    return when (sort) {
+        SortOption.RECENT -> filtered.sortedByDescending { it.lastWatchedDate ?: it.createdAt }
+        SortOption.TITLE -> filtered.sortedBy { it.title.lowercase() }
+        SortOption.RATING -> filtered.sortedByDescending {
+            if (it.userRating > 0) it.userRating else it.communityRating
+        }
+        SortOption.YEAR -> filtered.sortedByDescending { it.releaseYear }
+    }
+}
+
 @OptIn(FlowPreview::class)
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -785,46 +827,58 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         LibraryFilterInputs(tab, sort, collection)
     }
 
-    // Filtered Library list (including Pro "On My Apps" OTT filter)
+    // Filtered Library list for currently active tab (including Pro "On My Apps" OTT filter)
     val filteredLibrary: StateFlow<List<MediaEntity>> = combine(
         trackedMedia,
         libraryFilterInputs,
         monetizationState,
         effectiveRegionCode
     ) { items, inputs, monState, regionCode ->
-        val filtered = items.filter { item ->
-            val matchesTab = when (inputs.tab) {
-                LibraryTab.WATCHING -> item.getWatchStatusEnum() == WatchStatus.WATCHING
-                LibraryTab.PLAN_TO_WATCH -> item.getWatchStatusEnum() == WatchStatus.PLAN_TO_WATCH
-                LibraryTab.COMPLETED -> item.getWatchStatusEnum() == WatchStatus.COMPLETED
-                LibraryTab.FAVORITES -> item.isFavorite
-                LibraryTab.ALL_TRACKED -> true
-            }
-
-            val matchesCollection = inputs.collection == null || item.customWatchlist == inputs.collection
-
-            val matchesMyApps = if (monState.streamOnMyAppsOnly && monState.subscribedProviders.isNotEmpty()) {
-                OttMoneySaverCalculator.matchesAnySubscribedApp(
-                    media = item,
-                    regionCode = regionCode,
-                    subscribedCanonicalNames = monState.subscribedProviders
-                )
-            } else {
-                true
-            }
-
-            matchesTab && matchesCollection && matchesMyApps
-        }
-
-        when (inputs.sort) {
-            SortOption.RECENT -> filtered.sortedByDescending { it.lastWatchedDate ?: it.createdAt }
-            SortOption.TITLE -> filtered.sortedBy { it.title.lowercase() }
-            SortOption.RATING -> filtered.sortedByDescending {
-                if (it.userRating > 0) it.userRating else it.communityRating
-            }
-            SortOption.YEAR -> filtered.sortedByDescending { it.releaseYear }
-        }
+        filterAndSortLibraryForTab(
+            items = items,
+            tab = inputs.tab,
+            sort = inputs.sort,
+            collection = inputs.collection,
+            monState = monState,
+            regionCode = regionCode
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Per-tab filtered Library map so HorizontalPager can render adjacent pages cleanly while swiping
+    val libraryItemsByTab: StateFlow<Map<LibraryTab, List<MediaEntity>>> = combine(
+        trackedMedia,
+        librarySortOption,
+        selectedCollectionFilter,
+        monetizationState,
+        effectiveRegionCode
+    ) { items, sort, collection, monState, regionCode ->
+        LibraryTab.entries.associateWith { tab ->
+            filterAndSortLibraryForTab(
+                items = items,
+                tab = tab,
+                sort = sort,
+                collection = collection,
+                monState = monState,
+                regionCode = regionCode
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    internal fun filterAndSortLibraryForTab(
+        items: List<MediaEntity>,
+        tab: LibraryTab,
+        sort: SortOption,
+        collection: String?,
+        monState: MonetizationState,
+        regionCode: String
+    ): List<MediaEntity> = com.example.ui.viewmodel.filterAndSortLibraryForTab(
+        items = items,
+        tab = tab,
+        sort = sort,
+        collection = collection,
+        monState = monState,
+        regionCode = regionCode
+    )
 
     val availableGenres: StateFlow<List<String>> = allMedia.combine(MutableStateFlow(Unit)) { items, _ ->
         items.flatMap { it.getGenreList() }
@@ -1800,6 +1854,33 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 apiKey = getActiveTmdbApiKey(),
                 regionCode = effectiveRegionCode.value
             )
+        }
+    }
+
+    private val pendingQuickAddIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    fun addToWatchlistIfUntracked(entity: MediaEntity) {
+        val existing = allMedia.value.find { it.id == entity.id } ?: entity
+        val alreadyInLibrary = existing.getWatchStatusEnum() != WatchStatus.NONE ||
+            existing.isFavorite ||
+            existing.userRating > 0f ||
+            !existing.customWatchlist.isNullOrBlank()
+        if (alreadyInLibrary) return
+        if (!pendingQuickAddIds.add(entity.id)) return
+
+        viewModelScope.launch {
+            try {
+                AnalyticsTracker.logWatchStatusChanged(
+                    mediaId = entity.id,
+                    mediaType = entity.getMediaTypeEnum(),
+                    status = WatchStatus.PLAN_TO_WATCH,
+                    source = "home_quick_add"
+                )
+                repository.toggleWatchlistForEntity(entity)
+                triggerOfflineHydrationIfOnline(entity.id)
+            } finally {
+                pendingQuickAddIds.remove(entity.id)
+            }
         }
     }
 

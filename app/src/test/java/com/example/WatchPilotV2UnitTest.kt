@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.data.billing.MonetizationManager
 import com.example.data.billing.MonetizationQuotaPolicy
 import com.example.data.local.MediaEntity
 import com.example.data.model.MediaType
@@ -418,5 +419,131 @@ class WatchPilotV2UnitTest {
         assertTrue(optedOut.neverAskAgain)
         assertFalse(RateAppEngagementPolicy.recordWatched(optedOut, delta = 10).second)
     }
+
+    @Test
+    fun editionBillingProvider_resolvesHighestTierPlanPrecedence() {
+        assertEquals(
+            null,
+            com.example.data.billing.resolveHighestTierPlan(emptyList())
+        )
+        assertEquals(
+            com.example.data.model.PlanType.PRO_MONTHLY,
+            com.example.data.billing.resolveHighestTierPlan(
+                listOf(listOf(MonetizationManager.SKU_PRO_MONTHLY))
+            )
+        )
+        assertEquals(
+            com.example.data.model.PlanType.PRO_ANNUAL,
+            com.example.data.billing.resolveHighestTierPlan(
+                listOf(
+                    listOf(MonetizationManager.SKU_PRO_MONTHLY),
+                    listOf(MonetizationManager.SKU_PRO_ANNUAL)
+                )
+            )
+        )
+        assertEquals(
+            com.example.data.model.PlanType.PRO_LIFETIME,
+            com.example.data.billing.resolveHighestTierPlan(
+                listOf(
+                    listOf(MonetizationManager.SKU_PRO_MONTHLY),
+                    listOf(MonetizationManager.SKU_PRO_LIFETIME),
+                    listOf(MonetizationManager.SKU_PRO_ANNUAL)
+                )
+            )
+        )
+    }
+
+    @Test
+    fun libraryTabFiltering_filtersByTabCustomCollectionAndSubscribedAppsAndSorts() {
+        val watchingNetflix = sampleMedia(
+            id = "m1",
+            title = "Zebra Show",
+            status = WatchStatus.WATCHING,
+            providers = "US:Netflix",
+            rating = 4.0f
+        ).copy(customWatchlist = "Weekend Binge")
+        val planMax = sampleMedia(
+            id = "m2",
+            title = "Alpha Movie",
+            status = WatchStatus.PLAN_TO_WATCH,
+            providers = "US:Max",
+            rating = 5.0f,
+            isFavorite = true
+        )
+        val completedNetflix = sampleMedia(
+            id = "m3",
+            title = "Beta Film",
+            status = WatchStatus.COMPLETED,
+            providers = "US:Netflix",
+            rating = 3.5f,
+            isFavorite = true
+        ).copy(customWatchlist = "Weekend Binge")
+
+        val allItems = listOf(watchingNetflix, planMax, completedNetflix)
+        val defaultMon = MonetizationState()
+
+        assertEquals(
+            listOf("m1"),
+            com.example.ui.viewmodel.filterAndSortLibraryForTab(
+                items = allItems,
+                tab = com.example.ui.viewmodel.LibraryTab.WATCHING,
+                sort = com.example.ui.viewmodel.SortOption.TITLE,
+                collection = null,
+                monState = defaultMon,
+                regionCode = "US"
+            ).map { it.id }
+        )
+        assertEquals(
+            listOf("m2"),
+            com.example.ui.viewmodel.filterAndSortLibraryForTab(
+                items = allItems,
+                tab = com.example.ui.viewmodel.LibraryTab.PLAN_TO_WATCH,
+                sort = com.example.ui.viewmodel.SortOption.TITLE,
+                collection = null,
+                monState = defaultMon,
+                regionCode = "US"
+            ).map { it.id }
+        )
+        assertEquals(
+            listOf("m3"),
+            com.example.ui.viewmodel.filterAndSortLibraryForTab(
+                items = allItems,
+                tab = com.example.ui.viewmodel.LibraryTab.COMPLETED,
+                sort = com.example.ui.viewmodel.SortOption.TITLE,
+                collection = null,
+                monState = defaultMon,
+                regionCode = "US"
+            ).map { it.id }
+        )
+        assertEquals(
+            listOf("m2", "m3"),
+            com.example.ui.viewmodel.filterAndSortLibraryForTab(
+                items = allItems,
+                tab = com.example.ui.viewmodel.LibraryTab.FAVORITES,
+                sort = com.example.ui.viewmodel.SortOption.TITLE,
+                collection = null,
+                monState = defaultMon,
+                regionCode = "US"
+            ).map { it.id }
+        )
+
+        // Collection filter + Pro "On My Apps" filter together
+        val myAppsMon = MonetizationState(
+            streamOnMyAppsOnly = true,
+            subscribedProviders = setOf("Netflix")
+        )
+        assertEquals(
+            listOf("m3", "m1"),
+            com.example.ui.viewmodel.filterAndSortLibraryForTab(
+                items = allItems,
+                tab = com.example.ui.viewmodel.LibraryTab.ALL_TRACKED,
+                sort = com.example.ui.viewmodel.SortOption.TITLE,
+                collection = "Weekend Binge",
+                monState = myAppsMon,
+                regionCode = "US"
+            ).map { it.id }
+        )
+    }
 }
+
 

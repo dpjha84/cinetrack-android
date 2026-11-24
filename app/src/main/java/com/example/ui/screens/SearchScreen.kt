@@ -105,10 +105,6 @@ import com.example.data.model.RegionalDefaults
 import com.example.data.model.TmdbSearchResultItem
 import com.example.data.model.WatchStatus
 import com.example.ui.components.LocalizationPreferencesDialog
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
@@ -144,6 +140,7 @@ fun SearchScreen(
     var showLocalizationDialog by remember { mutableStateOf(false) }
     var isSearchFocused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val searchColors = WatchPilotColors.current
 
     BackHandler(enabled = selectedSearchGenre != null || searchQuery.isNotBlank()) {
         viewModel.clearSearchGenre()
@@ -184,14 +181,14 @@ fun SearchScreen(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Search",
-                        tint = CinemaGold
+                        tint = searchColors.goldAccent
                     )
                 },
                 trailingIcon = {
                     if (isSearching) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = CinemaGold,
+                            color = searchColors.goldAccent,
                             strokeWidth = 2.dp
                         )
                     } else if (searchQuery.isNotEmpty() || selectedSearchGenre != null) {
@@ -216,7 +213,7 @@ fun SearchScreen(
                             Icon(
                                 imageVector = Icons.Default.Tune,
                                 contentDescription = "Catalog & Region Settings",
-                                tint = if (isTmdbConfigured) CinemaGreen else CinemaGold,
+                                tint = if (isTmdbConfigured) searchColors.greenAccent else searchColors.goldAccent,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -232,7 +229,7 @@ fun SearchScreen(
                     }
                 ),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = CinemaGold,
+                    focusedBorderColor = searchColors.goldAccent,
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                     focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -241,7 +238,6 @@ fun SearchScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            val searchColors = WatchPilotColors.current
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -255,17 +251,25 @@ fun SearchScreen(
                         Icon(
                             imageVector = Icons.Default.PhotoCamera,
                             contentDescription = "Scan Screenshot",
-                            tint = searchColors.cyanAccent,
                             modifier = Modifier.size(15.dp)
                         )
                     },
                     label = {
                         Text(
                             text = "Scan Screenshot",
-                            color = searchColors.cyanAccent,
                             fontWeight = FontWeight.Bold
                         )
                     },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = searchColors.cyanChipContainer,
+                        labelColor = searchColors.cyanAccent,
+                        iconColor = searchColors.cyanAccent
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = false,
+                        borderColor = searchColors.cyanChipBorder
+                    ),
                     modifier = Modifier.testTag("search_btn_snap_scan")
                 )
 
@@ -303,9 +307,18 @@ fun SearchScreen(
                             }
                         },
                         colors = FilterChipDefaults.filterChipColors(
+                            containerColor = searchColors.neutralChipContainer,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                            iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             selectedContainerColor = searchColors.goldSolidBg,
                             selectedLabelColor = searchColors.onGoldSolid,
                             selectedLeadingIconColor = searchColors.onGoldSolid
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selected,
+                            borderColor = searchColors.neutralChipBorder,
+                            selectedBorderColor = searchColors.goldChipBorder
                         ),
                         modifier = Modifier.testTag("filter_chip_${category.name.lowercase()}")
                     )
@@ -316,7 +329,8 @@ fun SearchScreen(
                 selectedSearchGenre?.let { activeGenre ->
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = CinemaCyan.copy(alpha = 0.14f),
+                        color = searchColors.cyanChipContainer,
+                        border = BorderStroke(1.dp, searchColors.cyanChipBorder),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 6.dp)
@@ -337,7 +351,7 @@ fun SearchScreen(
                                 Icon(
                                     imageVector = Icons.Default.Movie,
                                     contentDescription = null,
-                                    tint = CinemaCyan,
+                                    tint = searchColors.cyanAccent,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -345,7 +359,7 @@ fun SearchScreen(
                                     text = "Genre: $activeGenre",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = CinemaCyan,
+                                    color = searchColors.cyanAccent,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -354,6 +368,7 @@ fun SearchScreen(
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, searchColors.neutralChipBorder),
                                 modifier = Modifier
                                     .clickable { viewModel.clearSearchGenre() }
                                     .testTag("btn_clear_genre")
@@ -467,7 +482,7 @@ fun SearchScreen(
                             verticalArrangement = Arrangement.Center
                         ) {
                             CircularProgressIndicator(
-                                color = CinemaGold,
+                                color = searchColors.goldAccent,
                                 strokeWidth = 3.dp,
                                 modifier = Modifier.size(44.dp)
                             )
@@ -498,7 +513,7 @@ fun SearchScreen(
                             Icon(
                                 imageVector = Icons.Outlined.Search,
                                 contentDescription = null,
-                                tint = CinemaGold.copy(alpha = 0.5f),
+                                tint = searchColors.goldAccent.copy(alpha = 0.5f),
                                 modifier = Modifier.size(64.dp)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
@@ -751,7 +766,8 @@ fun SearchResultMediaCard(
                     // Type Badge
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isMovie) resultColors.goldChipContainer else resultColors.cyanChipContainer
+                        color = if (isMovie) resultColors.goldChipContainer else resultColors.cyanChipContainer,
+                        border = BorderStroke(1.dp, if (isMovie) resultColors.goldChipBorder else resultColors.cyanChipBorder)
                     ) {
                         Text(
                             text = if (isMovie) "MOVIE" else "TV SERIES",
@@ -830,7 +846,8 @@ fun SearchResultMediaCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isInWatchlist) resultColors.greenChipContainer else MaterialTheme.colorScheme.surface,
+                        color = if (isInWatchlist) resultColors.greenChipContainer else resultColors.goldChipContainer,
+                        border = BorderStroke(1.dp, if (isInWatchlist) resultColors.greenChipBorder else resultColors.goldChipBorder),
                         modifier = Modifier
                             .clickable(onClick = onToggleWatchlist)
                             .testTag("btn_toggle_watchlist_${media.id}")
@@ -867,6 +884,7 @@ fun SearchResultPersonCard(
     onMediaClick: (MediaEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val personColors = WatchPilotColors.current
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -882,7 +900,6 @@ fun SearchResultPersonCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Profile Avatar
-                val personColors = WatchPilotColors.current
                 Box(
                     modifier = Modifier
                         .size(54.dp)
@@ -916,7 +933,8 @@ fun SearchResultPersonCard(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = personColors.goldChipContainer
+                            color = personColors.goldChipContainer,
+                            border = BorderStroke(1.dp, personColors.goldChipBorder)
                         ) {
                             Text(
                                 text = person.department.uppercase(),
@@ -948,7 +966,7 @@ fun SearchResultPersonCard(
                     Text(
                         text = "Bio & filmography",
                         style = MaterialTheme.typography.bodySmall,
-                        color = CinemaCyan,
+                        color = personColors.cyanAccent,
                         fontSize = 11.sp
                     )
                 }
@@ -971,6 +989,7 @@ fun SearchResultPersonCard(
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, personColors.neutralChipBorder),
                             modifier = Modifier
                                 .clickable { onMediaClick(media) }
                                 .testTag("known_for_${media.id}")
@@ -1001,7 +1020,7 @@ fun SearchResultPersonCard(
                                     Text(
                                         text = "${media.releaseYear} • ★ ${String.format("%.1f", media.communityRating)}",
                                         fontSize = 10.sp,
-                                        color = CinemaGold
+                                        color = personColors.goldAccent
                                     )
                                 }
                             }
@@ -1037,6 +1056,7 @@ fun EmptyQueryView(
     modifier: Modifier = Modifier
 ) {
     val adaptive = LocalAdaptiveLayoutInfo.current
+    val emptyColors = WatchPilotColors.current
     val trendingSuggestions = listOf(
         "Christopher Nolan",
         "Dune: Part Two",
@@ -1163,6 +1183,7 @@ fun EmptyQueryView(
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
                                     color = historyColors.cyanChipContainer,
+                                    border = BorderStroke(1.dp, historyColors.cyanChipBorder),
                                     modifier = Modifier.testTag("recent_search_cached_count_$item")
                                 ) {
                                     Text(
@@ -1179,6 +1200,7 @@ fun EmptyQueryView(
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = historyColors.goldChipContainer,
+                                border = BorderStroke(1.dp, historyColors.goldChipBorder),
                                 modifier = Modifier.clickable { onSuggestionClick(item) }
                             ) {
                                 Text(
@@ -1217,7 +1239,7 @@ fun EmptyQueryView(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                 contentDescription = null,
-                tint = CinemaGold,
+                tint = emptyColors.goldAccent,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -1268,7 +1290,7 @@ fun EmptyQueryView(
             Icon(
                 imageVector = Icons.Default.Movie,
                 contentDescription = null,
-                tint = CinemaCyan,
+                tint = emptyColors.cyanAccent,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -1291,7 +1313,8 @@ fun EmptyQueryView(
                 popularGenres.forEach { genre ->
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color = emptyColors.neutralChipContainer,
+                        border = BorderStroke(1.dp, emptyColors.neutralChipBorder),
                         modifier = Modifier
                             .clickable { onGenreClick(genre) }
                             .testTag("genre_chip_$genre")
@@ -1316,7 +1339,8 @@ fun EmptyQueryView(
                 popularGenres.forEach { genre ->
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color = emptyColors.neutralChipContainer,
+                        border = BorderStroke(1.dp, emptyColors.neutralChipBorder),
                         modifier = Modifier
                             .clickable { onGenreClick(genre) }
                             .testTag("genre_chip_$genre")
@@ -1344,7 +1368,7 @@ fun EmptyQueryView(
                 Icon(
                     imageVector = Icons.Default.Star,
                     contentDescription = null,
-                    tint = CinemaGold,
+                    tint = emptyColors.goldAccent,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1373,9 +1397,18 @@ fun EmptyQueryView(
                     Icon(imageVector = Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(16.dp))
                 },
                 colors = FilterChipDefaults.filterChipColors(
+                    containerColor = topRatedColors.neutralChipContainer,
+                    labelColor = MaterialTheme.colorScheme.onSurface,
+                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     selectedContainerColor = topRatedColors.goldSolidBg,
                     selectedLabelColor = topRatedColors.onGoldSolid,
                     selectedLeadingIconColor = topRatedColors.onGoldSolid
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = selectedTopRatedTab == TopRatedTab.MOVIES,
+                    borderColor = topRatedColors.neutralChipBorder,
+                    selectedBorderColor = topRatedColors.goldChipBorder
                 ),
                 modifier = Modifier.testTag("tab_top_rated_movies")
             )
@@ -1388,9 +1421,18 @@ fun EmptyQueryView(
                     Icon(imageVector = Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(16.dp))
                 },
                 colors = FilterChipDefaults.filterChipColors(
+                    containerColor = topRatedColors.neutralChipContainer,
+                    labelColor = MaterialTheme.colorScheme.onSurface,
+                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     selectedContainerColor = topRatedColors.cyanSolidBg,
                     selectedLabelColor = topRatedColors.onCyanSolid,
                     selectedLeadingIconColor = topRatedColors.onCyanSolid
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = selectedTopRatedTab == TopRatedTab.TV_SERIES,
+                    borderColor = topRatedColors.neutralChipBorder,
+                    selectedBorderColor = topRatedColors.cyanChipBorder
                 ),
                 modifier = Modifier.testTag("tab_top_rated_tv")
             )
@@ -1406,7 +1448,7 @@ fun EmptyQueryView(
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    color = CinemaGold,
+                    color = topRatedColors.goldAccent,
                     strokeWidth = 2.5.dp,
                     modifier = Modifier.size(32.dp)
                 )
@@ -1488,9 +1530,11 @@ private fun TopRatedEntryCard(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val topRatedCardColors = WatchPilotColors.current
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (rankIndex < 3) CinemaGold else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                color = if (rankIndex < 3) topRatedCardColors.goldSolidBg else topRatedCardColors.neutralChipContainer,
+                border = BorderStroke(1.dp, if (rankIndex < 3) topRatedCardColors.goldChipBorder else topRatedCardColors.neutralChipBorder),
                 modifier = Modifier.size(32.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -1498,7 +1542,7 @@ private fun TopRatedEntryCard(
                         text = "#${rankIndex + 1}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (rankIndex < 3) Color.Black else MaterialTheme.colorScheme.onSurface
+                        color = if (rankIndex < 3) topRatedCardColors.onGoldSolid else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -1530,11 +1574,11 @@ private fun TopRatedEntryCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                val topRatedCardColors = WatchPilotColors.current
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
                         color = topRatedCardColors.goldChipContainer,
+                        border = BorderStroke(1.dp, topRatedCardColors.goldChipBorder),
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Row(
@@ -1599,7 +1643,8 @@ private fun TopRatedEntryCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isInWatchlist) topRatedCardColors.greenChipContainer else MaterialTheme.colorScheme.surface,
+                        color = if (isInWatchlist) topRatedCardColors.greenChipContainer else topRatedCardColors.goldChipContainer,
+                        border = BorderStroke(1.dp, if (isInWatchlist) topRatedCardColors.greenChipBorder else topRatedCardColors.goldChipBorder),
                         modifier = Modifier
                             .clickable(onClick = onToggleWatchlist)
                             .testTag("btn_top_rated_watchlist_${entity.id}")
@@ -1635,9 +1680,11 @@ fun SuggestionChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val chipColors = WatchPilotColors.current
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = chipColors.neutralChipContainer,
+        border = BorderStroke(1.dp, chipColors.neutralChipBorder),
         modifier = modifier
             .clickable(onClick = onClick)
             .testTag("suggestion_chip_$text")
@@ -1649,7 +1696,7 @@ fun SuggestionChip(
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = null,
-                tint = CinemaGold,
+                tint = chipColors.goldAccent,
                 modifier = Modifier.size(14.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))

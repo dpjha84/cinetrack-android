@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import android.Manifest
-import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -101,13 +100,10 @@ import com.example.R
 import com.example.data.model.RegionalDefaults
 import com.example.ui.components.GoogleSignInIcon
 import com.example.ui.components.LocalizationPreferencesDialog
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.CinemaRed
 import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
+import com.example.util.findActivity
 import androidx.compose.ui.unit.Dp
 
 @Composable
@@ -116,7 +112,8 @@ fun ProfileScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = remember(context) { context.findActivity() }
+    val profileColors = WatchPilotColors.current
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncingCloud.collectAsStateWithLifecycle()
     val syncMessage by viewModel.syncStatusMessage.collectAsStateWithLifecycle()
@@ -211,13 +208,14 @@ fun ProfileScreen(
 
                         Surface(
                             shape = CircleShape,
-                            color = if (currentUser != null) CinemaGreen.copy(alpha = 0.2f) else CinemaGold.copy(alpha = 0.2f),
+                            color = if (currentUser != null) profileColors.greenChipContainer else profileColors.goldChipContainer,
+                            border = BorderStroke(1.dp, if (currentUser != null) profileColors.greenChipBorder else profileColors.goldChipBorder),
                             modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
                                 imageVector = if (currentUser != null) Icons.Default.CloudDone else Icons.Default.Person,
                                 contentDescription = null,
-                                tint = if (currentUser != null) CinemaGreen else CinemaGold,
+                                tint = if (currentUser != null) profileColors.greenAccent else profileColors.goldAccent,
                                 modifier = Modifier
                                     .padding(10.dp)
                                     .fillMaxSize()
@@ -237,7 +235,7 @@ fun ProfileScreen(
                 ),
                 border = BorderStroke(
                     1.dp,
-                    if (monetizationState.isPro) CinemaGold.copy(alpha = 0.65f) else CinemaGold.copy(alpha = 0.28f)
+                    if (monetizationState.isPro) profileColors.goldAccent else profileColors.goldChipBorder
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -295,7 +293,8 @@ fun ProfileScreen(
                         val tierColors = WatchPilotColors.current
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (monetizationState.isPro) tierColors.greenChipContainer else tierColors.goldChipContainer
+                            color = if (monetizationState.isPro) tierColors.greenChipContainer else tierColors.goldChipContainer,
+                            border = BorderStroke(1.dp, if (monetizationState.isPro) tierColors.greenChipBorder else tierColors.goldChipBorder)
                         ) {
                             Text(
                                 text = if (monetizationState.isPro) "ACTIVE" else "FREE TIER",
@@ -346,6 +345,7 @@ fun ProfileScreen(
                         OutlinedButton(
                             onClick = { viewModel.restorePurchases() },
                             shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, profileColors.neutralChipBorder),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -378,9 +378,10 @@ fun ProfileScreen(
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                 colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.surface,
-                                    contentColor = CinemaCyan
+                                    containerColor = profileColors.cyanChipContainer,
+                                    contentColor = profileColors.cyanAccent
                                 ),
+                                border = BorderStroke(1.dp, profileColors.cyanChipBorder),
                                 modifier = Modifier.testTag("btn_toggle_sandbox_pro")
                             ) {
                                 Text(
@@ -399,7 +400,7 @@ fun ProfileScreen(
                         Text(
                             text = monetizationState.billingStatusMessage.orEmpty(),
                             style = MaterialTheme.typography.labelSmall,
-                            color = CinemaCyan
+                            color = profileColors.cyanAccent
                         )
                     }
                 }
@@ -425,7 +426,7 @@ fun ProfileScreen(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = CinemaGold,
+                                color = profileColors.goldSolidBg,
                                 modifier = Modifier.size(54.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -435,7 +436,7 @@ fun ProfileScreen(
                                             ?: "U",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 22.sp,
-                                        color = Color.Black
+                                        color = profileColors.onGoldSolid
                                     )
                                 }
                             }
@@ -458,7 +459,7 @@ fun ProfileScreen(
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
                                         contentDescription = null,
-                                        tint = CinemaGreen,
+                                        tint = profileColors.greenAccent,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -466,7 +467,7 @@ fun ProfileScreen(
                                         text = "Cloud Sync Active",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = CinemaGreen
+                                        color = profileColors.greenAccent
                                     )
                                 }
                             }
@@ -481,7 +482,10 @@ fun ProfileScreen(
                             Button(
                                 onClick = { viewModel.syncWithCloud() },
                                 enabled = !isSyncing,
-                                colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = profileColors.goldSolidBg,
+                                    contentColor = profileColors.onGoldSolid
+                                ),
                                 shape = RoundedCornerShape(12.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                 modifier = Modifier
@@ -489,7 +493,7 @@ fun ProfileScreen(
                                     .testTag("btn_sync_now")
                             ) {
                                 if (isSyncing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(15.dp), color = Color.Black, strokeWidth = 2.dp)
+                                    CircularProgressIndicator(modifier = Modifier.size(15.dp), color = profileColors.onGoldSolid, strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Syncing...", maxLines = 1, softWrap = false, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 } else {
@@ -502,6 +506,7 @@ fun ProfileScreen(
                             OutlinedButton(
                                 onClick = { viewModel.signOut(context) },
                                 shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, profileColors.neutralChipBorder),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                 modifier = Modifier.testTag("btn_sign_out")
                             ) {
@@ -541,7 +546,7 @@ fun ProfileScreen(
                                 Text(
                                     text = "Saved on device",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = CinemaCyan,
+                                    color = profileColors.cyanAccent,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -571,7 +576,10 @@ fun ProfileScreen(
                                     )
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = CinemaGold, contentColor = Color.Black),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = profileColors.goldSolidBg,
+                                contentColor = profileColors.onGoldSolid
+                            ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -588,7 +596,7 @@ fun ProfileScreen(
                         Text(
                             text = syncMessage!!,
                             style = MaterialTheme.typography.labelSmall,
-                            color = CinemaGreen,
+                            color = profileColors.greenAccent,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -633,13 +641,13 @@ fun ProfileScreen(
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = CinemaGreen.copy(alpha = 0.16f),
+                                color = profileColors.greenChipContainer,
                                 modifier = Modifier.size(40.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Savings,
                                     contentDescription = null,
-                                    tint = CinemaGreen,
+                                    tint = profileColors.greenAccent,
                                     modifier = Modifier.padding(9.dp)
                                 )
                             }
@@ -665,11 +673,12 @@ fun ProfileScreen(
                         if (ottSummary.potentialMonthlySavingsUsd > 0f) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = CinemaGreen.copy(alpha = 0.2f)
+                                color = profileColors.greenChipContainer,
+                                border = BorderStroke(1.dp, profileColors.greenChipBorder)
                             ) {
                                 Text(
                                     text = "Save $${String.format("%.0f", ottSummary.potentialMonthlySavingsUsd)}/mo",
-                                    color = CinemaGreen,
+                                    color = profileColors.greenAccent,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
                                     maxLines = 1,
@@ -686,9 +695,10 @@ fun ProfileScreen(
                         onClick = { viewModel.openOttMoneySaver() },
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = CinemaGreen.copy(alpha = 0.18f),
-                            contentColor = CinemaGreen
+                            containerColor = profileColors.greenChipContainer,
+                            contentColor = profileColors.greenAccent
                         ),
+                        border = BorderStroke(1.dp, profileColors.greenChipBorder),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("btn_open_ott_audit")
@@ -726,13 +736,13 @@ fun ProfileScreen(
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = CinemaCyan.copy(alpha = 0.16f),
+                                        color = profileColors.cyanChipContainer,
                                         modifier = Modifier.size(40.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.NotificationsActive,
                                             contentDescription = null,
-                                            tint = CinemaCyan,
+                                            tint = profileColors.cyanAccent,
                                             modifier = Modifier.padding(9.dp)
                                         )
                                     }
@@ -752,7 +762,8 @@ fun ProfileScreen(
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Surface(
                                                     shape = RoundedCornerShape(6.dp),
-                                                    color = proPillColors.goldChipContainer
+                                                    color = proPillColors.goldChipContainer,
+                                                    border = BorderStroke(1.dp, proPillColors.goldChipBorder)
                                                 ) {
                                                     Text(
                                                         text = "PRO",
@@ -792,8 +803,8 @@ fun ProfileScreen(
                                         }
                                     },
                                     colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.Black,
-                                        checkedTrackColor = CinemaCyan
+                                        checkedThumbColor = profileColors.onCyanSolid,
+                                        checkedTrackColor = profileColors.cyanSolidBg
                                     ),
                                     modifier = Modifier.testTag("switch_pro_alerts")
                                 )
@@ -813,7 +824,7 @@ fun ProfileScreen(
                                             "${watchAlerts.size} active watchlist update(s)"
                                         },
                                         fontSize = 12.sp,
-                                        color = CinemaCyan,
+                                        color = profileColors.cyanAccent,
                                         modifier = Modifier.weight(1f)
                                     )
                                     TextButton(
@@ -823,11 +834,11 @@ fun ProfileScreen(
                                         Icon(
                                             imageVector = Icons.Default.Refresh,
                                             contentDescription = "Check Alerts Now",
-                                            tint = CinemaCyan,
+                                            tint = profileColors.cyanAccent,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Check Now", fontSize = 12.sp, color = CinemaCyan, fontWeight = FontWeight.Bold)
+                                        Text("Check Now", fontSize = 12.sp, color = profileColors.cyanAccent, fontWeight = FontWeight.Bold)
                                     }
                                 }
 
@@ -859,7 +870,7 @@ fun ProfileScreen(
                                                 Text(
                                                     text = "${alert.alertType.badgeLabel} • ${alert.detailMessage}",
                                                     fontSize = 11.sp,
-                                                    color = CinemaGreen,
+                                                    color = profileColors.greenAccent,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
@@ -919,8 +930,8 @@ fun ProfileScreen(
                                 },
                                 enabled = !isImportingCsv,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = CinemaGold,
-                                    contentColor = Color.Black
+                                    containerColor = profileColors.goldSolidBg,
+                                    contentColor = profileColors.onGoldSolid
                                 ),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
@@ -952,6 +963,7 @@ fun ProfileScreen(
                                 }
                             },
                             shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, profileColors.neutralChipBorder),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -979,6 +991,7 @@ fun ProfileScreen(
                                 }
                             },
                             shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, profileColors.neutralChipBorder),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -1005,7 +1018,7 @@ fun ProfileScreen(
                         Text(
                             text = csvImportMessage.orEmpty(),
                             style = MaterialTheme.typography.labelSmall,
-                            color = CinemaCyan
+                            color = profileColors.cyanAccent
                         )
                     }
                 }
@@ -1081,8 +1094,8 @@ fun ProfileScreen(
                             checked = isDarkTheme,
                             onCheckedChange = { viewModel.setDarkTheme(it) },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = CinemaGold,
-                                checkedTrackColor = CinemaGold.copy(alpha = 0.5f)
+                                checkedThumbColor = profileColors.onGoldSolid,
+                                checkedTrackColor = profileColors.goldSolidBg
                             ),
                             modifier = Modifier.testTag("switch_dark_theme")
                         )
@@ -1107,7 +1120,7 @@ fun ProfileScreen(
                                 .weight(1f)
                                 .padding(end = 8.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Public, contentDescription = null, tint = CinemaGold)
+                            Icon(imageVector = Icons.Default.Public, contentDescription = null, tint = profileColors.goldAccent)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text("Streaming Region", fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -1135,7 +1148,7 @@ fun ProfileScreen(
                                 .weight(1f)
                                 .padding(end = 8.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Language, contentDescription = null, tint = CinemaCyan)
+                            Icon(imageVector = Icons.Default.Language, contentDescription = null, tint = profileColors.cyanAccent)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1150,11 +1163,12 @@ fun ProfileScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = CinemaCyan.copy(alpha = 0.15f)
+                                        color = profileColors.cyanChipContainer,
+                                        border = BorderStroke(1.dp, profileColors.cyanChipBorder)
                                     ) {
                                         Text(
                                             text = RegionalDefaults.getLanguageLabel(userPrefs.languageCode),
-                                            color = CinemaCyan,
+                                            color = profileColors.cyanAccent,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
@@ -1193,7 +1207,10 @@ fun ProfileScreen(
                         Switch(
                             checked = userPrefs.showStreamingProviders,
                             onCheckedChange = { viewModel.toggleStreamingProviders(it) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = CinemaGold, checkedTrackColor = CinemaGold.copy(alpha = 0.5f))
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = profileColors.onGoldSolid,
+                                checkedTrackColor = profileColors.goldSolidBg
+                            )
                         )
                     }
 
@@ -1220,7 +1237,10 @@ fun ProfileScreen(
                         Switch(
                             checked = analyticsEnabled,
                             onCheckedChange = { viewModel.setAnalyticsEnabled(it) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = CinemaGold, checkedTrackColor = CinemaGold.copy(alpha = 0.5f)),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = profileColors.onGoldSolid,
+                                checkedTrackColor = profileColors.goldSolidBg
+                            ),
                             modifier = Modifier.testTag("switch_analytics_enabled")
                         )
                     }
@@ -1245,7 +1265,7 @@ fun ProfileScreen(
                                 .weight(1f)
                                 .padding(end = 8.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = CinemaGold)
+                            Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = profileColors.goldAccent)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text("Personalize Taste", fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -1340,6 +1360,7 @@ fun ProfileScreen(
                             containerColor = badgeColors.goldChipContainer,
                             contentColor = badgeColors.goldAccent
                         ),
+                        border = BorderStroke(1.dp, badgeColors.goldChipBorder),
                         modifier = Modifier.testTag("btn_share_wrapped")
                     ) {
                         Icon(
@@ -1379,7 +1400,7 @@ fun ProfileScreen(
                     value = stats.formattedDuration,
                     subtitle = "${stats.totalTimeMinutes / 60} Total Hours",
                     icon = Icons.Default.AccessTime,
-                    tint = CinemaCyan,
+                    tint = profileColors.cyanAccent,
                     modifier = Modifier.weight(1f)
                 )
 
@@ -1388,7 +1409,7 @@ fun ProfileScreen(
                     value = if (stats.ratedItemsCount > 0) String.format("%.1f ★", stats.averageUserRating) else "—",
                     subtitle = "${stats.ratedItemsCount} Rated Titles",
                     icon = Icons.Default.Star,
-                    tint = CinemaGold,
+                    tint = profileColors.goldAccent,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1404,7 +1425,7 @@ fun ProfileScreen(
                     value = "${stats.completedMoviesCount}",
                     subtitle = "Finished films",
                     icon = Icons.Default.Movie,
-                    tint = CinemaGreen,
+                    tint = profileColors.greenAccent,
                     modifier = Modifier.weight(1f)
                 )
 
@@ -1413,7 +1434,7 @@ fun ProfileScreen(
                     value = "${stats.totalEpisodesLogged}",
                     subtitle = "Episodes watched",
                     icon = Icons.Default.Tv,
-                    tint = CinemaRed,
+                    tint = profileColors.redAccent,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1426,7 +1447,7 @@ fun ProfileScreen(
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                border = if (!monetizationState.isPro) BorderStroke(1.dp, CinemaGold.copy(alpha = 0.28f)) else null,
+                border = if (!monetizationState.isPro) BorderStroke(1.dp, profileColors.goldChipBorder) else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(sectionWidthMod)
@@ -1446,7 +1467,7 @@ fun ProfileScreen(
                             Icon(
                                 imageVector = Icons.Default.Timeline,
                                 contentDescription = null,
-                                tint = CinemaCyan,
+                                tint = profileColors.cyanAccent,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -1462,7 +1483,8 @@ fun ProfileScreen(
                             val dnaLockColors = WatchPilotColors.current
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = dnaLockColors.goldChipContainer
+                                color = dnaLockColors.goldChipContainer,
+                                border = BorderStroke(1.dp, dnaLockColors.goldChipBorder)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1492,7 +1514,8 @@ fun ProfileScreen(
                     if (monetizationState.isPro) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = dnaColors.cyanChipContainer
+                            color = dnaColors.cyanChipContainer,
+                            border = BorderStroke(1.dp, dnaColors.cyanChipBorder)
                         ) {
                             Text(
                                 text = "${stats.completionRatePercent}% Completion • ${stats.topOriginLanguage}",
@@ -1568,6 +1591,7 @@ fun ProfileScreen(
                                 containerColor = dnaColors.goldChipContainer,
                                 contentColor = dnaColors.goldAccent
                             ),
+                            border = BorderStroke(1.dp, dnaColors.goldChipBorder),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1627,7 +1651,7 @@ fun ProfileScreen(
                                     Text(
                                         text = countText,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = CinemaGold,
+                                        color = profileColors.goldAccent,
                                         maxLines = 1,
                                         softWrap = false
                                     )
@@ -1639,7 +1663,7 @@ fun ProfileScreen(
                                         .fillMaxWidth()
                                         .height(6.dp)
                                         .clip(CircleShape),
-                                    color = CinemaGold,
+                                    color = profileColors.goldSolidBg,
                                     trackColor = MaterialTheme.colorScheme.surface
                                 )
                             }
@@ -1687,7 +1711,7 @@ fun ProfileScreen(
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
-                                tint = CinemaGold,
+                                tint = profileColors.goldAccent,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -1701,12 +1725,13 @@ fun ProfileScreen(
                         }
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.surface
+                            color = profileColors.neutralChipContainer,
+                            border = BorderStroke(1.dp, profileColors.neutralChipBorder)
                         ) {
                             Text(
                                 text = BuildConfig.VERSION_NAME,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = CinemaGold,
+                                color = profileColors.goldAccent,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 softWrap = false,
@@ -1749,7 +1774,7 @@ fun ProfileScreen(
                             Icon(
                                 imageVector = Icons.Default.Star,
                                 contentDescription = stringResource(R.string.rate_app_title),
-                                tint = CinemaGold,
+                                tint = profileColors.goldAccent,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
@@ -1798,7 +1823,7 @@ fun ProfileScreen(
                             Icon(
                                 imageVector = Icons.Default.Share,
                                 contentDescription = stringResource(R.string.share_app_title),
-                                tint = CinemaCyan,
+                                tint = profileColors.cyanAccent,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
@@ -1847,7 +1872,7 @@ fun ProfileScreen(
                             Icon(
                                 imageVector = Icons.Default.Gavel,
                                 contentDescription = null,
-                                tint = CinemaCyan,
+                                tint = profileColors.cyanAccent,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
@@ -1872,8 +1897,11 @@ fun ProfileScreen(
                         OutlinedButton(
                             onClick = { showDeleteAccountConfirm = true },
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, CinemaRed.copy(alpha = 0.5f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = CinemaRed),
+                            border = BorderStroke(1.dp, profileColors.redChipBorder),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = profileColors.redChipContainer,
+                                contentColor = profileColors.redAccent
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("btn_delete_account")
@@ -1906,7 +1934,7 @@ fun ProfileScreen(
                         showDeleteAccountConfirm = false
                         viewModel.deleteAccountAndCloudData(context) { _, _ -> }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = CinemaRed, contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = profileColors.redAccent, contentColor = Color.White),
                     modifier = Modifier.testTag("btn_confirm_delete_account")
                 ) {
                     Text("Delete Permanently", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)

@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -45,7 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.ui.theme.CinemaGold
 import com.example.ui.theme.WatchPilotColors
 
 @Composable
@@ -124,6 +124,8 @@ fun RatingReviewDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                val ratingColors = WatchPilotColors.current
+
                 // 5 Interactive Large Stars
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -135,7 +137,7 @@ fun RatingReviewDialog(
                         Icon(
                             imageVector = if (isFilled) Icons.Default.Star else Icons.Outlined.StarOutline,
                             contentDescription = "Star $i",
-                            tint = if (isFilled) CinemaGold else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                            tint = if (isFilled) ratingColors.goldAccent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
                             modifier = Modifier
                                 .size(44.dp)
                                 .clickable { rating = i.toFloat() }
@@ -148,7 +150,6 @@ fun RatingReviewDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Score Display & Quality Tag
-                val ratingColors = WatchPilotColors.current
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -165,7 +166,8 @@ fun RatingReviewDialog(
                     Spacer(modifier = Modifier.width(10.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = ratingColors.goldChipContainer
+                        color = ratingColors.goldChipContainer,
+                        border = BorderStroke(1.dp, ratingColors.goldChipBorder)
                     ) {
                         Text(
                             text = ratingLabel,
@@ -213,8 +215,16 @@ fun RatingReviewDialog(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
+                                containerColor = ratingColors.neutralChipContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
                                 selectedContainerColor = ratingColors.goldSolidBg,
                                 selectedLabelColor = ratingColors.onGoldSolid
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isStarSelected,
+                                borderColor = ratingColors.neutralChipBorder,
+                                selectedBorderColor = ratingColors.goldChipBorder
                             )
                         )
                     }

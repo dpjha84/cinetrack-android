@@ -4,6 +4,7 @@ import android.util.Log
 import android.view.View
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,7 +38,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
-import com.example.ui.theme.CinemaGold
+import com.example.ui.theme.WatchPilotColors
 import com.example.util.TrailerInterstitialAdManager
 import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
@@ -55,6 +56,8 @@ fun SponsoredBannerCard(
     var adInitFailed by remember { mutableStateOf(false) }
     if (isPro || adInitFailed) return
 
+    val bannerColors = WatchPilotColors.current
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -63,7 +66,7 @@ fun SponsoredBannerCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f))
+        border = BorderStroke(1.dp, bannerColors.neutralChipBorder)
     ) {
         Column(
             modifier = Modifier
@@ -79,7 +82,8 @@ fun SponsoredBannerCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.surface)
+                        .background(bannerColors.neutralChipContainer)
+                        .border(1.dp, bannerColors.neutralChipBorder, RoundedCornerShape(6.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
@@ -106,7 +110,7 @@ fun SponsoredBannerCard(
                         text = "Remove Ads • WatchPilot Pro",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = CinemaGold,
+                        color = bannerColors.goldAccent,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

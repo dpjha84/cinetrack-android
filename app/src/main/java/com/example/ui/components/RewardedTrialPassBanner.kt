@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import android.app.Activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,10 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.MonetizationState
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.DarkBackground
+import com.example.ui.theme.WatchPilotColors
 import com.example.util.RewardedTrialAdManager
+import com.example.util.findActivity
 
 /**
  * Hybrid "Watch an Ad to Try Pro Once" banner with transparent anti-abuse cap status
@@ -68,15 +66,17 @@ fun RewardedTrialPassBanner(
         RewardedTrialAdManager.preload(context, monetizationState.isPro)
     }
 
+    val colors = WatchPilotColors.current
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .testTag("rewarded_trial_banner_$sourceTag"),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-            containerColor = CinemaCyan.copy(alpha = 0.12f)
+            containerColor = colors.cyanChipContainer
         ),
-        border = BorderStroke(1.dp, CinemaCyan.copy(alpha = 0.35f))
+        border = BorderStroke(1.dp, colors.cyanChipBorder)
     ) {
         Column(
             modifier = Modifier
@@ -102,7 +102,7 @@ fun RewardedTrialPassBanner(
                         },
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (monetizationState.rewardedTrialCredits > 0) CinemaGreen else CinemaCyan,
+                        color = if (monetizationState.rewardedTrialCredits > 0) colors.greenAccent else colors.cyanAccent,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -119,7 +119,7 @@ fun RewardedTrialPassBanner(
                         onClick = {
                             feedbackMessage = null
                             RewardedTrialAdManager.showRewardedTrialAd(
-                                activity = context as? Activity,
+                                activity = context.findActivity(),
                                 canWatchNow = monetizationState.canWatchRewardedTrialAd,
                                 onRewardEarned = {
                                     onRewardEarned()
@@ -137,8 +137,8 @@ fun RewardedTrialPassBanner(
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = CinemaCyan,
-                            contentColor = DarkBackground
+                            containerColor = colors.cyanSolidBg,
+                            contentColor = colors.onCyanSolid
                         ),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
@@ -169,7 +169,7 @@ fun RewardedTrialPassBanner(
                 Text(
                     text = feedbackMessage.orEmpty(),
                     fontSize = 11.sp,
-                    color = CinemaCyan
+                    color = colors.cyanAccent
                 )
             }
         }

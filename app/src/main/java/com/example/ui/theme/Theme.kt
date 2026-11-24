@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.example.util.findActivity
 
 @Immutable
 data class WatchPilotAccentColors(
@@ -32,8 +33,15 @@ data class WatchPilotAccentColors(
     val greenSolidBg: Color,
     val onGreenSolid: Color,
     val greenChipContainer: Color,
+    val greenChipBorder: Color,
     val orangeAccent: Color,
-    val redAccent: Color
+    val orangeChipContainer: Color,
+    val orangeChipBorder: Color,
+    val redAccent: Color,
+    val redChipContainer: Color,
+    val redChipBorder: Color,
+    val neutralChipContainer: Color,
+    val neutralChipBorder: Color
 )
 
 private val DarkAccentColors = WatchPilotAccentColors(
@@ -42,18 +50,25 @@ private val DarkAccentColors = WatchPilotAccentColors(
     goldSolidBg = CinemaGold,
     onGoldSolid = DarkBackground,
     goldChipContainer = CinemaGold.copy(alpha = 0.20f),
-    goldChipBorder = CinemaGold.copy(alpha = 0.48f),
+    goldChipBorder = CinemaGold.copy(alpha = 0.55f),
     cyanAccent = CinemaCyan,
     cyanSolidBg = CinemaCyan,
     onCyanSolid = DarkBackground,
     cyanChipContainer = CinemaCyan.copy(alpha = 0.20f),
-    cyanChipBorder = CinemaCyan.copy(alpha = 0.48f),
+    cyanChipBorder = CinemaCyan.copy(alpha = 0.55f),
     greenAccent = CinemaGreen,
     greenSolidBg = CinemaGreen,
     onGreenSolid = DarkBackground,
     greenChipContainer = CinemaGreen.copy(alpha = 0.22f),
+    greenChipBorder = CinemaGreen.copy(alpha = 0.50f),
     orangeAccent = Color(0xFFF97316),
-    redAccent = CinemaRed
+    orangeChipContainer = Color(0xFFF97316).copy(alpha = 0.22f),
+    orangeChipBorder = Color(0xFFF97316).copy(alpha = 0.50f),
+    redAccent = CinemaRed,
+    redChipContainer = CinemaRed.copy(alpha = 0.22f),
+    redChipBorder = CinemaRed.copy(alpha = 0.50f),
+    neutralChipContainer = DarkSurfaceVariant,
+    neutralChipBorder = Color.White.copy(alpha = 0.16f)
 )
 
 private val LightAccentColors = WatchPilotAccentColors(
@@ -62,18 +77,25 @@ private val LightAccentColors = WatchPilotAccentColors(
     goldSolidBg = CinemaGoldSolidLight,
     onGoldSolid = CinemaGoldInkLight,
     goldChipContainer = CinemaGoldTintLight,
-    goldChipBorder = CinemaGoldBorderLight.copy(alpha = 0.65f),
+    goldChipBorder = CinemaGoldBorderLight.copy(alpha = 0.75f),
     cyanAccent = CinemaCyanOnLight,
     cyanSolidBg = CinemaCyanSolidLight,
     onCyanSolid = LightSurface,
     cyanChipContainer = CinemaCyanTintLight,
-    cyanChipBorder = CinemaCyanBorderLight.copy(alpha = 0.75f),
+    cyanChipBorder = CinemaCyanBorderLight.copy(alpha = 0.78f),
     greenAccent = CinemaGreenOnLight,
     greenSolidBg = CinemaGreenSolidLight,
     onGreenSolid = LightSurface,
     greenChipContainer = CinemaGreenTintLight,
+    greenChipBorder = CinemaGreenBorderLight.copy(alpha = 0.65f),
     orangeAccent = CinemaAmberOnLight,
-    redAccent = CinemaRedOnLight
+    orangeChipContainer = CinemaOrangeTintLight,
+    orangeChipBorder = CinemaOrangeBorderLight.copy(alpha = 0.68f),
+    redAccent = CinemaRedOnLight,
+    redChipContainer = CinemaRedTintLight,
+    redChipBorder = CinemaRedOnLight.copy(alpha = 0.55f),
+    neutralChipContainer = LightSurface,
+    neutralChipBorder = CinemaNeutralBorderLight
 )
 
 val LocalWatchPilotColors = staticCompositionLocalOf { DarkAccentColors }
@@ -135,7 +157,7 @@ fun MovieverseTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as? Activity)?.window
+            val window = view.context.findActivity()?.window
             if (window != null) {
                 window.statusBarColor = colorScheme.background.toArgb()
                 window.navigationBarColor = colorScheme.background.toArgb()

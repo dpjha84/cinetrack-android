@@ -534,6 +534,7 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                     )
                 }
             } else if (activeSection != null && currentNav == MainNavDestination.HOME) {
+                val trackedMediaById = remember(trackedMedia) { trackedMedia.associateBy { it.id } }
                 HomeSectionGridScreen(
                     section = activeSection,
                     regionName = regionDisplayName,
@@ -552,7 +553,9 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                     people = activeSectionGridState.people,
                     onPersonClick = { person -> viewModel.selectPersonForDetail(person) },
                     isFilterLocked = isHomeSectionFilterLocked,
-                    isGenreFilterLocked = isHomeSectionGenreLocked
+                    isGenreFilterLocked = isHomeSectionGenreLocked,
+                    trackedMediaById = trackedMediaById,
+                    onAddToWatchlist = { media -> viewModel.addToWatchlistIfUntracked(media) }
                 )
             } else {
                 if (currentNav != MainNavDestination.HOME) {

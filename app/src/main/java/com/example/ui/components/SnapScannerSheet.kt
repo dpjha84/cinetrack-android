@@ -5,6 +5,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,11 +60,6 @@ import com.example.data.model.MonetizationState
 import com.example.data.model.ScannedMediaCandidate
 import com.example.data.model.SnapScanUiState
 import com.example.data.model.WatchStatus
-import com.example.ui.theme.CinemaCyan
-import com.example.ui.theme.CinemaGold
-import com.example.ui.theme.CinemaGreen
-import com.example.ui.theme.CinemaRed
-import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.WatchPilotColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -151,6 +147,11 @@ fun SnapScannerSheet(
                         .padding(end = 8.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(if (monetizationState.isPro) snapColors.goldChipContainer else snapColors.cyanChipContainer)
+                        .border(
+                            width = 1.dp,
+                            color = if (monetizationState.isPro) snapColors.goldChipBorder else snapColors.cyanChipBorder,
+                            shape = RoundedCornerShape(8.dp)
+                        )
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
@@ -173,8 +174,10 @@ fun SnapScannerSheet(
                         softWrap = false,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
+                            .background(snapColors.goldChipContainer)
+                            .border(1.dp, snapColors.goldChipBorder, RoundedCornerShape(8.dp))
                             .clickable(onClick = onUpgradePro)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
             }
@@ -204,8 +207,8 @@ fun SnapScannerSheet(
                     .testTag("pick_screenshot_button"),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = CinemaGold,
-                    contentColor = DarkBackground
+                    containerColor = snapColors.goldSolidBg,
+                    contentColor = snapColors.onGoldSolid
                 )
             ) {
                 Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -244,7 +247,7 @@ fun SnapScannerSheet(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        CircularProgressIndicator(color = CinemaGold)
+                        CircularProgressIndicator(color = snapColors.goldAccent)
                         Text(
                             text = "Analyzing screenshot with WatchPilot Vision AI & matching TMDB catalog...",
                             fontSize = 13.sp,
@@ -255,8 +258,8 @@ fun SnapScannerSheet(
 
                 is SnapScanUiState.Error -> {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = CinemaRed.copy(alpha = 0.14f)),
-                        border = BorderStroke(1.dp, CinemaRed.copy(alpha = 0.4f)),
+                        colors = CardDefaults.cardColors(containerColor = snapColors.redChipContainer),
+                        border = BorderStroke(1.dp, snapColors.redChipBorder),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text(
@@ -290,19 +293,23 @@ fun SnapScannerSheet(
                                 onAddAllToWatchlist()
                             },
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, CinemaGreen),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = snapColors.greenChipContainer,
+                                contentColor = snapColors.greenAccent
+                            ),
+                            border = BorderStroke(1.dp, snapColors.greenChipBorder),
                             modifier = Modifier.testTag("add_all_scanned_button")
                         ) {
                             Icon(
                                 imageVector = if (addedAllClicked) Icons.Filled.Check else Icons.Filled.Add,
                                 contentDescription = null,
-                                tint = CinemaGreen,
+                                tint = snapColors.greenAccent,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = if (addedAllClicked) "Added All!" else "Add All to Watchlist",
-                                color = CinemaGreen,
+                                color = snapColors.greenAccent,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
@@ -347,7 +354,7 @@ fun SnapScannerSheet(
                                         modifier = Modifier
                                             .size(width = 52.dp, height = 76.dp)
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(DarkBackground)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
@@ -374,7 +381,7 @@ fun SnapScannerSheet(
                                             Text(
                                                 text = "On: ${providers.joinToString(", ")}",
                                                 fontSize = 11.sp,
-                                                color = CinemaCyan,
+                                                color = snapColors.cyanAccent,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                         } else if (cand.note.isNotBlank()) {
@@ -393,7 +400,7 @@ fun SnapScannerSheet(
                                         Icon(
                                             imageVector = if (isAlreadyTracked || addedAllClicked) Icons.Filled.Check else Icons.Filled.Add,
                                             contentDescription = "Add ${cand.rawTitle} to Watchlist",
-                                            tint = if (isAlreadyTracked || addedAllClicked) CinemaGreen else CinemaGold
+                                            tint = if (isAlreadyTracked || addedAllClicked) snapColors.greenAccent else snapColors.goldAccent
                                         )
                                     }
                                 }
