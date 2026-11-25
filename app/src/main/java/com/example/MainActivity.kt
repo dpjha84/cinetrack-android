@@ -554,8 +554,7 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                     onPersonClick = { person -> viewModel.selectPersonForDetail(person) },
                     isFilterLocked = isHomeSectionFilterLocked,
                     isGenreFilterLocked = isHomeSectionGenreLocked,
-                    trackedMediaById = trackedMediaById,
-                    onAddToWatchlist = { media -> viewModel.addToWatchlistIfUntracked(media) }
+                    trackedMediaById = trackedMediaById
                 )
             } else {
                 if (currentNav != MainNavDestination.HOME) {

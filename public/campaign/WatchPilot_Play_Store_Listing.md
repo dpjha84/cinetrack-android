@@ -42,7 +42,7 @@ Notes:
 ### Release Notes / What's New (`v5.1.0` — Max 500 characters)
 ```
 WatchPilot 5.1.0 brings unified WatchPilot Pro & Light/Dark theme polish:
-• Quick "+ Watchlist" pill right on Home carousels & section grids for untracked titles
+• Region-aware Home picks & discovery sections across Phone and Tablet layouts
 • Swipeable My Library tabs with customizable collections & On My Apps filtering
 • Offline Room caching for watchlist & search history
 • Tonight's AI Concierge, Screenshot-to-Watchlist Vision, Live Swipe-to-Match rooms & OTT Money-Saver Radar
@@ -84,7 +84,7 @@ Already generated in `public/`:
 - **Feature Graphic (1024×500 PNG):** `public/playstore-feature-graphic-1024x500.png` (and `public/campaign/watchpilot_play_feature_1024x500.png`)
 
 Recommended 6–8 Phone + Tablet Screenshots to capture from a clean emulator/device run before submission:
-1. **Home Screen (Dark Theme)** showing Trending Spotlight, Quick Action cards (`Tonight's Pick`, `Swipe Match`, `Snap Scan`), and `+ Watchlist` pills.
+1. **Home Screen (Dark Theme)** showing Trending Spotlight, Top Picks For You, and Quick Action cards (`Tonight's Pick`, `Swipe Match`, `Snap Scan`).
 2. **WatchPilot Pro Paywall / OTT Money-Saver Radar** showing monthly spend & "Pause & Save" insights.
 3. **Tonight's AI Concierge / Snap-to-Watchlist Vision Scanner** showing instant matched posters.
 4. **Live Swipe-to-Match Room** showing 6-digit code & matched celebration card.

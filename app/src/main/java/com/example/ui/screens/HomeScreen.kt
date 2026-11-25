@@ -79,7 +79,6 @@ import com.example.data.model.TmdbSearchResultItem
 import com.example.ui.components.CompactMediaPosterCard
 import com.example.ui.components.CompactPersonCircleCard
 import com.example.ui.components.ContinueWatchingCard
-import com.example.ui.components.HomeCardWatchlistPill
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -389,17 +388,10 @@ fun HomeScreen(
                                         )
                                     }
                                     val resolvedMedia = trackedById[item.id] ?: item
-                                    val isInLibrary = item.id in trackedById ||
-                                        resolvedMedia.getWatchStatusEnum() != WatchStatus.NONE ||
-                                        resolvedMedia.isFavorite ||
-                                        resolvedMedia.userRating > 0f ||
-                                        !resolvedMedia.customWatchlist.isNullOrBlank()
                                     PickedForYouCard(
                                         media = resolvedMedia,
                                         reasonLabel = reasonLabel,
-                                        isInLibrary = isInLibrary,
-                                        onClick = { viewModel.openMediaFromSearch(resolvedMedia) },
-                                        onAddToWatchlist = { viewModel.addToWatchlistIfUntracked(item) }
+                                        onClick = { viewModel.openMediaFromSearch(resolvedMedia) }
                                     )
                                 }
                             }
@@ -477,17 +469,10 @@ fun HomeScreen(
                                 key = { index, item -> "top_spotlight_${item.id}_$index" }
                             ) { index, item ->
                                 val resolvedMedia = trackedById[item.id] ?: item
-                                val isInLibrary = item.id in trackedById ||
-                                    resolvedMedia.getWatchStatusEnum() != WatchStatus.NONE ||
-                                    resolvedMedia.isFavorite ||
-                                    resolvedMedia.userRating > 0f ||
-                                    !resolvedMedia.customWatchlist.isNullOrBlank()
                                 SpotlightBannerCard(
                                     rank = index + 1,
                                     media = resolvedMedia,
-                                    isInLibrary = isInLibrary,
-                                    onClick = { onMediaClick(resolvedMedia.id) },
-                                    onAddToWatchlist = { viewModel.addToWatchlistIfUntracked(item) }
+                                    onClick = { onMediaClick(resolvedMedia.id) }
                                 )
                             }
                         }
@@ -766,8 +751,7 @@ fun HomeScreen(
                         isRefreshing = isHomeCatalogRefreshing,
                         isCompactCardTablet = adaptive.isTabletOrWide,
                         onOpenSection = { onOpenSection(section) },
-                        onMediaClick = onMediaClick,
-                        onAddToWatchlist = { media -> viewModel.addToWatchlistIfUntracked(media) }
+                        onMediaClick = onMediaClick
                     )
                 }
             }
@@ -1008,8 +992,7 @@ private fun HomeHorizontalCatalogSection(
     isRefreshing: Boolean,
     isCompactCardTablet: Boolean,
     onOpenSection: () -> Unit,
-    onMediaClick: (String) -> Unit,
-    onAddToWatchlist: (MediaEntity) -> Unit
+    onMediaClick: (String) -> Unit
 ) {
     val cardWidth = if (isCompactCardTablet) 128.dp else 108.dp
     val sectionTitle = section.formattedTitle(regionName, selectedType)
@@ -1142,18 +1125,11 @@ private fun HomeHorizontalCatalogSection(
                     key = { media -> "${section.name}_${media.id}" }
                 ) { media ->
                     val resolvedMedia = trackedById[media.id] ?: media
-                    val isInLibrary = media.id in trackedById ||
-                        resolvedMedia.getWatchStatusEnum() != WatchStatus.NONE ||
-                        resolvedMedia.isFavorite ||
-                        resolvedMedia.userRating > 0f ||
-                        !resolvedMedia.customWatchlist.isNullOrBlank()
                     CompactMediaPosterCard(
                         media = resolvedMedia,
                         onClick = { onMediaClick(resolvedMedia.id) },
                         modifier = Modifier.width(cardWidth),
-                        testTagPrefix = "home_${section.name.lowercase()}_card",
-                        isInLibrary = isInLibrary,
-                        onAddToWatchlist = { onAddToWatchlist(media) }
+                        testTagPrefix = "home_${section.name.lowercase()}_card"
                     )
                 }
 
@@ -1215,12 +1191,7 @@ fun SpotlightBannerCard(
     rank: Int,
     media: MediaEntity,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isInLibrary: Boolean = media.getWatchStatusEnum() != WatchStatus.NONE ||
-        media.isFavorite ||
-        media.userRating > 0f ||
-        !media.customWatchlist.isNullOrBlank(),
-    onAddToWatchlist: (() -> Unit)? = null
+    modifier: Modifier = Modifier
 ) {
     val adaptive = LocalAdaptiveLayoutInfo.current
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
@@ -1330,47 +1301,32 @@ fun SpotlightBannerCard(
                 }
             }
 
-            // Bottom Info + At-a-Glance Watch Status Pill + Quick Watchlist Pill (when untracked)
-            Row(
+            // Bottom Info + At-a-Glance Watch Status Pill
+            Column(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Bottom
+                    .padding(12.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    if (media.getWatchStatusEnum() != WatchStatus.NONE) {
-                        WatchStatusPill(status = media.getWatchStatusEnum())
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                    Text(
-                        text = media.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = "${media.releaseYear} • ${media.genres.ifBlank { "Drama" }}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.8f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                if (media.getWatchStatusEnum() != WatchStatus.NONE) {
+                    WatchStatusPill(status = media.getWatchStatusEnum())
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
-
-                if (!isInLibrary && onAddToWatchlist != null) {
-                    HomeCardWatchlistPill(
-                        media = media,
-                        isInLibrary = false,
-                        onAddToWatchlist = onAddToWatchlist,
-                        compact = false,
-                        useBackdropContrastSurface = true,
-                        testTag = "btn_home_watchlist_spotlight_${media.id}"
-                    )
-                }
+                Text(
+                    text = media.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${media.releaseYear} • ${media.genres.ifBlank { "Drama" }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -1429,9 +1385,7 @@ private fun HomeQuickFeatureChip(
 private fun PickedForYouCard(
     media: MediaEntity,
     reasonLabel: String,
-    isInLibrary: Boolean,
     onClick: () -> Unit,
-    onAddToWatchlist: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val adaptive = LocalAdaptiveLayoutInfo.current
@@ -1582,15 +1536,6 @@ private fun PickedForYouCard(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(2.dp))
-                HomeCardWatchlistPill(
-                    media = media,
-                    isInLibrary = isInLibrary,
-                    onAddToWatchlist = onAddToWatchlist,
-                    compact = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    testTag = "btn_home_watchlist_picked_${media.id}"
-                )
             }
         }
     }

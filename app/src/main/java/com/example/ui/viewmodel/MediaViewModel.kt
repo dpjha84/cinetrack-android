@@ -1857,33 +1857,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private val pendingQuickAddIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-
-    fun addToWatchlistIfUntracked(entity: MediaEntity) {
-        val existing = allMedia.value.find { it.id == entity.id } ?: entity
-        val alreadyInLibrary = existing.getWatchStatusEnum() != WatchStatus.NONE ||
-            existing.isFavorite ||
-            existing.userRating > 0f ||
-            !existing.customWatchlist.isNullOrBlank()
-        if (alreadyInLibrary) return
-        if (!pendingQuickAddIds.add(entity.id)) return
-
-        viewModelScope.launch {
-            try {
-                AnalyticsTracker.logWatchStatusChanged(
-                    mediaId = entity.id,
-                    mediaType = entity.getMediaTypeEnum(),
-                    status = WatchStatus.PLAN_TO_WATCH,
-                    source = "home_quick_add"
-                )
-                repository.toggleWatchlistForEntity(entity)
-                triggerOfflineHydrationIfOnline(entity.id)
-            } finally {
-                pendingQuickAddIds.remove(entity.id)
-            }
-        }
-    }
-
     fun toggleWatchlistQuick(entity: MediaEntity) {
         viewModelScope.launch {
             val existing = allMedia.value.find { it.id == entity.id } ?: entity

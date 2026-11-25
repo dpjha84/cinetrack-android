@@ -55,7 +55,6 @@ import com.example.data.local.MediaEntity
 import com.example.data.model.HomeCatalogSection
 import com.example.data.model.MediaType
 import com.example.data.model.TmdbSearchResultItem
-import com.example.data.model.WatchStatus
 import com.example.ui.components.CompactMediaPosterCard
 import com.example.ui.components.CompactPersonCircleCard
 import com.example.ui.theme.WatchPilotColors
@@ -83,8 +82,7 @@ fun HomeSectionGridScreen(
     onPersonClick: (TmdbSearchResultItem.Person) -> Unit = {},
     isFilterLocked: Boolean = false,
     isGenreFilterLocked: Boolean = false,
-    trackedMediaById: Map<String, MediaEntity> = emptyMap(),
-    onAddToWatchlist: ((MediaEntity) -> Unit)? = null
+    trackedMediaById: Map<String, MediaEntity> = emptyMap()
 ) {
     BackHandler(onBack = onBack)
 
@@ -427,18 +425,11 @@ fun HomeSectionGridScreen(
                         key = { media -> "grid_${section.name}_${media.id}" }
                     ) { media ->
                         val resolvedMedia = trackedMediaById[media.id] ?: media
-                        val isInLibrary = media.id in trackedMediaById ||
-                            resolvedMedia.getWatchStatusEnum() != WatchStatus.NONE ||
-                            resolvedMedia.isFavorite ||
-                            resolvedMedia.userRating > 0f ||
-                            !resolvedMedia.customWatchlist.isNullOrBlank()
                         CompactMediaPosterCard(
                             media = resolvedMedia,
                             onClick = { onMediaClick(resolvedMedia.id) },
                             modifier = Modifier.fillMaxWidth(),
-                            testTagPrefix = "grid_${section.name.lowercase()}_card",
-                            isInLibrary = isInLibrary,
-                            onAddToWatchlist = onAddToWatchlist?.let { addFn -> { addFn(media) } }
+                            testTagPrefix = "grid_${section.name.lowercase()}_card"
                         )
                     }
                 }

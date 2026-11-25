@@ -26,8 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
@@ -297,12 +295,7 @@ fun CompactMediaPosterCard(
     media: MediaEntity,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    testTagPrefix: String = "compact_media_card",
-    isInLibrary: Boolean = media.getWatchStatusEnum() != WatchStatus.NONE ||
-        media.isFavorite ||
-        media.userRating > 0f ||
-        !media.customWatchlist.isNullOrBlank(),
-    onAddToWatchlist: (() -> Unit)? = null
+    testTagPrefix: String = "compact_media_card"
 ) {
     val isMovie = media.getMediaTypeEnum() == MediaType.MOVIE
     val isUserRated = media.userRating > 0f
@@ -425,8 +418,8 @@ fun CompactMediaPosterCard(
                     }
                 }
 
-                // Watch status pill at bottom-start if tracked and not showing footer watchlist slot
-                if (onAddToWatchlist == null && media.getWatchStatusEnum() != WatchStatus.NONE) {
+                // Watch status pill at bottom-start if tracked
+                if (media.getWatchStatusEnum() != WatchStatus.NONE) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
@@ -468,17 +461,6 @@ fun CompactMediaPosterCard(
                         fontSize = 10.sp,
                         maxLines = 1,
                         softWrap = false
-                    )
-                }
-                if (onAddToWatchlist != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    HomeCardWatchlistPill(
-                        media = media,
-                        isInLibrary = isInLibrary,
-                        onAddToWatchlist = onAddToWatchlist,
-                        compact = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        testTag = "${testTagPrefix}_watchlist_${media.id}"
                     )
                 }
             }
@@ -783,102 +765,6 @@ fun WatchStatusPill(
             softWrap = false,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
-    }
-}
-
-@Composable
-fun HomeCardWatchlistPill(
-    media: MediaEntity,
-    isInLibrary: Boolean,
-    onAddToWatchlist: () -> Unit,
-    modifier: Modifier = Modifier,
-    compact: Boolean = true,
-    useBackdropContrastSurface: Boolean = false,
-    testTag: String = "home_watchlist_btn_${media.id}"
-) {
-    val colors = WatchPilotColors.current
-    val status = media.getWatchStatusEnum()
-    val (bgColor, borderColor, contentColor) = if (!isInLibrary) {
-        Triple(colors.goldChipContainer, colors.goldChipBorder, colors.goldAccent)
-    } else {
-        when (status) {
-            WatchStatus.WATCHING -> Triple(colors.cyanChipContainer, colors.cyanChipBorder, colors.cyanAccent)
-            WatchStatus.ON_HOLD -> Triple(colors.orangeChipContainer, colors.orangeChipBorder, colors.orangeAccent)
-            WatchStatus.DROPPED -> Triple(colors.redChipContainer, colors.redChipBorder, colors.redAccent)
-            WatchStatus.COMPLETED, WatchStatus.PLAN_TO_WATCH, WatchStatus.NONE ->
-                Triple(colors.greenChipContainer, colors.greenChipBorder, colors.greenAccent)
-        }
-    }
-
-    val label = if (!isInLibrary) {
-        "+ Watchlist"
-    } else {
-        when (status) {
-            WatchStatus.PLAN_TO_WATCH -> "In Watchlist"
-            WatchStatus.WATCHING -> "Watching"
-            WatchStatus.COMPLETED -> "Completed"
-            WatchStatus.ON_HOLD -> "On Hold"
-            WatchStatus.DROPPED -> "Dropped"
-            WatchStatus.NONE -> "In Library"
-        }
-    }
-
-    val surfaceModifier = modifier
-        .clip(RoundedCornerShape(16.dp))
-        .then(if (!isInLibrary) Modifier.clickable(onClick = onAddToWatchlist) else Modifier)
-        .testTag(testTag)
-
-    val pillContent: @Composable () -> Unit = {
-        Row(
-            modifier = Modifier.padding(
-                horizontal = if (compact) 5.dp else 10.dp,
-                vertical = 4.dp
-            ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = if (isInLibrary) Icons.Default.Check else Icons.Default.BookmarkBorder,
-                contentDescription = if (isInLibrary) label else "Add to Watchlist",
-                tint = contentColor,
-                modifier = Modifier.size(if (compact) 11.dp else 14.dp)
-            )
-            Spacer(modifier = Modifier.width(if (compact) 3.dp else 4.dp))
-            Text(
-                text = label,
-                fontSize = if (compact) 10.sp else 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = contentColor,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-
-    if (useBackdropContrastSurface) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-            modifier = surfaceModifier
-        ) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = bgColor,
-                border = BorderStroke(1.dp, borderColor)
-            ) {
-                pillContent()
-            }
-        }
-    } else {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = bgColor,
-            border = BorderStroke(1.dp, borderColor),
-            modifier = surfaceModifier
-        ) {
-            pillContent()
-        }
     }
 }
 
