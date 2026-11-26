@@ -83,7 +83,8 @@ fun SwipeToMatchSheet(
     onSwipeCandidate: (MatchCandidateCard, Boolean) -> Unit,
     onLeaveOrCloseRoom: () -> Unit,
     onOpenMatchedMedia: (mediaId: String, title: String, year: Int, mediaType: String) -> Unit,
-    onWatchRewardedTrialAd: () -> Unit = {}
+    onWatchRewardedTrialAd: () -> Unit = {},
+    effectiveRegionCode: String = "US"
 ) {
     val context = LocalContext.current
     val matchColors = WatchPilotColors.current
@@ -256,7 +257,7 @@ fun SwipeToMatchSheet(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                OttMoneySaverCalculator.supportedServices.take(8).forEach { svc ->
+                                OttMoneySaverCalculator.servicesForRegion(effectiveRegionCode).take(8).forEach { svc ->
                                     val selected = svc.canonicalName in selectedProviders
                                     FilterChip(
                                         selected = selected,
@@ -266,7 +267,7 @@ fun SwipeToMatchSheet(
                                         },
                                         label = {
                                             Text(
-                                                text = svc.shortLabel,
+                                                text = OttMoneySaverCalculator.displayLabelForRegion(svc, effectiveRegionCode),
                                                 fontSize = 11.sp,
                                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                             )

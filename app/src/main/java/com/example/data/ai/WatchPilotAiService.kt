@@ -12,6 +12,7 @@ import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 
@@ -336,11 +337,31 @@ class WatchPilotAiService {
             primary()
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            if (!isTransientDemandError(e)) throw e
-            Log.w(TAG, "Primary model $MODEL_NAME hit temporary demand limit; falling back to $FALLBACK_MODEL_NAME", e)
-            fallback()
+        } catch (primaryError: Exception) {
+            if (!isTransientDemandError(primaryError)) throw primaryError
+            Log.w(TAG, "Primary model $MODEL_NAME hit temporary demand/rate limit; retrying fallback $FALLBACK_MODEL_NAME", primaryError)
+            delay(1_200L)
+            try {
+                fallback()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (fallbackError: Exception) {
+                // If fallback failed with quota (e.g. Spark free-tier 0 quota on lite model) while primary
+                // only hit a temporary 503 spike, surface the real primary error instead of misleading quota text.
+                if (isQuotaError(fallbackError) && !isQuotaError(primaryError)) {
+                    throw primaryError
+                }
+                throw fallbackError
+            }
         }
+    }
+
+    private fun isQuotaError(error: Throwable): Boolean {
+        val msg = generateSequence(error) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return msg.contains("quota") || msg.contains("429") || msg.contains("resource exhausted")
     }
 
     private fun isTransientDemandError(error: Throwable): Boolean {
@@ -354,7 +375,8 @@ class WatchPilotAiService {
             msg.contains("try again later") ||
             msg.contains("503") ||
             msg.contains("429") ||
-            msg.contains("resource exhausted")
+            msg.contains("resource exhausted") ||
+            msg.contains("quota")
     }
 
     private fun downscaleBitmapIfNeeded(source: Bitmap): Bitmap {

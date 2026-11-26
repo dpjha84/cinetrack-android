@@ -54,7 +54,6 @@ import com.example.data.model.OttMoneySaverSummary
 import com.example.data.model.OttRecommendation
 import com.example.ui.theme.WatchPilotColors
 import com.example.util.OttMoneySaverCalculator
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -116,14 +115,15 @@ fun OttMoneySaverSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OttMoneySaverCalculator.supportedServices.forEach { svc ->
+                OttMoneySaverCalculator.servicesForRegion(effectiveRegionCode).forEach { svc ->
                     val selected = svc.canonicalName in monetizationState.subscribedProviders
+                    val chipLabel = "${OttMoneySaverCalculator.displayLabelForRegion(svc, effectiveRegionCode)} (${OttMoneySaverCalculator.formatChipPrice(svc, effectiveRegionCode)})"
                     FilterChip(
                         selected = selected,
                         onClick = { onToggleProvider(svc.canonicalName) },
                         label = {
                             Text(
-                                text = "${svc.shortLabel} ($${String.format(Locale.US, "%.0f", svc.defaultMonthlyUsd)})",
+                                text = chipLabel,
                                 fontSize = 12.sp,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                             )
@@ -216,7 +216,7 @@ fun OttMoneySaverSheet(
                         ) {
                             Text("Est. Monthly Spend", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                text = "$${String.format(Locale.US, "%.2f", summary.estimatedMonthlySpendUsd)}/mo",
+                                text = "${summary.estimatedMonthlySpendLabel}/mo",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 20.sp,
                                 maxLines = 1,
@@ -233,7 +233,7 @@ fun OttMoneySaverSheet(
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Potential Savings", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                text = "$${String.format(Locale.US, "%.2f", summary.potentialMonthlySavingsUsd)}/mo",
+                                text = "${summary.potentialMonthlySavingsLabel}/mo",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 20.sp,
                                 color = if (summary.potentialMonthlySavingsUsd > 0f) ottColors.greenAccent else ottColors.goldAccent,
@@ -271,7 +271,7 @@ fun OttMoneySaverSheet(
                                 )
                             }
                             Text(
-                                text = "We detected $${String.format(Locale.US, "%.2f", summary.potentialMonthlySavingsUsd)}/mo in potential savings across your ${summary.subscribedCount} apps. Upgrade to WatchPilot Pro (${monetizationState.annualPriceLabel}) to see exact 'Pause & Save' recommendations!",
+                                text = "We detected ${summary.potentialMonthlySavingsLabel}/mo in potential savings across your ${summary.subscribedCount} apps. Upgrade to WatchPilot Pro (${monetizationState.annualPriceLabel}) to see exact 'Pause & Save' recommendations!",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -313,8 +313,11 @@ fun OttMoneySaverSheet(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        val costLabel = audit.monthlyCostLabel.ifBlank {
+                                            OttMoneySaverCalculator.formatAmount(audit.monthlyCostEstimateUsd, effectiveRegionCode)
+                                        }
                                         Text(
-                                            text = "${audit.providerName} (~$${String.format(Locale.US, "%.2f", audit.monthlyCostEstimateUsd)}/mo)",
+                                            text = "${audit.displayName} (~$costLabel/mo)",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 14.sp,
                                             maxLines = 1,

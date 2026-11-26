@@ -111,7 +111,8 @@ data class OttServiceCatalogItem(
     val canonicalName: String,
     val shortLabel: String,
     val defaultMonthlyUsd: Float,
-    val aliases: List<String>
+    val aliases: List<String>,
+    val regionalMonthlyPrices: Map<String, Float> = emptyMap()
 )
 
 data class OttAuditItem(
@@ -119,7 +120,9 @@ data class OttAuditItem(
     val monthlyCostEstimateUsd: Float,
     val matchingTitlesCount: Int,
     val matchingTitlesPreview: List<String>,
-    val recommendation: OttRecommendation
+    val recommendation: OttRecommendation,
+    val displayName: String = providerName,
+    val monthlyCostLabel: String = ""
 )
 
 data class OttMoneySaverSummary(
@@ -128,7 +131,12 @@ data class OttMoneySaverSummary(
     val potentialMonthlySavingsUsd: Float = 0f,
     val coveredWatchlistCount: Int = 0,
     val totalAuditedWatchlistCount: Int = 0,
-    val items: List<OttAuditItem> = emptyList()
+    val items: List<OttAuditItem> = emptyList(),
+    val regionCode: String = "US",
+    val currencySymbol: String = "$",
+    val estimatedMonthlySpendLabel: String = "$0.00",
+    val potentialMonthlySavingsLabel: String = "$0.00",
+    val potentialMonthlySavingsShortLabel: String = "$0"
 )
 
 data class ScannedMediaCandidate(

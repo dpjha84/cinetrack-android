@@ -616,7 +616,58 @@ class WatchPilotV2UnitTest {
             com.example.util.AnalyticsTracker.testEventObserver = null
         }
     }
+
+    @Test
+    fun ottMoneySaver_localizesIndiaInrPricingAndMatchesPrimeJioHotstarSonyLiv() {
+        val indiaServices = OttMoneySaverCalculator.servicesForRegion("IN")
+        assertEquals("Prime Video", indiaServices[0].canonicalName)
+        assertEquals("Disney+ / Hotstar", indiaServices[1].canonicalName)
+        assertEquals("JioHotstar", OttMoneySaverCalculator.displayLabelForRegion(indiaServices[1], "IN"))
+        assertTrue(indiaServices.take(6).any { it.canonicalName == "SonyLIV" })
+
+        val trackedIndia = listOf(
+            sampleMedia("in_1", "Mirzapur", WatchStatus.WATCHING, "IN:Amazon Prime Video"),
+            sampleMedia("in_2", "Panchayat", WatchStatus.PLAN_TO_WATCH, "IN:Prime Video"),
+            sampleMedia("in_3", "The Family Man", WatchStatus.PLAN_TO_WATCH, "IN:Amazon Prime Video"),
+            sampleMedia("in_4", "Special Ops", WatchStatus.PLAN_TO_WATCH, "IN:JioHotstar")
+        )
+
+        val summaryIn = OttMoneySaverCalculator.calculateAudit(
+            trackedMedia = trackedIndia,
+            regionCode = "IN",
+            subscribedCanonicalNames = setOf("Prime Video", "Disney+ / Hotstar", "SonyLIV")
+        )
+
+        assertEquals("IN", summaryIn.regionCode)
+        assertEquals("₹", summaryIn.currencySymbol)
+        assertEquals("₹847", summaryIn.estimatedMonthlySpendLabel)
+        assertEquals("₹399", summaryIn.potentialMonthlySavingsLabel)
+        assertEquals("₹399", summaryIn.potentialMonthlySavingsShortLabel)
+        assertEquals(4, summaryIn.coveredWatchlistCount)
+
+        val sonyAudit = summaryIn.items.first { it.providerName == "SonyLIV" }
+        assertEquals(0, sonyAudit.matchingTitlesCount)
+        assertEquals(OttRecommendation.PAUSE_AND_SAVE, sonyAudit.recommendation)
+        assertEquals("₹399", sonyAudit.monthlyCostLabel)
+
+        val hotstarAudit = summaryIn.items.first { it.providerName == "Disney+ / Hotstar" }
+        assertEquals("JioHotstar", hotstarAudit.displayName)
+        assertEquals(1, hotstarAudit.matchingTitlesCount)
+        assertEquals(OttRecommendation.CONSIDER_ROTATING, hotstarAudit.recommendation)
+        assertEquals("₹149", hotstarAudit.monthlyCostLabel)
+
+        val primeAudit = summaryIn.items.first { it.providerName == "Prime Video" }
+        assertEquals(3, primeAudit.matchingTitlesCount)
+        assertEquals(OttRecommendation.KEEP_ACTIVE, primeAudit.recommendation)
+        assertEquals("₹299", primeAudit.monthlyCostLabel)
+
+        // Verify UK (GB) still formats decimal GBP properly
+        val ukSummary = OttMoneySaverCalculator.calculateAudit(
+            trackedMedia = trackedIndia,
+            regionCode = "GB",
+            subscribedCanonicalNames = setOf("Prime Video")
+        )
+        assertEquals("£", ukSummary.currencySymbol)
+        assertEquals("£8.99", ukSummary.estimatedMonthlySpendLabel)
+    }
 }
-
-
-

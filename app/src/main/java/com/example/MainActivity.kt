@@ -680,7 +680,8 @@ fun MovieverseApp(viewModel: MediaViewModel) {
                 onOpenMatchedMedia = { id, title, yr, type ->
                     viewModel.openMatchedMediaFromRoom(id, title, yr, type)
                 },
-                onWatchRewardedTrialAd = { viewModel.grantRewardedTrialPass("swipe_match") }
+                onWatchRewardedTrialAd = { viewModel.grantRewardedTrialPass("swipe_match") },
+                effectiveRegionCode = effectiveRegion
             )
         }
 

@@ -686,7 +686,7 @@ fun ProfileScreen(
                                 )
                                 Text(
                                     text = if (ottSummary.subscribedCount > 0) {
-                                        "${ottSummary.subscribedCount} apps (~$${String.format("%.2f", ottSummary.estimatedMonthlySpendUsd)}/mo)"
+                                        "${ottSummary.subscribedCount} apps (~${ottSummary.estimatedMonthlySpendLabel}/mo)"
                                     } else {
                                         "Pick paid apps to spot savings."
                                     },
@@ -703,7 +703,7 @@ fun ProfileScreen(
                                 border = BorderStroke(1.dp, profileColors.greenChipBorder)
                             ) {
                                 Text(
-                                    text = "Save $${String.format("%.0f", ottSummary.potentialMonthlySavingsUsd)}/mo",
+                                    text = "Save ${ottSummary.potentialMonthlySavingsShortLabel}/mo",
                                     color = profileColors.greenAccent,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
