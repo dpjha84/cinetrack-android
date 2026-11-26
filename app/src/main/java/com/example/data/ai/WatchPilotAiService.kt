@@ -20,6 +20,7 @@ class WatchPilotAiService {
     companion object {
         private const val TAG = "WatchPilotAiService"
         private const val MODEL_NAME = "gemini-3.8-flash"
+        private const val FALLBACK_MODEL_NAME = "gemini-3.5-flash-lite"
         private const val AI_TIMEOUT_MS = 60_000L
         private const val MAX_IMAGE_DIMENSION = 1280
     }
@@ -97,49 +98,39 @@ class WatchPilotAiService {
     }
 
     // Lazy initialization per Firebase AI Logic contract (never evaluate at construction time)
-    private val visionScannerModel by lazy {
+    private fun createStructuredModel(modelName: String, schema: Schema) =
         Firebase.ai.generativeModel(
-            modelName = MODEL_NAME,
+            modelName = modelName,
             generationConfig = generationConfig {
                 responseMimeType = "application/json"
-                responseSchema = snapScanSchema
+                responseSchema = schema
             }
         )
-    }
 
-    private val conciergeModel by lazy {
-        Firebase.ai.generativeModel(
-            modelName = MODEL_NAME,
-            generationConfig = generationConfig {
-                responseMimeType = "application/json"
-                responseSchema = conciergeSchema
-            }
-        )
-    }
+    private val visionScannerModel by lazy { createStructuredModel(MODEL_NAME, snapScanSchema) }
+    private val visionScannerFallbackModel by lazy { createStructuredModel(FALLBACK_MODEL_NAME, snapScanSchema) }
 
-    private val titleBriefModel by lazy {
-        Firebase.ai.generativeModel(
-            modelName = MODEL_NAME,
-            generationConfig = generationConfig {
-                responseMimeType = "application/json"
-                responseSchema = titleBriefSchema
-            }
-        )
-    }
+    private val conciergeModel by lazy { createStructuredModel(MODEL_NAME, conciergeSchema) }
+    private val conciergeFallbackModel by lazy { createStructuredModel(FALLBACK_MODEL_NAME, conciergeSchema) }
+
+    private val titleBriefModel by lazy { createStructuredModel(MODEL_NAME, titleBriefSchema) }
+    private val titleBriefFallbackModel by lazy { createStructuredModel(FALLBACK_MODEL_NAME, titleBriefSchema) }
 
     suspend fun extractMediaFromScreenshot(bitmap: Bitmap): Result<List<RawScannedItem>> {
         return try {
             val safeBitmap = downscaleBitmapIfNeeded(bitmap)
+            val scanContent = content {
+                image(safeBitmap)
+                text(
+                    "Extract every movie or TV series title shown in this screenshot " +
+                        "(social media Reel/TikTok/Short caption, poster grid, streaming app row, or Top-10 list). " +
+                        "Ignore UI chrome, battery icons, usernames, and generic words. Return up to 12 distinct titles."
+                )
+            }
             val response = withTimeout(AI_TIMEOUT_MS) {
-                visionScannerModel.generateContent(
-                    content {
-                        image(safeBitmap)
-                        text(
-                            "Extract every movie or TV series title shown in this screenshot " +
-                                "(social media Reel/TikTok/Short caption, poster grid, streaming app row, or Top-10 list). " +
-                                "Ignore UI chrome, battery icons, usernames, and generic words. Return up to 12 distinct titles."
-                        )
-                    }
+                generateWithDemandFallback(
+                    primary = { visionScannerModel.generateContent(scanContent) },
+                    fallback = { visionScannerFallbackModel.generateContent(scanContent) }
                 )
             }
 
@@ -213,7 +204,10 @@ class WatchPilotAiService {
             }
 
             val response = withTimeout(AI_TIMEOUT_MS) {
-                conciergeModel.generateContent(prompt)
+                generateWithDemandFallback(
+                    primary = { conciergeModel.generateContent(prompt) },
+                    fallback = { conciergeFallbackModel.generateContent(prompt) }
+                )
             }
 
             val jsonText = response.text ?: return Result.failure(
@@ -295,7 +289,10 @@ class WatchPilotAiService {
             }
 
             val response = withTimeout(AI_TIMEOUT_MS) {
-                titleBriefModel.generateContent(prompt)
+                generateWithDemandFallback(
+                    primary = { titleBriefModel.generateContent(prompt) },
+                    fallback = { titleBriefFallbackModel.generateContent(prompt) }
+                )
             }
 
             val jsonText = response.text ?: return Result.failure(
@@ -329,6 +326,35 @@ class WatchPilotAiService {
             Log.e(TAG, "AI title brief failed", e)
             Result.failure(IllegalStateException(e.localizedMessage ?: "Could not generate AI recap."))
         }
+    }
+
+    private suspend fun <T> generateWithDemandFallback(
+        primary: suspend () -> T,
+        fallback: suspend () -> T
+    ): T {
+        return try {
+            primary()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (!isTransientDemandError(e)) throw e
+            Log.w(TAG, "Primary model $MODEL_NAME hit temporary demand limit; falling back to $FALLBACK_MODEL_NAME", e)
+            fallback()
+        }
+    }
+
+    private fun isTransientDemandError(error: Throwable): Boolean {
+        val msg = generateSequence(error) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return msg.contains("high demand") ||
+            msg.contains("overloaded") ||
+            msg.contains("unavailable") ||
+            msg.contains("try again later") ||
+            msg.contains("503") ||
+            msg.contains("429") ||
+            msg.contains("resource exhausted")
     }
 
     private fun downscaleBitmapIfNeeded(source: Bitmap): Bitmap {
