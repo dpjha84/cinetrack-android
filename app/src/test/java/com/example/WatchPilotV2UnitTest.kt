@@ -670,4 +670,258 @@ class WatchPilotV2UnitTest {
         assertEquals("£", ukSummary.currencySymbol)
         assertEquals("£8.99", ukSummary.estimatedMonthlySpendLabel)
     }
+
+    @Test
+    fun safeFeaturesFirst_v510Configuration_disablesAiAndUses999AnnualFallback() {
+        assertFalse(com.example.util.FeatureFlags.ENABLE_AI_FEATURES)
+        assertEquals("$9.99 / yr", MonetizationState().annualPriceLabel)
+    }
+
+    @Test
+    fun watchProviderLauncher_avoidsBrokenHotstarSearchDeepLinksAndUsesCleanTitle() {
+        // JioHotstar on TV series "New Girl" (S1:E1 selected, no direct content URL)
+        val hotstarConfig = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "JioHotstar",
+            title = "New Girl",
+            releaseYear = 2011,
+            seasonNumber = 1,
+            episodeNumber = 1,
+            directContentUrl = null,
+            regionCode = "IN"
+        )
+        assertEquals(listOf("in.startv.hotstar", "com.hotstar.hotstar"), hotstarConfig.packageNames)
+        // Must NOT send unverified hotstar://search or /in/search?q=... into JioHotstar (causes "Something went wrong")
+        assertTrue(hotstarConfig.verifiedInAppUris.isEmpty())
+        assertEquals(
+            "https://www.hotstar.com/in/explore?search_query=New%20Girl",
+            hotstarConfig.webSearchUrls.first()
+        )
+        assertFalse(hotstarConfig.webSearchUrls.any { it.contains("Season") || it.contains("Episode") })
+
+        // Netflix without direct URL uses clean App Link search (never "Season 1 Episode 1")
+        val netflixSearch = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "Netflix",
+            title = "New Girl",
+            releaseYear = 2011,
+            seasonNumber = 1,
+            episodeNumber = 1,
+            directContentUrl = null
+        )
+        assertEquals(listOf("https://www.netflix.com/search?q=New%20Girl"), netflixSearch.verifiedInAppUris)
+
+        // Netflix with direct URL keeps targeted episode deep link first
+        val netflixEpisode = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "Netflix",
+            title = "New Girl",
+            releaseYear = 2011,
+            seasonNumber = 2,
+            episodeNumber = 4,
+            directContentUrl = "https://www.netflix.com/title/70196145"
+        )
+        assertEquals(
+            "nflx://www.netflix.com/watch/70196145?episode=4&season=2",
+            netflixEpisode.verifiedInAppUris.first()
+        )
+
+        // Prime Video uses verified HTTPS App Link app.primevideo.com with clean %20 title
+        val primeConfig = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "Amazon Prime Video",
+            title = "New Girl",
+            releaseYear = 2011,
+            seasonNumber = 1,
+            episodeNumber = 1
+        )
+        assertEquals(
+            listOf("https://app.primevideo.com/search?phrase=New%20Girl"),
+            primeConfig.verifiedInAppUris
+        )
+
+        // JioCinema falls back to JioHotstar package if JioCinema isn't installed
+        val jioConfig = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "JioCinema",
+            title = "New Girl",
+            regionCode = "IN"
+        )
+        assertEquals(listOf("com.jio.media.ondemand", "in.startv.hotstar"), jioConfig.packageNames)
+        assertTrue(jioConfig.verifiedInAppUris.isEmpty())
+    }
+
+    @Test
+    fun watchProviderLauncher_handlesAllGlobalCountriesRegionalAppsAndWorstCaseWebFallback() {
+        // 1. Disney+ prioritizes Hotstar in India & SEA, Disney+ globally in US/EU
+        val disneyIn = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "Disney Plus",
+            title = "Shogun",
+            regionCode = "IN"
+        )
+        assertEquals(
+            listOf("in.startv.hotstar", "com.hotstar.hotstar", "com.disney.disneyplus"),
+            disneyIn.packageNames
+        )
+        assertTrue(disneyIn.webSearchUrls.any { it.contains("hotstar.com/in/explore") })
+
+        val disneyUs = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "Disney Plus",
+            title = "Shogun",
+            regionCode = "US"
+        )
+        assertEquals(listOf("com.disney.disneyplus", "in.startv.hotstar"), disneyUs.packageNames)
+        assertTrue(disneyUs.webSearchUrls.any { it.contains("disneyplus.com") })
+
+        // 2. Hotstar adapts web search domain path per country
+        val hotstarId = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "Hotstar",
+            title = "The Bear",
+            regionCode = "ID"
+        )
+        assertEquals(
+            "https://www.hotstar.com/id/explore?search_query=The%20Bear",
+            hotstarId.webSearchUrls.first()
+        )
+
+        // 3. Amazon Channels route to Prime Video (not standalone Paramount+) with country Amazon domain
+        val amazonChannelUk = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "Paramount+ Amazon Channel",
+            title = "Yellowstone",
+            regionCode = "GB"
+        )
+        assertEquals(
+            listOf("com.amazon.avod.thirdpartyclient", "com.amazon.amazonvideo.livingroom"),
+            amazonChannelUk.packageNames
+        )
+        assertTrue(amazonChannelUk.webSearchUrls.any { it.contains("amazon.co.uk/s?k=Yellowstone") })
+
+        // 4. Verified regional OTT apps across GB, AU, CA, BR, MX, JP, KR, FR, DE, ES, IN
+        assertEquals(
+            listOf("bbc.iplayer.android"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("BBC iPlayer", "Doctor Who", regionCode = "GB").packageNames
+        )
+        assertEquals(
+            listOf("air.ITVMobilePlayer"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("ITVX", "Broadchurch", regionCode = "GB").packageNames
+        )
+        assertEquals(
+            listOf("au.com.stan.and"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Stan", "Bump", regionCode = "AU").packageNames
+        )
+        assertEquals(
+            listOf("au.com.streamotion.ares"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Binge", "The Last of Us", regionCode = "AU").packageNames
+        )
+        assertEquals(
+            listOf("ca.bellmedia.cravetv"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Crave", "Letterkenny", regionCode = "CA").packageNames
+        )
+        assertEquals(
+            listOf("com.globo.globotv"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Globoplay", "Cidade Invisivel", regionCode = "BR").packageNames
+        )
+        assertEquals(
+            listOf("com.univision.prendetv"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("ViX", "El Gallo de Oro", regionCode = "MX").packageNames
+        )
+        assertEquals(
+            listOf("jp.unext.mediaplayer"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("U-NEXT", "Tokyo Vice", regionCode = "JP").packageNames
+        )
+        assertEquals(
+            listOf("net.cj.cjhv.gs.tving"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("TVING", "Queen Woo", regionCode = "KR").packageNames
+        )
+        assertEquals(
+            listOf("com.coupang.mobile.play"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Coupang Play", "Anna", regionCode = "KR").packageNames
+        )
+        assertEquals(
+            listOf("com.canalplus.canalplus"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Canal+", "The Bureau", regionCode = "FR").packageNames
+        )
+        assertEquals(
+            listOf("de.prosiebensat1digital.seventv"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Joyn", "jerks.", regionCode = "DE").packageNames
+        )
+        assertEquals(
+            listOf("es.plus.yomvi", "com.movistarplus.androidtv"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Movistar Plus+", "La Mesias", regionCode = "ES").packageNames
+        )
+        assertEquals(
+            listOf("com.suntv.sunnxt"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Sun NXT", "Jailer", regionCode = "IN").packageNames
+        )
+        assertEquals(
+            listOf("com.viewlift.hoichoi"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Hoichoi", "Byomkesh", regionCode = "IN").packageNames
+        )
+        assertEquals(
+            listOf("com.lionsgateplay.videoapp"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("Lionsgate Play", "John Wick", regionCode = "IN").packageNames
+        )
+
+        // Ensure "now" matching doesn't hijack unrelated providers containing "now"
+        assertEquals(
+            listOf("com.nowtv.uk"),
+            com.example.util.WatchProviderLauncher.resolveProviderConfig("NOW", "Succession", regionCode = "GB").packageNames
+        )
+        assertTrue(
+            com.example.util.WatchProviderLauncher.resolveProviderConfig(
+                providerName = "SnowFlix Local",
+                title = "Fargo",
+                webLink = "https://www.themoviedb.org/tv/60622/watch?locale=NO",
+                regionCode = "NO"
+            ).packageNames.isEmpty()
+        )
+
+        // 5. Unknown / long-tail global provider routes cleanly to webLink then Google search
+        val unknownProvider = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "RaiPlay",
+            title = "Mare Fuori",
+            releaseYear = 2020,
+            webLink = "https://www.themoviedb.org/tv/108978/watch?locale=IT",
+            directContentUrl = "customscheme://broken-deep-link",
+            regionCode = "IT"
+        )
+        assertTrue(unknownProvider.packageNames.isEmpty())
+        assertEquals(
+            listOf(
+                "https://www.themoviedb.org/tv/108978/watch?locale=IT",
+                "https://www.google.com/search?q=watch+Mare+Fuori+2020+on+RaiPlay"
+            ),
+            unknownProvider.webSearchUrls
+        )
+        assertEquals(null, com.example.util.WatchProviderLauncher.safeHttpUrl("hotstar://search?q=x"))
+        assertEquals(
+            "https://www.google.com/search?q=watch+New+Girl+2011",
+            com.example.util.WatchProviderLauncher.buildGoogleWatchSearchUrl("Streaming Provider", "New Girl", 2011)
+        )
+    }
+
+    @Test
+    fun searchImdbTop10Charts_containsExactTop10MoviesAndTvWithTmdbHydrationIds() {
+        val topMovies = com.example.data.repository.MediaRepository.imdbTop10Movies()
+        val topTv = com.example.data.repository.MediaRepository.imdbTop10TvShows()
+
+        assertEquals(10, topMovies.size)
+        assertEquals(10, topTv.size)
+
+        // Exact IMDb Top 10 Movies #1..#10
+        assertEquals("tmdb_m_278", topMovies[0].id)
+        assertEquals("The Shawshank Redemption", topMovies[0].title)
+        assertEquals(9.3f, topMovies[0].communityRating, 0.01f)
+        assertEquals("The Godfather", topMovies[1].title)
+        assertEquals("The Dark Knight", topMovies[2].title)
+        assertEquals("The Godfather Part II", topMovies[3].title)
+        assertEquals("The Good, the Bad and the Ugly", topMovies[9].title)
+        assertTrue(topMovies.all { it.id.startsWith("tmdb_m_") && it.mediaType == MediaType.MOVIE.name })
+
+        // Exact IMDb Top 10 TV Series #1..#10
+        assertEquals("tmdb_tv_1396", topTv[0].id)
+        assertEquals("Breaking Bad", topTv[0].title)
+        assertEquals(9.5f, topTv[0].communityRating, 0.01f)
+        assertEquals("Planet Earth II", topTv[1].title)
+        assertEquals("Planet Earth", topTv[2].title)
+        assertEquals("Band of Brothers", topTv[3].title)
+        assertEquals("Chernobyl", topTv[4].title)
+        assertEquals("Game of Thrones", topTv[9].title)
+        assertTrue(topTv.all { it.id.startsWith("tmdb_tv_") && it.mediaType == MediaType.TV_SHOW.name })
+    }
 }

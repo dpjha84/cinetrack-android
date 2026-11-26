@@ -21,7 +21,7 @@ data class MonetizationState(
     val isPro: Boolean = false,
     val planType: PlanType = PlanType.FREE,
     val monthlyPriceLabel: String = "$1.99 / mo",
-    val annualPriceLabel: String = "$11.99 / yr",
+    val annualPriceLabel: String = "$9.99 / yr",
     val lifetimePriceLabel: String = "$24.99 once",
     val isPlayBillingConnected: Boolean = false,
     val snapScansUsed: Int = 0,

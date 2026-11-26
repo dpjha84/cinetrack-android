@@ -1,12 +1,12 @@
 Asset Type,Slot / Placement,Character Limit,Copy / Filename,Count / Dimensions,Notes
 Headline,Headline 1,30,"WatchPilot: Movie & TV Tracker",30 chars,Brand + core category keyword
-Headline,Headline 2,30,"Snap Reels to Your Watchlist",28 chars,AI Screenshot Vision Scanner hook
-Headline,Headline 3,30,"AI Picks for Movie Night Fast",29 chars,Tonight's AI Concierge value prop
+Headline,Headline 2,30,"Swipe & Match Tonight Live",26 chars,Live 6-digit couple & group Swipe-to-Match room hook
+Headline,Headline 3,30,"Import IMDb & Letterboxd CSV",28 chars,One-tap CSV migration & offline library hook
 Headline,Headline 4,30,"Audit OTT Apps & Save Money",27 chars,OTT Money-Saver Radar differentiation
 Headline,Headline 5,30,"Find Where Movies Stream Now",28 chars,High-intent regional streaming lookup
 Description,Description 1,90,"Track shows & movies offline, import IMDb/Letterboxd CSVs & spot Netflix or Prime links.",88 chars,Offline Room cache + CSV migration + OTT links
-Description,Description 2,90,"Snap any Reel or TikTok screenshot with AI to add movies straight into your watchlist.",86 chars,Snap-to-Watchlist Vision Pro hook
-Description,Description 3,90,"Get Tonight's AI Concierge picks, spoiler-free recaps & swipe to match in live rooms.",85 chars,AI Concierge + Recaps + Swipe Match
+Description,Description 2,90,"Create live 6-digit Swipe-to-Match rooms so couples & friends pick a movie in seconds.",86 chars,Live Swipe-to-Match room Pro hook
+Description,Description 3,90,"Unlock Cinema DNA insights, custom lists, streaming alerts & ad-free WatchPilot Pro.",84 chars,Cinema DNA + Alerts + Ad-Free Pro
 Description,Description 4,90,"Audit paid streaming apps against your watchlist, pause idle plans & cut monthly spend.",87 chars,OTT Money-Saver Radar Pro ROI pitch
 Description,Description 5,90,"Adaptive Android phone & tablet UI with cloud sync, ratings, trailers & Go Pro ad-free.",87 chars,Multi-device adaptive UX + Go Pro upsell
 Image,UAC Landscape (1.91:1),<= 5 MB,watchpilot_uac_landscape_1200x628.jpg,1200x628 px,Display / Gmail / Discover / Play promo

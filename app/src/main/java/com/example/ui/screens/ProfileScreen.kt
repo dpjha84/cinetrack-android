@@ -104,6 +104,7 @@ import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.AppStoreActions
+import com.example.util.FeatureFlags
 import com.example.util.findActivity
 import androidx.compose.ui.unit.Dp
 
@@ -280,10 +281,15 @@ fun ProfileScreen(
                                     color = proColors.goldAccent
                                 )
                                 Text(
-                                    text = if (monetizationState.isPro) {
-                                        "Ad-free • AI Concierge, Vision & Rooms"
-                                    } else {
-                                        "Ad-free • OTT Saver, AI & Live Rooms"
+                                    text = when {
+                                        monetizationState.isPro && FeatureFlags.ENABLE_AI_FEATURES ->
+                                            "Ad-free • AI Concierge, Vision & Rooms"
+                                        monetizationState.isPro ->
+                                            "Ad-free • OTT Saver, Match Rooms & Insights"
+                                        FeatureFlags.ENABLE_AI_FEATURES ->
+                                            "Ad-free • OTT Saver, AI & Live Rooms"
+                                        else ->
+                                            "OTT Saver, Ad-Free & Live Match Rooms"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant

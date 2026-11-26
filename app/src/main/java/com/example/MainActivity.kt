@@ -112,6 +112,7 @@ import com.example.ui.util.AdaptiveLayoutProvider
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.AnalyticsTracker
+import com.example.util.FeatureFlags
 import com.example.util.TrailerInterstitialAdManager
 import com.example.util.configureAppCheck
 import kotlinx.coroutines.Dispatchers
@@ -392,8 +393,8 @@ fun MovieverseApp(viewModel: MediaViewModel) {
     ) {
         when {
             showPaywall -> "sheet_paywall"
-            showSnapScanner -> "sheet_snap_scanner"
-            showAiConcierge -> "sheet_ai_concierge"
+            FeatureFlags.ENABLE_AI_FEATURES && showSnapScanner -> "sheet_snap_scanner"
+            FeatureFlags.ENABLE_AI_FEATURES && showAiConcierge -> "sheet_ai_concierge"
             showSwipeMatch -> "sheet_swipe_match"
             showOttMoneySaver -> "sheet_ott_money_saver"
             selectedPerson != null -> "person_detail"
@@ -612,7 +613,7 @@ fun MovieverseApp(viewModel: MediaViewModel) {
             )
         }
 
-        if (showSnapScanner) {
+        if (FeatureFlags.ENABLE_AI_FEATURES && showSnapScanner) {
             SnapScannerSheet(
                 scanState = snapScanState,
                 monetizationState = monetizationState,
@@ -634,7 +635,7 @@ fun MovieverseApp(viewModel: MediaViewModel) {
             )
         }
 
-        if (showAiConcierge) {
+        if (FeatureFlags.ENABLE_AI_FEATURES && showAiConcierge) {
             AiConciergeSheet(
                 conciergeState = conciergeState,
                 monetizationState = monetizationState,

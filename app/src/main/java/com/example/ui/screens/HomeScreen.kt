@@ -100,11 +100,13 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Upcoming
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.util.FeatureFlags
 
 @Composable
 fun HomeScreen(
@@ -227,41 +229,64 @@ fun HomeScreen(
                         }
                     }
 
-                    // 3 Signature WatchPilot Action Cards
+                    // Signature WatchPilot Action Cards
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        HomeQuickFeatureChip(
-                            icon = Icons.Filled.AutoAwesome,
-                            title = "Tonight's Pick",
-                            subtitle = "AI Concierge",
-                            accent = themeColors.goldAccent,
-                            borderColor = themeColors.goldChipBorder,
-                            onClick = { viewModel.openAiConcierge() },
-                            modifier = Modifier.weight(1f),
-                            testTag = "home_btn_ai_concierge"
-                        )
-                        HomeQuickFeatureChip(
-                            icon = Icons.Filled.Favorite,
-                            title = "Swipe Match",
-                            subtitle = "Live Room",
-                            accent = themeColors.greenAccent,
-                            borderColor = themeColors.greenChipBorder,
-                            onClick = { viewModel.openSwipeMatch() },
-                            modifier = Modifier.weight(1f),
-                            testTag = "home_btn_swipe_match"
-                        )
-                        HomeQuickFeatureChip(
-                            icon = Icons.Filled.PhotoCamera,
-                            title = "Snap Scan",
-                            subtitle = "Screenshot AI",
-                            accent = themeColors.cyanAccent,
-                            borderColor = themeColors.cyanChipBorder,
-                            onClick = { viewModel.openSnapScanner() },
-                            modifier = Modifier.weight(1f),
-                            testTag = "home_btn_snap_scan"
-                        )
+                        if (FeatureFlags.ENABLE_AI_FEATURES) {
+                            HomeQuickFeatureChip(
+                                icon = Icons.Filled.AutoAwesome,
+                                title = "Tonight's Pick",
+                                subtitle = "AI Concierge",
+                                accent = themeColors.goldAccent,
+                                borderColor = themeColors.goldChipBorder,
+                                onClick = { viewModel.openAiConcierge() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "home_btn_ai_concierge"
+                            )
+                            HomeQuickFeatureChip(
+                                icon = Icons.Filled.Favorite,
+                                title = "Swipe Match",
+                                subtitle = "Live Room",
+                                accent = themeColors.greenAccent,
+                                borderColor = themeColors.greenChipBorder,
+                                onClick = { viewModel.openSwipeMatch() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "home_btn_swipe_match"
+                            )
+                            HomeQuickFeatureChip(
+                                icon = Icons.Filled.PhotoCamera,
+                                title = "Snap Scan",
+                                subtitle = "Screenshot AI",
+                                accent = themeColors.cyanAccent,
+                                borderColor = themeColors.cyanChipBorder,
+                                onClick = { viewModel.openSnapScanner() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "home_btn_snap_scan"
+                            )
+                        } else {
+                            HomeQuickFeatureChip(
+                                icon = Icons.Filled.Favorite,
+                                title = "Swipe Match",
+                                subtitle = "Live Room",
+                                accent = themeColors.greenAccent,
+                                borderColor = themeColors.greenChipBorder,
+                                onClick = { viewModel.openSwipeMatch() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "home_btn_swipe_match"
+                            )
+                            HomeQuickFeatureChip(
+                                icon = Icons.Filled.Savings,
+                                title = "OTT Saver",
+                                subtitle = "Audit Spend",
+                                accent = themeColors.goldAccent,
+                                borderColor = themeColors.goldChipBorder,
+                                onClick = { viewModel.openOttMoneySaver() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "home_btn_ott_saver"
+                            )
+                        }
                     }
                 }
             }

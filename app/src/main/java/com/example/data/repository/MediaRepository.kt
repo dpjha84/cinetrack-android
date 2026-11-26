@@ -867,83 +867,114 @@ class MediaRepository(
     }
 
     suspend fun getTopRatedMovies(apiKey: String, language: String?, region: String?): List<MediaEntity> = withContext(Dispatchers.IO) {
-        val safeLanguage = if (language != null && !language.equals("all", ignoreCase = true) && language.isNotBlank()) language else null
-        val safeRegion = if (region != null && region.length == 2 && !region.equals("AUTO", ignoreCase = true) && !region.equals("GLOBAL", ignoreCase = true)) region.uppercase() else null
+        val seeds = getCuratedTopRatedMovies()
+        val hasLiveKey = apiKey.isNotBlank() && apiKey != "YOUR_TMDB_API_KEY"
+        val existingMap = runCatching {
+            mediaDao.getByIds(seeds.map { it.id }).associateBy { it.id }
+        }.getOrDefault(emptyMap())
 
-        if (apiKey.isNotBlank() && apiKey != "YOUR_TMDB_API_KEY") {
-            try {
-                val response = TmdbClient.api.getTopRatedMovies(
-                    apiKey = apiKey,
-                    language = safeLanguage,
-                    region = safeRegion
-                )
-                val entities = response.results.map {
-                    TmdbClient.toMediaEntity(it).copy(feedTags = "TOP_RATED_MOVIE")
+        val hydrated = coroutineScope {
+            seeds.map { seed ->
+                async {
+                    val existing = existingMap[seed.id]
+                    val needsLiveHydration = hasLiveKey && (
+                        existing == null ||
+                            existing.posterUrl.isBlank() ||
+                            existing.cast.isBlank() ||
+                            existing.streamingProviders.isBlank()
+                        )
+                    val resolved = if (needsLiveHydration) {
+                        val tmdbId = seed.id.removePrefix("tmdb_m_").toLongOrNull()
+                        val detail = if (tmdbId != null) {
+                            runCatching { TmdbClient.api.getMovieDetails(tmdbId, apiKey) }.getOrNull()
+                        } else {
+                            null
+                        }
+                        if (detail != null) {
+                            TmdbClient.movieDetailToEntity(detail, existing ?: seed).copy(
+                                communityRating = seed.communityRating,
+                                feedTags = mergeFeedTagString((existing ?: seed).feedTags, "IMDB_TOP_10_MOVIE")
+                            ).also { fresh ->
+                                runCatching { mediaDao.insertOrUpdate(fresh) }
+                            }
+                        } else {
+                            (existing ?: seed).copy(communityRating = seed.communityRating)
+                        }
+                    } else {
+                        (existing ?: seed).copy(
+                            posterUrl = existing?.posterUrl?.takeIf { it.isNotBlank() } ?: seed.posterUrl,
+                            backdropUrl = existing?.backdropUrl?.takeIf { it.isNotBlank() } ?: seed.backdropUrl,
+                            communityRating = seed.communityRating
+                        )
+                    }
+                    resolved
                 }
-                if (entities.isNotEmpty()) {
-                    upsertWithFeedTag(entities, "TOP_RATED_MOVIE")
-                    return@withContext entities
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            }.awaitAll()
         }
-        val cachedTopMovies = runCatching {
-            mediaDao.getPagedMediaByFeed(
-                feedTag = "TOP_RATED_MOVIE",
-                mediaType = MediaType.MOVIE.name,
-                genreFilter = null,
-                languageFilter = null,
-                limit = 20,
-                offset = 0
-            )
-        }.getOrDefault(emptyList())
-        if (cachedTopMovies.isNotEmpty()) {
-            return@withContext cachedTopMovies.sortedByDescending { it.communityRating }
-        }
-        getCuratedTopRatedMovies()
+
+        upsertWithFeedTag(hydrated, "IMDB_TOP_10_MOVIE")
+        hydrated
     }
 
     suspend fun getTopRatedTv(apiKey: String, language: String?): List<MediaEntity> = withContext(Dispatchers.IO) {
-        val safeLanguage = if (language != null && !language.equals("all", ignoreCase = true) && language.isNotBlank()) language else null
+        val seeds = getCuratedTopRatedTv()
+        val hasLiveKey = apiKey.isNotBlank() && apiKey != "YOUR_TMDB_API_KEY"
+        val existingMap = runCatching {
+            mediaDao.getByIds(seeds.map { it.id }).associateBy { it.id }
+        }.getOrDefault(emptyMap())
 
-        if (apiKey.isNotBlank() && apiKey != "YOUR_TMDB_API_KEY") {
-            try {
-                val response = TmdbClient.api.getTopRatedTv(
-                    apiKey = apiKey,
-                    language = safeLanguage
-                )
-                val entities = response.results.map {
-                    TmdbClient.toMediaEntity(it).copy(feedTags = "TOP_RATED_TV")
+        val hydrated = coroutineScope {
+            seeds.map { seed ->
+                async {
+                    val existing = existingMap[seed.id]
+                    val needsLiveHydration = hasLiveKey && (
+                        existing == null ||
+                            existing.posterUrl.isBlank() ||
+                            existing.cast.isBlank() ||
+                            existing.streamingProviders.isBlank()
+                        )
+                    val resolved = if (needsLiveHydration) {
+                        val tmdbId = seed.id.removePrefix("tmdb_tv_").toLongOrNull()
+                        val detail = if (tmdbId != null) {
+                            runCatching { TmdbClient.api.getTvDetails(tmdbId, apiKey) }.getOrNull()
+                        } else {
+                            null
+                        }
+                        if (detail != null) {
+                            TmdbClient.tvDetailToEntity(detail, existing ?: seed).copy(
+                                communityRating = seed.communityRating,
+                                feedTags = mergeFeedTagString((existing ?: seed).feedTags, "IMDB_TOP_10_TV")
+                            ).also { fresh ->
+                                runCatching { mediaDao.insertOrUpdate(fresh) }
+                            }
+                        } else {
+                            (existing ?: seed).copy(communityRating = seed.communityRating)
+                        }
+                    } else {
+                        (existing ?: seed).copy(
+                            posterUrl = existing?.posterUrl?.takeIf { it.isNotBlank() } ?: seed.posterUrl,
+                            backdropUrl = existing?.backdropUrl?.takeIf { it.isNotBlank() } ?: seed.backdropUrl,
+                            communityRating = seed.communityRating
+                        )
+                    }
+                    resolved
                 }
-                if (entities.isNotEmpty()) {
-                    upsertWithFeedTag(entities, "TOP_RATED_TV")
-                    return@withContext entities
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            }.awaitAll()
         }
-        val cachedTopTv = runCatching {
-            mediaDao.getPagedMediaByFeed(
-                feedTag = "TOP_RATED_TV",
-                mediaType = MediaType.TV_SHOW.name,
-                genreFilter = null,
-                languageFilter = null,
-                limit = 20,
-                offset = 0
-            )
-        }.getOrDefault(emptyList())
-        if (cachedTopTv.isNotEmpty()) {
-            return@withContext cachedTopTv.sortedByDescending { it.communityRating }
-        }
-        getCuratedTopRatedTv()
+
+        upsertWithFeedTag(hydrated, "IMDB_TOP_10_TV")
+        hydrated
     }
 
-    fun getCuratedTopRatedMovies(): List<MediaEntity> {
-        return listOf(
+    fun getCuratedTopRatedMovies(): List<MediaEntity> = imdbTop10Movies()
+
+    fun getCuratedTopRatedTv(): List<MediaEntity> = imdbTop10TvShows()
+
+    companion object {
+        fun imdbTop10Movies(): List<MediaEntity> {
+            return listOf(
             MediaEntity(
-                id = "imdb_top_shawshank",
+                id = "tmdb_m_278",
                 title = "The Shawshank Redemption",
                 mediaType = MediaType.MOVIE.name,
                 releaseYear = 1994,
@@ -958,7 +989,7 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_top_godfather",
+                id = "tmdb_m_238",
                 title = "The Godfather",
                 mediaType = MediaType.MOVIE.name,
                 releaseYear = 1972,
@@ -973,7 +1004,7 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_top_dark_knight",
+                id = "tmdb_m_155",
                 title = "The Dark Knight",
                 mediaType = MediaType.MOVIE.name,
                 releaseYear = 2008,
@@ -988,22 +1019,22 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_top_schindler",
-                title = "Schindler's List",
+                id = "tmdb_m_240",
+                title = "The Godfather Part II",
                 mediaType = MediaType.MOVIE.name,
-                releaseYear = 1993,
-                genres = "Biography, Drama, History",
-                posterUrl = "https://image.tmdb.org/t/p/w500/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg",
-                backdropUrl = "https://image.tmdb.org/t/p/w1280/zb6fM1CX41D9rF9hdgclu0peUmy.jpg",
-                overview = "The true story of how industrialist Oskar Schindler saved over a thousand Jewish refugees from the Holocaust.",
-                directorOrCreator = "Steven Spielberg",
-                cast = "Liam Neeson, Ben Kingsley, Ralph Fiennes",
+                releaseYear = 1974,
+                genres = "Drama, Crime",
+                posterUrl = "https://image.tmdb.org/t/p/w500/hek3koDUyRQk7FIhPXsa6mT2Zc3.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/kGzFbGhp99zva6oZODW5atUtnqi.jpg",
+                overview = "In the continuing saga of the Corleone crime family, a young Vito Corleone grows up in Sicily and 1910s New York, while Michael attempts to expand the family syndicate.",
+                directorOrCreator = "Francis Ford Coppola",
+                cast = "Al Pacino, Robert De Niro, Robert Duvall, Diane Keaton",
                 communityRating = 9.0f,
-                runtimeMinutes = 195,
+                runtimeMinutes = 202,
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_top_12_angry_men",
+                id = "tmdb_m_389",
                 title = "12 Angry Men",
                 mediaType = MediaType.MOVIE.name,
                 releaseYear = 1957,
@@ -1018,7 +1049,7 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_top_lotr_return_king",
+                id = "tmdb_m_122",
                 title = "The Lord of the Rings: The Return of the King",
                 mediaType = MediaType.MOVIE.name,
                 releaseYear = 2003,
@@ -1033,7 +1064,22 @@ class MediaRepository(
                 originCountry = "NZ"
             ),
             MediaEntity(
-                id = "imdb_top_pulp_fiction",
+                id = "tmdb_m_424",
+                title = "Schindler's List",
+                mediaType = MediaType.MOVIE.name,
+                releaseYear = 1993,
+                genres = "Biography, Drama, History",
+                posterUrl = "https://image.tmdb.org/t/p/w500/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/zb6fM1CX41D9rF9hdgclu0peUmy.jpg",
+                overview = "The true story of how industrialist Oskar Schindler saved over a thousand Jewish refugees from the Holocaust.",
+                directorOrCreator = "Steven Spielberg",
+                cast = "Liam Neeson, Ben Kingsley, Ralph Fiennes",
+                communityRating = 9.0f,
+                runtimeMinutes = 195,
+                originCountry = "US"
+            ),
+            MediaEntity(
+                id = "tmdb_m_680",
                 title = "Pulp Fiction",
                 mediaType = MediaType.MOVIE.name,
                 releaseYear = 1994,
@@ -1048,87 +1094,42 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_top_inception",
-                title = "Inception",
-                mediaType = MediaType.MOVIE.name,
-                releaseYear = 2010,
-                genres = "Sci-Fi, Action, Thriller",
-                posterUrl = "https://image.tmdb.org/t/p/w500/edv5CZvWj09upOsy2Y6IwDhK8bt.jpg",
-                backdropUrl = "https://image.tmdb.org/t/p/w1280/s3TBrRGB1iav7gFOCNx3H31MoES.jpg",
-                overview = "Cobb steals information from targets by entering their dreams. He must perform the impossible inception to regain his life.",
-                directorOrCreator = "Christopher Nolan",
-                cast = "Leonardo DiCaprio, Joseph Gordon-Levitt, Elliot Page, Tom Hardy",
-                communityRating = 8.8f,
-                runtimeMinutes = 148,
-                originCountry = "US"
-            ),
-            MediaEntity(
-                id = "imdb_top_fight_club",
-                title = "Fight Club",
-                mediaType = MediaType.MOVIE.name,
-                releaseYear = 1999,
-                genres = "Drama, Thriller",
-                posterUrl = "https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",
-                backdropUrl = "https://image.tmdb.org/t/p/w1280/hZkgoQYus5vegHoetLkCJzb17zJ.jpg",
-                overview = "An insomniac office worker looking for a way to change his life crosses paths with a devil-may-care soap maker and they form an underground club.",
-                directorOrCreator = "David Fincher",
-                cast = "Edward Norton, Brad Pitt, Helena Bonham Carter",
-                communityRating = 8.8f,
-                runtimeMinutes = 139,
-                originCountry = "US"
-            ),
-            MediaEntity(
-                id = "imdb_top_interstellar",
-                title = "Interstellar",
-                mediaType = MediaType.MOVIE.name,
-                releaseYear = 2014,
-                genres = "Sci-Fi, Drama, Adventure",
-                posterUrl = "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
-                backdropUrl = "https://image.tmdb.org/t/p/w1280/xJHokMbljvjADYdit5fK5VQsXEG.jpg",
-                overview = "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.",
-                directorOrCreator = "Christopher Nolan",
-                cast = "Matthew McConaughey, Anne Hathaway, Jessica Chastain, Michael Caine",
-                communityRating = 8.7f,
-                runtimeMinutes = 169,
-                originCountry = "US"
-            ),
-            MediaEntity(
-                id = "imdb_top_parasite",
-                title = "Parasite",
-                mediaType = MediaType.MOVIE.name,
-                releaseYear = 2019,
-                genres = "Drama, Thriller, Comedy",
-                posterUrl = "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",
-                backdropUrl = "https://image.tmdb.org/t/p/w1280/TU9NIjwzjoKPwQHoHshkFcQUCG.jpg",
-                overview = "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.",
-                directorOrCreator = "Bong Joon Ho",
-                cast = "Song Kang-ho, Lee Sun-kyun, Cho Yeo-jeong, Choi Woo-shik",
-                communityRating = 8.5f,
-                runtimeMinutes = 132,
-                originCountry = "KR"
-            ),
-            MediaEntity(
-                id = "imdb_top_spirited_away",
-                title = "Spirited Away",
+                id = "tmdb_m_120",
+                title = "The Lord of the Rings: The Fellowship of the Ring",
                 mediaType = MediaType.MOVIE.name,
                 releaseYear = 2001,
-                genres = "Animation, Fantasy, Adventure",
-                posterUrl = "https://image.tmdb.org/t/p/w500/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg",
-                backdropUrl = "https://image.tmdb.org/t/p/w1280/mSDmv9F6fomS7Wp51V95wIq9G0P.jpg",
-                overview = "A young girl wanders into a world ruled by gods, witches and spirits, where humans are changed into beasts.",
-                directorOrCreator = "Hayao Miyazaki",
-                cast = "Rumi Hiiragi, Miyu Irino, Mari Natsuki",
-                communityRating = 8.6f,
-                runtimeMinutes = 125,
-                originCountry = "JP"
+                genres = "Adventure, Fantasy, Action",
+                posterUrl = "https://image.tmdb.org/t/p/w500/6oom5QYQ2yQTMJIbnvbkBL9cHo6.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/x2RS3uTcsJJ9IfjNPcgDmukoEcQ.jpg",
+                overview = "Young hobbit Frodo Baggins, after inheriting a mysterious ring from his uncle Bilbo, must leave his home in order to keep it from falling into the hands of its evil creator.",
+                directorOrCreator = "Peter Jackson",
+                cast = "Elijah Wood, Ian McKellen, Viggo Mortensen, Sean Astin",
+                communityRating = 8.9f,
+                runtimeMinutes = 178,
+                originCountry = "NZ"
+            ),
+            MediaEntity(
+                id = "tmdb_m_429",
+                title = "The Good, the Bad and the Ugly",
+                mediaType = MediaType.MOVIE.name,
+                releaseYear = 1966,
+                genres = "Western",
+                posterUrl = "https://image.tmdb.org/t/p/w500/bX2xnavhMYjWDoZp1VM6VnU1xwe.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/Adrip2Jqzw56KeuV2nAxucKMNXA.jpg",
+                overview = "While the Civil War rages on between the Union and the Confederacy, three men—a quiet loner, a ruthless hitman, and a Mexican bandit—comb the American Southwest in search of buried gold.",
+                directorOrCreator = "Sergio Leone",
+                cast = "Clint Eastwood, Eli Wallach, Lee Van Cleef",
+                communityRating = 8.8f,
+                runtimeMinutes = 161,
+                originCountry = "IT"
             )
         )
-    }
+        }
 
-    fun getCuratedTopRatedTv(): List<MediaEntity> {
-        return listOf(
+        fun imdbTop10TvShows(): List<MediaEntity> {
+            return listOf(
             MediaEntity(
-                id = "imdb_tv_breaking_bad",
+                id = "tmdb_tv_1396",
                 title = "Breaking Bad",
                 mediaType = MediaType.TV_SHOW.name,
                 releaseYear = 2008,
@@ -1145,12 +1146,46 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_tv_band_of_brothers",
+                id = "tmdb_tv_68595",
+                title = "Planet Earth II",
+                mediaType = MediaType.TV_SHOW.name,
+                releaseYear = 2016,
+                genres = "Documentary",
+                posterUrl = "https://image.tmdb.org/t/p/w500/wu444tM9YBvrzn9u51eL1gT5g3n.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/8uO0gUM8aNqYLs1OsTBQiXu0fEv.jpg",
+                overview = "David Attenborough returns with a new wildlife documentary showcasing life across islands, mountains, jungles, deserts, grasslands, and cities.",
+                directorOrCreator = "David Attenborough",
+                cast = "David Attenborough",
+                communityRating = 9.5f,
+                runtimeMinutes = 60,
+                totalSeasons = 1,
+                totalEpisodes = 6,
+                originCountry = "GB"
+            ),
+            MediaEntity(
+                id = "tmdb_tv_1044",
+                title = "Planet Earth",
+                mediaType = MediaType.TV_SHOW.name,
+                releaseYear = 2006,
+                genres = "Documentary",
+                posterUrl = "https://image.tmdb.org/t/p/w500/mf7xQ3hL6qR7oC3i5O3fN2L3oR0.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/a7M1mE1vW8fD3J4qK6oZ0vG6W8.jpg",
+                overview = "Emmy-winning landmark nature documentary series exploring the rarest habitats and wildlife across every continent on Earth.",
+                directorOrCreator = "Alastair Fothergill",
+                cast = "David Attenborough",
+                communityRating = 9.4f,
+                runtimeMinutes = 50,
+                totalSeasons = 1,
+                totalEpisodes = 11,
+                originCountry = "GB"
+            ),
+            MediaEntity(
+                id = "tmdb_tv_4613",
                 title = "Band of Brothers",
                 mediaType = MediaType.TV_SHOW.name,
                 releaseYear = 2001,
                 genres = "War, Drama, History",
-                posterUrl = "https://image.tmdb.org/t/p/w500/wz5A9Z4y1cQZlR7M7yq0yJ6gZ6b.jpg",
+                posterUrl = "https://image.tmdb.org/t/p/w500/zReOJYste13Qq3T3B5Oy2e31K7A.jpg",
                 backdropUrl = "https://image.tmdb.org/t/p/w1280/2OMB0ynKlyIenMJWI2Dy9IWT4c.jpg",
                 overview = "Drawn from interviews with survivors of Easy Company, as well as soldiers' journals and letters, this series chronicles the true experiences of these young men.",
                 directorOrCreator = "Tom Hanks, Steven Spielberg",
@@ -1162,13 +1197,13 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_tv_chernobyl",
+                id = "tmdb_tv_87108",
                 title = "Chernobyl",
                 mediaType = MediaType.TV_SHOW.name,
                 releaseYear = 2019,
                 genres = "Drama, History",
                 posterUrl = "https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg",
-                backdropUrl = "https://image.tmdb.org/t/p/w1280/uL6AdB5qB12O3j2TzP51z73YvW9.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/900tHlUYUkp7Ol04XFSoAaEIXcT.jpg",
                 overview = "The true story of one of the worst human-made catastrophes in history: the catastrophic explosion at the Chernobyl Nuclear Power Plant in 1986.",
                 directorOrCreator = "Craig Mazin",
                 cast = "Jared Harris, Stellan Skarsgård, Emily Watson, Paul Ritter",
@@ -1179,7 +1214,7 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_tv_the_wire",
+                id = "tmdb_tv_1434",
                 title = "The Wire",
                 mediaType = MediaType.TV_SHOW.name,
                 releaseYear = 2002,
@@ -1196,24 +1231,7 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_tv_the_sopranos",
-                title = "The Sopranos",
-                mediaType = MediaType.TV_SHOW.name,
-                releaseYear = 1999,
-                genres = "Drama, Crime",
-                posterUrl = "https://image.tmdb.org/t/p/w500/6nT506E1G64q6w43dK8nN24t1J4.jpg",
-                backdropUrl = "https://image.tmdb.org/t/p/w1280/7RyHsO4yDXtBv1z9fZ8x8bLwZ4.jpg",
-                overview = "New Jersey mob boss Tony Soprano deals with personal and professional issues in his home and business life that affect his mental state.",
-                directorOrCreator = "David Chase",
-                cast = "James Gandolfini, Lorraine Bracco, Edie Falco, Michael Imperioli",
-                communityRating = 9.2f,
-                runtimeMinutes = 55,
-                totalSeasons = 6,
-                totalEpisodes = 86,
-                originCountry = "US"
-            ),
-            MediaEntity(
-                id = "imdb_tv_avatar_airbender",
+                id = "tmdb_tv_246",
                 title = "Avatar: The Last Airbender",
                 mediaType = MediaType.TV_SHOW.name,
                 releaseYear = 2005,
@@ -1230,7 +1248,41 @@ class MediaRepository(
                 originCountry = "US"
             ),
             MediaEntity(
-                id = "imdb_tv_game_of_thrones",
+                id = "tmdb_tv_1398",
+                title = "The Sopranos",
+                mediaType = MediaType.TV_SHOW.name,
+                releaseYear = 1999,
+                genres = "Drama, Crime",
+                posterUrl = "https://image.tmdb.org/t/p/w500/rTc7ZXdroqjkKivFPvCPX0Ru7uw.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/lNpkvX2s8LGB0mjGODMT4o6Up7j.jpg",
+                overview = "New Jersey mob boss Tony Soprano deals with personal and professional issues in his home and business life that affect his mental state.",
+                directorOrCreator = "David Chase",
+                cast = "James Gandolfini, Lorraine Bracco, Edie Falco, Michael Imperioli",
+                communityRating = 9.2f,
+                runtimeMinutes = 55,
+                totalSeasons = 6,
+                totalEpisodes = 86,
+                originCountry = "US"
+            ),
+            MediaEntity(
+                id = "tmdb_tv_58474",
+                title = "Cosmos: A Spacetime Odyssey",
+                mediaType = MediaType.TV_SHOW.name,
+                releaseYear = 2014,
+                genres = "Documentary, Science",
+                posterUrl = "https://image.tmdb.org/t/p/w500/o6i2S8J2h9i3wD4mH3n2V0D2G3U.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/a7M1mE1vW8fD3J4qK6oZ0vG6W8.jpg",
+                overview = "Astrophysicist Neil deGrasse Tyson hosts a thrilling journey across space and time to uncover the laws of nature and our coordinates in the cosmos.",
+                directorOrCreator = "Ann Druyan, Seth MacFarlane",
+                cast = "Neil deGrasse Tyson",
+                communityRating = 9.2f,
+                runtimeMinutes = 43,
+                totalSeasons = 1,
+                totalEpisodes = 13,
+                originCountry = "US"
+            ),
+            MediaEntity(
+                id = "tmdb_tv_1399",
                 title = "Game of Thrones",
                 mediaType = MediaType.TV_SHOW.name,
                 releaseYear = 2011,
@@ -1245,25 +1297,9 @@ class MediaRepository(
                 totalSeasons = 8,
                 totalEpisodes = 73,
                 originCountry = "US"
-            ),
-            MediaEntity(
-                id = "imdb_tv_arcane",
-                title = "Arcane",
-                mediaType = MediaType.TV_SHOW.name,
-                releaseYear = 2021,
-                genres = "Animation, Sci-Fi & Fantasy, Action & Adventure, Drama",
-                posterUrl = "https://image.tmdb.org/t/p/w500/fq23b8v4vB8e6T2yR8c3p2vM8Z.jpg",
-                backdropUrl = "https://image.tmdb.org/t/p/w1280/hPea3QiUeeNoqUvsD9lqj1YQ04q.jpg",
-                overview = "Amid the stark discord of twin cities Piltover and Zaun, two sisters fight on rival sides of a war between magic technologies and incompatible convictions.",
-                directorOrCreator = "Christian Linke, Alex Yee",
-                cast = "Hailee Steinfeld, Ella Purnell, Kevin Alejandro, Katie Leung",
-                communityRating = 9.0f,
-                runtimeMinutes = 40,
-                totalSeasons = 2,
-                totalEpisodes = 18,
-                originCountry = "US"
             )
         )
+        }
     }
 
     private suspend fun cacheSearchResultsInRoom(

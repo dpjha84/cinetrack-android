@@ -14,6 +14,11 @@
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
         <intent>
@@ -26,38 +31,16 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="primevideo" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="hotstar" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="disneyplus" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
             <data android:scheme="vnd.youtube" />
         </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="jiocinema" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="zee5" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="sonyliv" />
-        </intent>
+        <!-- Global & US/Americas -->
         <package android:name="com.netflix.mediaclient" />
+        <package android:name="com.netflix.ninja" />
         <package android:name="com.amazon.avod.thirdpartyclient" />
         <package android:name="com.amazon.amazonvideo.livingroom" />
         <package android:name="com.disney.disneyplus" />
-        <package android:name="in.startv.hotstar" />
-        <package android:name="com.hotstar.hotstar" />
+        <package android:name="com.apple.atve.androidtv.appletv" />
+        <package android:name="com.apple.atve.sony.appletv" />
         <package android:name="com.google.android.youtube" />
         <package android:name="com.google.android.videos" />
         <package android:name="com.wbd.stream" />
@@ -66,17 +49,51 @@
         <package android:name="com.hulu.plus" />
         <package android:name="com.peacocktv.peacockandroid" />
         <package android:name="com.cbs.app" />
-        <package android:name="com.jio.media.ondemand" />
-        <package android:name="com.graymatrix.did" />
-        <package android:name="com.sonyliv" />
         <package android:name="com.crunchyroll.crunchyroid" />
         <package android:name="com.tubitv" />
         <package android:name="tv.pluto.android" />
-        <package android:name="com.apple.atve.androidtv.appletv" />
-        <package android:name="com.apple.atve.sony.appletv" />
+        <package android:name="com.plexapp.android" />
+        <package android:name="com.mubi" />
+        <package android:name="com.viki.android" />
+        <package android:name="com.discovery.discoveryplus.mobile" />
+        <package android:name="com.discoveryplus.mobile.android" />
+        <package android:name="com.discovery.discoveryplus.androidtv" />
+        <package android:name="ca.bellmedia.cravetv" />
+        <package android:name="com.globo.globotv" />
+        <package android:name="com.univision.prendetv" />
+        <!-- India -->
+        <package android:name="in.startv.hotstar" />
+        <package android:name="com.hotstar.hotstar" />
+        <package android:name="com.jio.media.ondemand" />
+        <package android:name="com.graymatrix.did" />
+        <package android:name="com.sonyliv" />
+        <package android:name="aha.ott.video.movies" />
         <package android:name="com.mxtech.videoplayer.ad" />
         <package android:name="com.mxtech.videoplayer.pro" />
-        <package android:name="aha.ott.video.movies" />
+        <package android:name="com.suntv.sunnxt" />
+        <package android:name="com.viewlift.hoichoi" />
+        <package android:name="com.lionsgateplay.videoapp" />
+        <!-- UK & Europe -->
+        <package android:name="bbc.iplayer.android" />
+        <package android:name="air.ITVMobilePlayer" />
+        <package android:name="com.channel4.ondemand" />
+        <package android:name="com.nowtv.uk" />
+        <package android:name="com.bskyb.skygo" />
+        <package android:name="com.canalplus.canalplus" />
+        <package android:name="de.prosiebensat1digital.seventv" />
+        <package android:name="com.skyshowtime.skyshowtime.google" />
+        <package android:name="es.plus.yomvi" />
+        <package android:name="com.movistarplus.androidtv" />
+        <package android:name="tv.wuaki" />
+        <package android:name="tv.wuaki.apptv" />
+        <!-- Australia, Japan & Korea -->
+        <package android:name="au.com.stan.and" />
+        <package android:name="au.com.streamotion.ares" />
+        <package android:name="jp.unext.mediaplayer" />
+        <package android:name="jp.co.rakuten.video.showtimeplayer" />
+        <package android:name="net.cj.cjhv.gs.tving" />
+        <package android:name="com.coupang.mobile.play" />
+        <package android:name="kr.co.captv.pooqV2" />
     </queries>
 
     <application

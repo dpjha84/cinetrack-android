@@ -109,6 +109,7 @@ import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.ui.viewmodel.TopRatedTab
+import com.example.util.FeatureFlags
 
 @Composable
 fun SearchScreen(
@@ -244,34 +245,36 @@ fun SearchScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(
-                    selected = false,
-                    onClick = { viewModel.openSnapScanner() },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.PhotoCamera,
-                            contentDescription = "Scan Screenshot",
-                            modifier = Modifier.size(15.dp)
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = "Scan Screenshot",
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = searchColors.cyanChipContainer,
-                        labelColor = searchColors.cyanAccent,
-                        iconColor = searchColors.cyanAccent
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
+                if (FeatureFlags.ENABLE_AI_FEATURES) {
+                    FilterChip(
                         selected = false,
-                        borderColor = searchColors.cyanChipBorder
-                    ),
-                    modifier = Modifier.testTag("search_btn_snap_scan")
-                )
+                        onClick = { viewModel.openSnapScanner() },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Scan Screenshot",
+                                modifier = Modifier.size(15.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = "Scan Screenshot",
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = searchColors.cyanChipContainer,
+                            labelColor = searchColors.cyanAccent,
+                            iconColor = searchColors.cyanAccent
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = false,
+                            borderColor = searchColors.cyanChipBorder
+                        ),
+                        modifier = Modifier.testTag("search_btn_snap_scan")
+                    )
+                }
 
                 MultiSearchCategory.entries.forEach { category ->
                     val selected = selectedCategory == category
@@ -440,7 +443,7 @@ fun SearchScreen(
         ) {
             when {
                 searchQuery.isBlank() && selectedSearchGenre == null -> {
-                    // Empty Query Screen with Trending/Suggested Searches & TMDB Top 10
+                    // Empty Query Screen with Trending/Suggested Searches & IMDb Top 10
                     EmptyQueryView(
                         isSearchFocused = isSearchFocused,
                         isOffline = isOffline,
@@ -1357,7 +1360,7 @@ fun EmptyQueryView(
             }
         }
 
-        // Top 10 Rated on TMDB
+        // IMDb Top 10 Charts (Movies & TV Shows)
         Spacer(modifier = Modifier.height(24.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1373,10 +1376,23 @@ fun EmptyQueryView(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Top Rated",
+                    text = "IMDb Top 10",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = emptyColors.goldChipContainer,
+                border = BorderStroke(1.dp, emptyColors.goldChipBorder)
+            ) {
+                Text(
+                    text = "IMDb Chart",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = emptyColors.goldAccent,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                 )
             }
         }
@@ -1593,7 +1609,7 @@ private fun TopRatedEntryCard(
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = String.format("%.1f", entity.communityRating),
+                                text = String.format(java.util.Locale.US, "IMDb %.1f", entity.communityRating),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = topRatedCardColors.goldAccent

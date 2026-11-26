@@ -54,6 +54,7 @@ import com.example.data.repository.MediaRepository
 import com.example.util.AnalyticsTracker
 import com.example.util.AppStoreActions
 import com.example.util.CsvLibraryPorter
+import com.example.util.FeatureFlags
 import com.example.util.NetworkConnectivityMonitor
 import com.example.util.OttMoneySaverCalculator
 import com.example.util.RateAppEngagementPolicy
@@ -2931,6 +2932,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openSnapScanner() {
+        if (!FeatureFlags.ENABLE_AI_FEATURES) return
         monetizationManager.refreshQuotasIfRolledOver()
         RewardedTrialAdManager.preload(getApplication(), monetizationState.value.isPro)
         showSnapScannerSheet.value = true
@@ -2941,6 +2943,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openAiConcierge() {
+        if (!FeatureFlags.ENABLE_AI_FEATURES) return
         monetizationManager.refreshQuotasIfRolledOver()
         RewardedTrialAdManager.preload(getApplication(), monetizationState.value.isPro)
         showAiConciergeSheet.value = true
@@ -3047,6 +3050,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun generateTitleAiBrief(media: MediaEntity) {
+        if (!FeatureFlags.ENABLE_AI_FEATURES) return
         monetizationManager.refreshQuotasIfRolledOver()
         val mon = monetizationState.value
         if (!mon.canUseAiRecap) {
@@ -3124,6 +3128,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun scanScreenshotUri(context: Context, uri: Uri) {
+        if (!FeatureFlags.ENABLE_AI_FEATURES) return
         monetizationManager.refreshQuotasIfRolledOver()
         if (!monetizationState.value.canUseSnapScan) {
             showSnapScannerSheet.value = false
@@ -3273,6 +3278,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun askAiConcierge(mood: String, timeBudget: String, audience: String) {
+        if (!FeatureFlags.ENABLE_AI_FEATURES) return
         monetizationManager.refreshQuotasIfRolledOver()
         if (!monetizationState.value.canUseConcierge) {
             showAiConciergeSheet.value = false

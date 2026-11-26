@@ -15,8 +15,8 @@
 | # | Headline Text | Length | Focus |
 |---|---|---|---|
 | 1 | `WatchPilot: Movie & TV Tracker` | 30 / 30 | Brand + primary keyword |
-| 2 | `Snap Reels to Your Watchlist` | 28 / 30 | AI Screenshot Vision Scanner |
-| 3 | `AI Picks for Movie Night Fast` | 29 / 30 | Tonight's AI Concierge |
+| 2 | `Swipe & Match Tonight Live` | 26 / 30 | Live Swipe-to-Match Room |
+| 3 | `Import IMDb & Letterboxd CSV` | 28 / 30 | Instant CSV Library Import |
 | 4 | `Audit OTT Apps & Save Money` | 27 / 30 | OTT Money-Saver Radar |
 | 5 | `Find Where Movies Stream Now` | 28 / 30 | High-intent regional OTT lookup |
 
@@ -24,8 +24,8 @@
 | # | Description Text | Length |
 |---|---|---|
 | 1 | `Track shows & movies offline, import IMDb/Letterboxd CSVs & spot Netflix or Prime links.` | 88 / 90 |
-| 2 | `Snap any Reel or TikTok screenshot with AI to add movies straight into your watchlist.` | 86 / 90 |
-| 3 | `Get Tonight's AI Concierge picks, spoiler-free recaps & swipe to match in live rooms.` | 85 / 90 |
+| 2 | `Create live 6-digit Swipe-to-Match rooms so couples & friends pick a movie in seconds.` | 86 / 90 |
+| 3 | `Unlock Cinema DNA insights, custom lists, streaming alerts & ad-free WatchPilot Pro.` | 84 / 90 |
 | 4 | `Audit paid streaming apps against your watchlist, pause idle plans & cut monthly spend.` | 87 / 90 |
 | 5 | `Adaptive Android phone & tablet UI with cloud sync, ratings, trailers & Go Pro ad-free.` | 87 / 90 |
 
@@ -53,9 +53,9 @@
 
 All key funnel events are instrumented in `AnalyticsTracker.kt`:
 - **Install Baseline:** `first_open` (automatic Firebase Analytics event).
-- **Activation (Mid-Funnel Micro-Conversions):** `watchlist_added`, `ai_concierge_generated`, `snap_scan_completed`, `match_room_created`, `match_found`.
+- **Activation (Mid-Funnel Micro-Conversions):** `watchlist_added`, `match_room_created`, `match_found`, `ott_audit_opened`.
 - **Paid Revenue Funnel (Primary tCPA / tROAS Conversions):**
-  - `paywall_viewed` (includes `trigger_reason`: `banner`, `profile`, `ott_money_saver`, `snap_scan`, `ai_concierge`, `ai_recap`, `match_room`)
+  - `paywall_viewed` (includes `trigger_reason`: `banner`, `profile`, `ott_money_saver`, `match_room`, `custom_collections`, `export`)
   - `begin_checkout` (fires when tapping Monthly, Annual, or Lifetime purchase CTA)
   - `pro_plan_unlocked` (fires after verified Play Billing unlock with `plan_type` & `source = google_play`)
   - Plus **Google Play ↔ Firebase linked `in_app_purchase` / `subscription`** auto-revenue events once Play Console is linked to Firebase (`movieverse-dd226`).
@@ -66,16 +66,16 @@ All key funnel events are instrumented in `AnalyticsTracker.kt`:
    - **Firebase ↔ Google Ads** to import `first_open`, `watchlist_added`, `begin_checkout`, `pro_plan_unlocked`, and `in_app_purchase` as conversions (set `pro_plan_unlocked` / `in_app_purchase` as Primary once volume >= 10 conversions/week).
    - **Google Play Developer Website:** Host `public/privacy.html`, `public/terms.html`, `public/account-deletion.html`, and root `/app-ads.txt` (`pub-9351754143985661`).
 2. **Campaign Segmentation (Never Mix Tier-1 & Low-CPI Geos in One Ad Group):**
-   - **Campaign A — High-ARPU Pro Buyer Markets (`US, UK, CA, AU, DE`):** Optimize toward `first_open` -> `begin_checkout` -> `pro_plan_unlocked` / `in_app_purchase`. Strongest conversion rates on **Annual (`pro_annual`)** + **OTT Money-Saver Radar**.
-   - **Campaign B — High-Velocity Growth Markets (`IN, BR, MX, ID, PH`):** Low-CPI `first_open` / `watchlist_added` targeting localized pricing & AdMob + rewarded trial engagement.
+   - **Campaign A — High-ARPU Pro Buyer Markets (`US, UK, CA, AU, DE`):** Optimize toward `first_open` -> `begin_checkout` -> `pro_plan_unlocked` / `in_app_purchase`. Strongest conversion rates on **Annual (`pro_annual` at `$9.99/yr`)** + **OTT Money-Saver Radar**.
+   - **Campaign B — High-Velocity Growth Markets (`IN, BR, MX, ID, PH`):** Low-CPI `first_open` / `watchlist_added` targeting localized pricing (`₹199/yr`, `₹49/mo`, `₹499` Lifetime in India) & AdMob + rewarded trial engagement.
    - **Include Android Tablets (`minSdk 24+`):** Dedicated 2-pane adaptive tablet layout delivers higher session length and lower uninstall rates.
 3. **YouTube & Display Exclusions:**
    - Exclude kids/nursery-rhyme channels (`Made for Kids`) so ads reach adult movie/series viewers and keep AdMob & Pro ARPU high.
 
 ---
 
-## 4. Updated 15s Promo Script (Pro + AI Value Prop)
+## 4. Updated 15s Promo Script (Safe Features Pro Value Prop)
 - **0:00–0:03:** *"Stop forgetting shows and paying for streaming apps you never open."*
-- **0:03–0:07:** *"Snap any Reel screenshot to add titles automatically, and check where to stream in your region."*
-- **0:07–0:11:** *"Get AI movie-night picks, swipe to match with friends, and audit your OTT spend with WatchPilot Pro."*
+- **0:03–0:07:** *"Import your IMDb or Letterboxd watchlist in seconds and see where every title streams in your region."*
+- **0:07–0:11:** *"Swipe to match tonight's movie in a live room, and audit your OTT spend with WatchPilot Pro."*
 - **0:11–0:15:** *"Download WatchPilot on Google Play today."*

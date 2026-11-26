@@ -1,24 +1,101 @@
 package com.example.util
 
-import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
 import java.net.URLEncoder
+import java.util.Locale
 
 object WatchProviderLauncher {
 
+    private val hotstarMarkets = setOf("IN", "ID", "MY", "TH", "SG", "PH")
+
     /**
-     * App-First Watch Provider Launcher with JustWatch Direct Deeplink Scraping & Episode Support.
+     * All known OTT/streaming package IDs so the Scenario B browser resolver never
+     * accidentally routes a worst-case web fallback back into a streaming app router.
+     */
+    private val knownStreamingPackages = setOf(
+        "com.netflix.mediaclient",
+        "com.netflix.ninja",
+        "com.amazon.avod.thirdpartyclient",
+        "com.amazon.amazonvideo.livingroom",
+        "com.disney.disneyplus",
+        "in.startv.hotstar",
+        "com.hotstar.hotstar",
+        "com.apple.atve.androidtv.appletv",
+        "com.apple.atve.sony.appletv",
+        "com.google.android.youtube",
+        "com.google.android.videos",
+        "com.wbd.stream",
+        "com.hbo.hbonow",
+        "com.hbo.max",
+        "com.hulu.plus",
+        "com.peacocktv.peacockandroid",
+        "com.cbs.app",
+        "com.crunchyroll.crunchyroid",
+        "com.tubitv",
+        "tv.pluto.android",
+        "com.plexapp.android",
+        "com.mubi",
+        "com.viki.android",
+        "com.discovery.discoveryplus.mobile",
+        "com.discoveryplus.mobile.android",
+        "com.discovery.discoveryplus.androidtv",
+        "ca.bellmedia.cravetv",
+        "com.globo.globotv",
+        "com.univision.prendetv",
+        "com.jio.media.ondemand",
+        "com.graymatrix.did",
+        "com.sonyliv",
+        "aha.ott.video.movies",
+        "com.mxtech.videoplayer.ad",
+        "com.mxtech.videoplayer.pro",
+        "com.suntv.sunnxt",
+        "com.viewlift.hoichoi",
+        "com.lionsgateplay.videoapp",
+        "bbc.iplayer.android",
+        "air.ITVMobilePlayer",
+        "com.channel4.ondemand",
+        "com.nowtv.uk",
+        "com.bskyb.skygo",
+        "com.canalplus.canalplus",
+        "de.prosiebensat1digital.seventv",
+        "com.skyshowtime.skyshowtime.google",
+        "es.plus.yomvi",
+        "com.movistarplus.androidtv",
+        "tv.wuaki",
+        "tv.wuaki.apptv",
+        "au.com.stan.and",
+        "au.com.streamotion.ares",
+        "jp.unext.mediaplayer",
+        "jp.co.rakuten.video.showtimeplayer",
+        "net.cj.cjhv.gs.tving",
+        "com.coupang.mobile.play",
+        "kr.co.captv.pooqV2"
+    )
+
+    /**
+     * Global App-First + Browser-Guaranteed Watch Provider Launcher.
      *
-     * If the streaming app (Netflix, Prime Video, Hotstar, JioCinema, Disney+, YouTube, etc.)
-     * is installed on the user's Android phone:
-     * 1. Uses the direct scraped JustWatch content URL (e.g. netflix.com/title/80057281) to bypass
-     *    the provider's home page and land straight on that movie or series playback screen.
-     * 2. If season and episode are specified (e.g. S2:E4), directly targets that specific episode.
-     * 3. If direct link is unavailable, uses package-locked search or launches the installed app directly.
-     * 4. Only if the app is NOT installed does it fall back to the web browser.
+     * Strategy across ALL streaming providers and ALL countries:
+     * 1. SCENARIO A (App installed on device):
+     *    - Try verified directContentUrl locked to the installed app (when available).
+     *    - Try verified in-app search App Links ONLY for apps whose native routers reliably
+     *      handle clean title search (Netflix, Prime Video, YouTube, Google TV).
+     *    - For every other installed OTT app (JioHotstar, Disney+, Zee5, SonyLIV, BBC iPlayer,
+     *      ITVX, Stan, Crave, Globoplay, ViX, U-NEXT, TVING, Canal+, Joyn, Max, Hulu, Apple TV+,
+     *      etc.), launch the native app cleanly via its launcher intent + search hint toast.
+     *      Never sends unverified custom schemes or guessed `/search` paths that trigger in-app
+     *      "Something went wrong" error screens.
+     * 2. SCENARIO B (App not installed, regional/unknown provider, or app launch failed):
+     *    - Routes cleanly to an actual Web Browser (`findWebBrowserPackage`) using sanitized
+     *      HTTPS URLs in priority order:
+     *      (a) directContentUrl (if HTTPS)
+     *      (b) localized official provider web search URL (`regionCode`-aware)
+     *      (c) localized TMDB / JustWatch watch link (`webLink`)
+     *      (d) universal Google Watch Search fallback
      */
     fun launchProvider(
         context: Context,
@@ -29,34 +106,25 @@ object WatchProviderLauncher {
         seasonNumber: Int? = null,
         episodeNumber: Int? = null,
         webLink: String? = null,
-        directContentUrl: String? = null
+        directContentUrl: String? = null,
+        regionCode: String = "US"
     ) {
         val cleanName = providerName.trim()
-        val hasEpisode = seasonNumber != null && episodeNumber != null
-        val episodeSuffix = if (hasEpisode) " Season $seasonNumber Episode $episodeNumber" else ""
-        val queryText = "$title$episodeSuffix" + if (releaseYear > 1900 && !hasEpisode) " $releaseYear" else ""
-
-        val encodedTitle = URLEncoder.encode(queryText, "UTF-8")
-        val simpleEncodedTitle = URLEncoder.encode("$title$episodeSuffix", "UTF-8")
-        val encodedProvider = URLEncoder.encode(cleanName, "UTF-8")
-        val lowerName = cleanName.lowercase()
+        val cleanTitle = title.trim().ifBlank { cleanName }
         val pm = context.packageManager
 
-        // 1. Resolve targeted package candidates and deep link URIs for this provider
         val targetConfig = resolveProviderConfig(
-            lowerName = lowerName,
-            cleanName = cleanName,
-            title = title,
-            simpleEncodedTitle = simpleEncodedTitle,
-            encodedTitle = encodedTitle,
-            encodedProvider = encodedProvider,
+            providerName = cleanName,
+            title = cleanTitle,
+            releaseYear = releaseYear,
             webLink = webLink,
             directContentUrl = directContentUrl,
             seasonNumber = seasonNumber,
-            episodeNumber = episodeNumber
+            episodeNumber = episodeNumber,
+            regionCode = regionCode
         )
 
-        // 2. CHECK IF THE APP IS INSTALLED ON THE DEVICE FIRST!
+        // 1. Detect installed streaming app package on device
         var installedPackage: String? = null
         for (pkg in targetConfig.packageNames) {
             try {
@@ -65,125 +133,54 @@ object WatchProviderLauncher {
                     break
                 }
             } catch (_: Exception) {
-                // Ignore and continue checking
+                // Continue checking fallback package IDs
             }
         }
 
         // =========================================================================
-        // SCENARIO A: APP IS INSTALLED -> STRICTLY OPEN THE APP (NEVER OPEN BROWSER)
+        // SCENARIO A: APP IS INSTALLED -> OPEN APP SAFELY (ZERO IN-APP ERRORS)
         // =========================================================================
         if (installedPackage != null) {
             var appLaunched = false
 
-            // Attempt 1: If specific episode is requested, prioritize targeted episode deep link URIs first
-            // (e.g. nflx://www.netflix.com/watch/$id?episode=$ep&season=$season)
-            if (hasEpisode) {
-                for (schemeUri in targetConfig.appSchemeUris) {
-                    try {
-                        val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse(schemeUri)).apply {
-                            setPackage(installedPackage)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        if (appIntent.resolveActivity(pm) != null) {
-                            context.startActivity(appIntent)
-                            appLaunched = true
-                            break
-                        }
-                    } catch (_: Exception) {
-                        // Try next scheme
-                    }
-                }
+            // Attempt 1: Verified Direct Content URL locked to the installed app
+            if (!directContentUrl.isNullOrBlank()) {
+                appLaunched = tryStartViewIntent(
+                    context = context,
+                    pm = pm,
+                    uriString = directContentUrl,
+                    targetPackage = installedPackage
+                )
             }
 
-            // Attempt 2: Scraped Direct Content URL locked directly to the installed app
-            if (!appLaunched && !directContentUrl.isNullOrBlank()) {
-                try {
-                    val directIntent = Intent(Intent.ACTION_VIEW, Uri.parse(directContentUrl)).apply {
-                        setPackage(installedPackage)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    if (directIntent.resolveActivity(pm) != null) {
-                        context.startActivity(directIntent)
+            // Attempt 2: Verified In-App Search / Title Deep Links (clean title, no guessed paths)
+            if (!appLaunched) {
+                for (deepLinkUri in targetConfig.verifiedInAppUris) {
+                    if (tryStartViewIntent(context, pm, deepLinkUri, installedPackage)) {
                         appLaunched = true
-                    }
-                } catch (_: Exception) {
-                    // Try next
-                }
-            }
-
-            // Attempt 3: Targeted App Scheme Deep Links (e.g. nflx://www.netflix.com/title/...)
-            if (!appLaunched) {
-                for (schemeUri in targetConfig.appSchemeUris) {
-                    try {
-                        val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse(schemeUri)).apply {
-                            setPackage(installedPackage)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        if (appIntent.resolveActivity(pm) != null) {
-                            context.startActivity(appIntent)
-                            appLaunched = true
-                            break
-                        }
-                    } catch (_: Exception) {
-                        // Try next scheme
+                        break
                     }
                 }
             }
 
-            // Attempt 3: HTTPS Content Search URL locked strictly to the installed app package
-            if (!appLaunched) {
-                for (webUrl in targetConfig.webSearchUrls) {
-                    try {
-                        val appWebIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
-                            setPackage(installedPackage)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        if (appWebIntent.resolveActivity(pm) != null) {
-                            context.startActivity(appWebIntent)
-                            appLaunched = true
-                            break
-                        }
-                    } catch (_: Exception) {
-                        // Try next
-                    }
-                }
-            }
-
-            // Attempt 4: Native Android Search Intent locked to the installed app package
-            if (!appLaunched) {
-                try {
-                    val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
-                        setPackage(installedPackage)
-                        putExtra(SearchManager.QUERY, queryText)
-                        putExtra("query", queryText)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    if (searchIntent.resolveActivity(pm) != null) {
-                        context.startActivity(searchIntent)
-                        appLaunched = true
-                    }
-                } catch (_: Exception) {
-                    // Try next
-                }
-            }
-
-            // Attempt 5: Direct Launch Intent of the installed app
-            // Guaranteed fallback when app is installed: launches app directly without opening browser!
+            // Attempt 3: Clean Native App Launch (guaranteed error-free fallback inside installed app)
             if (!appLaunched) {
                 try {
                     val launchIntent = pm.getLaunchIntentForPackage(installedPackage)?.apply {
-                        putExtra(SearchManager.QUERY, queryText)
-                        putExtra("query", queryText)
-                        if (seasonNumber != null) putExtra("season", seasonNumber)
-                        if (episodeNumber != null) putExtra("episode", episodeNumber)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     if (launchIntent != null) {
+                        val hintTitle = if (cleanTitle.equals(cleanName, ignoreCase = true)) {
+                            "Opening $cleanName"
+                        } else {
+                            "Opening $cleanName — search \"$cleanTitle\""
+                        }
+                        Toast.makeText(context, hintTitle, Toast.LENGTH_SHORT).show()
                         context.startActivity(launchIntent)
                         appLaunched = true
                     }
                 } catch (_: Exception) {
-                    // Fallthrough
+                    // Fall through to browser web fallback if launching package failed
                 }
             }
 
@@ -193,235 +190,388 @@ object WatchProviderLauncher {
         }
 
         // =========================================================================
-        // SCENARIO B: APP NOT INSTALLED -> FALL BACK TO DIRECT LINK / WEB / GOOGLE
+        // SCENARIO B: NOT INSTALLED / UNKNOWN PROVIDER -> ROUTE CLEANLY TO THE WEB
         // =========================================================================
-        var webLaunched = false
+        val browserPackage = findWebBrowserPackage(pm)
+        val candidateWebUrls = buildList {
+            safeHttpUrl(directContentUrl)?.let { add(it) }
+            targetConfig.webSearchUrls.forEach { url ->
+                safeHttpUrl(url)?.let { add(it) }
+            }
+            safeHttpUrl(webLink)?.let { add(it) }
+            add(buildGoogleWatchSearchUrl(cleanName = cleanName, cleanTitle = cleanTitle, releaseYear = releaseYear))
+        }.distinct()
 
-        // Attempt 1: Direct scraped JustWatch content URL in browser
-        if (!directContentUrl.isNullOrBlank()) {
-            try {
-                val directIntent = Intent(Intent.ACTION_VIEW, Uri.parse(directContentUrl)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(directIntent)
-                webLaunched = true
-            } catch (_: Exception) {
-                // Next
+        for (webUrl in candidateWebUrls) {
+            // Prefer targeting the resolved web browser directly so a stub/misconfigured
+            // non-launched app cannot hijack the link and throw an in-app error.
+            if (browserPackage != null &&
+                tryStartViewIntent(
+                    context = context,
+                    pm = pm,
+                    uriString = webUrl,
+                    targetPackage = browserPackage,
+                    addBrowsable = true
+                )
+            ) {
+                return
+            }
+            if (tryStartViewIntent(
+                    context = context,
+                    pm = pm,
+                    uriString = webUrl,
+                    targetPackage = null,
+                    addBrowsable = true
+                )
+            ) {
+                return
             }
         }
 
-        // Attempt 2: Provider's official web search page
-        if (!webLaunched) {
-            for (webUrl in targetConfig.webSearchUrls) {
-                try {
-                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(browserIntent)
-                    webLaunched = true
-                    break
-                } catch (_: Exception) {
-                    // Try next
-                }
-            }
+        val displayTarget = cleanName.ifBlank { "streaming page" }
+        Toast.makeText(context, "Unable to open $displayTarget in browser", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun findWebBrowserPackage(pm: PackageManager): String? {
+        val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")).apply {
+            addCategory(Intent.CATEGORY_BROWSABLE)
         }
 
-        // Attempt 3: JustWatch web link if provided
-        if (!webLaunched && !webLink.isNullOrBlank()) {
-            try {
-                val justWatchIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webLink)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(justWatchIntent)
-                webLaunched = true
-            } catch (_: Exception) {
-                // Next
-            }
+        fun isEligibleBrowser(pkg: String?): Boolean {
+            if (pkg.isNullOrBlank()) return false
+            if (pkg == "android" || pkg.contains("resolver", ignoreCase = true)) return false
+            if (pkg in knownStreamingPackages) return false
+            return true
         }
 
-        // Attempt 4: Google streaming search fallback
-        if (!webLaunched) {
-            try {
-                val googleUrl = "https://www.google.com/search?q=watch+$encodedTitle+on+$encodedProvider"
-                val searchIntent = Intent(Intent.ACTION_VIEW, Uri.parse(googleUrl)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(searchIntent)
-                webLaunched = true
-            } catch (e: Exception) {
-                Toast.makeText(context, "Could not open $cleanName", Toast.LENGTH_SHORT).show()
+        try {
+            val resolvedDefault = pm.resolveActivity(probe, PackageManager.MATCH_DEFAULT_ONLY)
+            val defaultPkg = resolvedDefault?.activityInfo?.packageName
+            if (isEligibleBrowser(defaultPkg)) {
+                return defaultPkg
             }
+        } catch (_: Exception) {
+            // Fall back to full query below
+        }
+
+        return try {
+            val candidates = pm.queryIntentActivities(probe, PackageManager.MATCH_DEFAULT_ONLY)
+            candidates
+                .mapNotNull { it.activityInfo?.takeIf { info -> info.exported }?.packageName }
+                .firstOrNull { isEligibleBrowser(it) }
+        } catch (_: Exception) {
+            null
         }
     }
 
-    private fun resolveProviderConfig(
-        lowerName: String,
+    private fun tryStartViewIntent(
+        context: Context,
+        pm: PackageManager,
+        uriString: String,
+        targetPackage: String?,
+        addBrowsable: Boolean = false
+    ): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uriString)).apply {
+                if (addBrowsable) {
+                    addCategory(Intent.CATEGORY_BROWSABLE)
+                }
+                if (!targetPackage.isNullOrBlank()) {
+                    setPackage(targetPackage)
+                }
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (!targetPackage.isNullOrBlank() && intent.resolveActivity(pm) == null) {
+                return false
+            }
+            context.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    internal fun safeHttpUrl(url: String?): String? {
+        val trimmed = url?.trim() ?: return null
+        return if (trimmed.startsWith("https://", ignoreCase = true) ||
+            trimmed.startsWith("http://", ignoreCase = true)
+        ) {
+            trimmed
+        } else {
+            null
+        }
+    }
+
+    internal fun buildGoogleWatchSearchUrl(
         cleanName: String,
+        cleanTitle: String,
+        releaseYear: Int = 0
+    ): String {
+        val titleWithYear = if (releaseYear > 1900) "$cleanTitle $releaseYear" else cleanTitle
+        val encodedWithYear = encodeFormParam(titleWithYear)
+        return if (cleanName.isBlank() || cleanName.equals("Streaming Provider", ignoreCase = true)) {
+            "https://www.google.com/search?q=watch+$encodedWithYear"
+        } else {
+            val encodedProvider = encodeFormParam(cleanName)
+            "https://www.google.com/search?q=watch+$encodedWithYear+on+$encodedProvider"
+        }
+    }
+
+    internal fun encodeUriComponent(value: String): String =
+        URLEncoder.encode(value.trim(), "UTF-8").replace("+", "%20")
+
+    internal fun encodeFormParam(value: String): String =
+        URLEncoder.encode(value.trim(), "UTF-8")
+
+    internal fun resolveProviderConfig(
+        providerName: String,
         title: String,
-        simpleEncodedTitle: String,
-        encodedTitle: String,
-        encodedProvider: String,
-        webLink: String?,
-        directContentUrl: String?,
-        seasonNumber: Int?,
-        episodeNumber: Int?
+        releaseYear: Int = 0,
+        webLink: String? = null,
+        directContentUrl: String? = null,
+        seasonNumber: Int? = null,
+        episodeNumber: Int? = null,
+        regionCode: String = "US"
     ): ProviderConfig {
+        val cleanName = providerName.trim()
+        val lowerName = cleanName.lowercase(Locale.ROOT)
+        val upperRegion = regionCode.trim().uppercase(Locale.ROOT).ifBlank { "US" }
+        val cleanTitle = title.trim().ifBlank { cleanName }
+        val uriTitle = encodeUriComponent(cleanTitle)
+        val formTitle = encodeFormParam(cleanTitle)
+        val formTitleWithYear = encodeFormParam(
+            if (releaseYear > 1900) "$cleanTitle $releaseYear" else cleanTitle
+        )
+        val googleFallback = buildGoogleWatchSearchUrl(
+            cleanName = cleanName,
+            cleanTitle = cleanTitle,
+            releaseYear = releaseYear
+        )
+        val safeDirectWeb = safeHttpUrl(directContentUrl)
+        val safeWebLink = safeHttpUrl(webLink)
+
         return when {
             lowerName.contains("netflix") -> {
-                // Extract Netflix ID if present in direct content URL (e.g. netflix.com/title/80057281)
                 val netflixId = directContentUrl?.let { url ->
                     Regex("""(?:title|watch)/(\d+)""").find(url)?.groupValues?.get(1)
                 }
 
-                val netflixSchemes = mutableListOf<String>()
+                val netflixInApp = mutableListOf<String>()
                 if (netflixId != null) {
                     if (seasonNumber != null && episodeNumber != null) {
-                        netflixSchemes.add("nflx://www.netflix.com/watch/$netflixId?episode=$episodeNumber&season=$seasonNumber")
+                        netflixInApp.add("nflx://www.netflix.com/watch/$netflixId?episode=$episodeNumber&season=$seasonNumber")
                     }
-                    netflixSchemes.add("nflx://www.netflix.com/watch/$netflixId")
-                    netflixSchemes.add("nflx://www.netflix.com/title/$netflixId")
-                    netflixSchemes.add("https://www.netflix.com/title/$netflixId")
+                    netflixInApp.add("nflx://www.netflix.com/watch/$netflixId")
+                    netflixInApp.add("nflx://www.netflix.com/title/$netflixId")
+                    netflixInApp.add("https://www.netflix.com/title/$netflixId")
                 }
-                netflixSchemes.add("nflx://www.netflix.com/search?q=$simpleEncodedTitle")
-                netflixSchemes.add("https://www.netflix.com/search?q=$simpleEncodedTitle")
+                // Netflix Android reliably opens in-app search results via HTTPS App Link with clean title
+                netflixInApp.add("https://www.netflix.com/search?q=$uriTitle")
 
                 ProviderConfig(
-                    packageNames = listOf("com.netflix.mediaclient"),
-                    appSchemeUris = netflixSchemes,
+                    packageNames = listOf("com.netflix.mediaclient", "com.netflix.ninja"),
+                    verifiedInAppUris = netflixInApp,
                     webSearchUrls = if (netflixId != null) {
-                        listOf("https://www.netflix.com/title/$netflixId", "https://www.netflix.com/search?q=$simpleEncodedTitle")
+                        listOfNotNull(
+                            safeDirectWeb,
+                            "https://www.netflix.com/title/$netflixId",
+                            "https://www.netflix.com/search?q=$uriTitle"
+                        ).distinct()
                     } else {
-                        listOf("https://www.netflix.com/search?q=$simpleEncodedTitle")
+                        listOfNotNull(
+                            safeDirectWeb,
+                            "https://www.netflix.com/search?q=$uriTitle"
+                        ).distinct()
                     }
                 )
             }
 
+            // Catch Amazon Prime Video, Amazon Video, and "* Amazon Channel" add-ons (US/UK/DE/JP/IN/Global)
             lowerName.contains("prime") || lowerName.contains("amazon") -> {
-                val primeSchemes = mutableListOf<String>()
+                val primeInApp = mutableListOf<String>()
                 if (!directContentUrl.isNullOrBlank()) {
-                    primeSchemes.add(directContentUrl)
+                    primeInApp.add(directContentUrl)
                 }
-                primeSchemes.add("primevideo://search?phrase=$simpleEncodedTitle")
-                primeSchemes.add("https://app.primevideo.com/search?phrase=$simpleEncodedTitle")
-                primeSchemes.add("https://www.amazon.com/gp/video/search?phrase=$simpleEncodedTitle")
+                // Prime Video Android uses HTTPS App Links on app.primevideo.com globally
+                primeInApp.add("https://app.primevideo.com/search?phrase=$uriTitle")
+
+                val regionalAmazonWeb = when (upperRegion) {
+                    "US" -> "https://www.amazon.com/s?k=$formTitle&i=instant-video"
+                    "GB" -> "https://www.amazon.co.uk/s?k=$formTitle&i=instant-video"
+                    "DE" -> "https://www.amazon.de/s?k=$formTitle&i=instant-video"
+                    "JP" -> "https://www.amazon.co.jp/s?k=$formTitle&i=instant-video"
+                    "IN" -> "https://www.amazon.in/s?k=$formTitle&i=instant-video"
+                    else -> "https://www.amazon.com/gp/video/search?phrase=$uriTitle"
+                }
 
                 ProviderConfig(
                     packageNames = listOf(
                         "com.amazon.avod.thirdpartyclient",
                         "com.amazon.amazonvideo.livingroom"
                     ),
-                    appSchemeUris = primeSchemes,
+                    verifiedInAppUris = primeInApp,
                     webSearchUrls = listOfNotNull(
-                        directContentUrl,
-                        "https://www.primevideo.com/search/ref=atv_nb_sr?phrase=$simpleEncodedTitle",
-                        "https://www.amazon.com/gp/video/search?phrase=$simpleEncodedTitle"
-                    )
+                        safeDirectWeb,
+                        "https://www.primevideo.com/search/ref=atv_nb_sr?phrase=$uriTitle",
+                        regionalAmazonWeb
+                    ).distinct()
                 )
             }
 
             lowerName.contains("hotstar") -> {
-                val hotstarSchemes = mutableListOf<String>()
-                if (!directContentUrl.isNullOrBlank()) {
-                    hotstarSchemes.add(directContentUrl)
+                // JioHotstar / Hotstar X (in.startv.hotstar) intercepts hotstar://* and /in/search?q=...
+                // and displays "Something went wrong" if given an unverified search route.
+                // Launch the native app cleanly unless directContentUrl is verified; localize web path by country.
+                val hotstarRegionPath = when {
+                    upperRegion in hotstarMarkets -> upperRegion.lowercase(Locale.ROOT)
+                    lowerName.contains("jiohotstar") || lowerName.contains("jio hotstar") -> "in"
+                    else -> null
                 }
-                hotstarSchemes.add("hotstar://search?q=$simpleEncodedTitle")
-                hotstarSchemes.add("https://www.hotstar.com/in/search?q=$simpleEncodedTitle")
-                hotstarSchemes.add("https://www.hotstar.com/search?q=$simpleEncodedTitle")
-
+                val hotstarSearchWeb = if (hotstarRegionPath != null) {
+                    "https://www.hotstar.com/$hotstarRegionPath/explore?search_query=$uriTitle"
+                } else {
+                    "https://www.hotstar.com/explore?search_query=$uriTitle"
+                }
+                val hotstarHomeWeb = if (hotstarRegionPath != null) {
+                    "https://www.hotstar.com/$hotstarRegionPath"
+                } else {
+                    "https://www.hotstar.com/"
+                }
                 ProviderConfig(
                     packageNames = listOf("in.startv.hotstar", "com.hotstar.hotstar"),
-                    appSchemeUris = hotstarSchemes,
+                    verifiedInAppUris = listOfNotNull(directContentUrl),
                     webSearchUrls = listOfNotNull(
-                        directContentUrl,
-                        "https://www.hotstar.com/in/search?q=$simpleEncodedTitle",
-                        "https://www.hotstar.com/search?q=$simpleEncodedTitle"
-                    )
+                        safeDirectWeb,
+                        hotstarSearchWeb,
+                        hotstarHomeWeb
+                    ).distinct()
                 )
             }
 
             lowerName.contains("disney") -> {
-                val disneySchemes = mutableListOf<String>()
-                if (!directContentUrl.isNullOrBlank()) {
-                    disneySchemes.add(directContentUrl)
+                val isHotstarTerritory = upperRegion in setOf("IN", "ID", "MY", "TH")
+                val packages = if (isHotstarTerritory) {
+                    listOf("in.startv.hotstar", "com.hotstar.hotstar", "com.disney.disneyplus")
+                } else {
+                    listOf("com.disney.disneyplus", "in.startv.hotstar")
                 }
-                disneySchemes.add("disneyplus://search?q=$simpleEncodedTitle")
-                disneySchemes.add("https://www.disneyplus.com/search?q=$simpleEncodedTitle")
-                disneySchemes.add("hotstar://search?q=$simpleEncodedTitle")
-
+                val webUrls = if (isHotstarTerritory) {
+                    listOfNotNull(
+                        safeDirectWeb,
+                        "https://www.hotstar.com/${upperRegion.lowercase(Locale.ROOT)}/explore?search_query=$uriTitle",
+                        "https://www.disneyplus.com/"
+                    ).distinct()
+                } else {
+                    listOfNotNull(
+                        safeDirectWeb,
+                        "https://www.disneyplus.com/",
+                        safeWebLink
+                    ).distinct()
+                }
                 ProviderConfig(
-                    packageNames = listOf("com.disney.disneyplus", "in.startv.hotstar"),
-                    appSchemeUris = disneySchemes,
-                    webSearchUrls = listOfNotNull(
-                        directContentUrl,
-                        "https://www.disneyplus.com/search?q=$simpleEncodedTitle",
-                        "https://www.hotstar.com/in/search?q=$simpleEncodedTitle"
-                    )
+                    packageNames = packages,
+                    verifiedInAppUris = listOfNotNull(directContentUrl),
+                    webSearchUrls = webUrls
                 )
             }
 
             lowerName.contains("jio") -> ProviderConfig(
-                packageNames = listOf("com.jio.media.ondemand"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "jiocinema://search?query=$simpleEncodedTitle",
-                    "https://www.jiocinema.com/search/$simpleEncodedTitle"
-                ),
+                packageNames = listOf("com.jio.media.ondemand", "in.startv.hotstar"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.jiocinema.com/search/$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://www.hotstar.com/in/explore?search_query=$uriTitle",
+                    "https://www.jiocinema.com/search/$uriTitle"
+                ).distinct()
             )
 
             lowerName.contains("zee5") -> ProviderConfig(
                 packageNames = listOf("com.graymatrix.did"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "zee5://search?q=$simpleEncodedTitle",
-                    "https://www.zee5.com/search?q=$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.zee5.com/search?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://www.zee5.com/search?q=$uriTitle"
+                ).distinct()
             )
 
             lowerName.contains("sonyliv") || lowerName.contains("sony liv") -> ProviderConfig(
                 packageNames = listOf("com.sonyliv"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "sonyliv://search?q=$simpleEncodedTitle",
-                    "https://www.sonyliv.com/search?q=$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.sonyliv.com/search?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://www.sonyliv.com/search"
+                ).distinct()
+            )
+
+            lowerName.contains("sun nxt") || lowerName.contains("sunnxt") -> ProviderConfig(
+                packageNames = listOf("com.suntv.sunnxt"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.sunnxt.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("hoichoi") -> ProviderConfig(
+                packageNames = listOf("com.viewlift.hoichoi"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.hoichoi.tv/"
+                ).distinct()
+            )
+
+            lowerName.contains("lionsgate") -> ProviderConfig(
+                packageNames = listOf("com.lionsgateplay.videoapp"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://lionsgateplay.com/"
+                ).distinct()
+            )
+
+            lowerName == "aha" || lowerName.startsWith("aha ") || lowerName.contains("aha video") -> ProviderConfig(
+                packageNames = listOf("aha.ott.video.movies"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.aha.video/search?q=$uriTitle"
+                ).distinct()
+            )
+
+            lowerName.contains("mx player") -> ProviderConfig(
+                packageNames = listOf("com.mxtech.videoplayer.ad", "com.mxtech.videoplayer.pro"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.mxplayer.in/search?q=$uriTitle"
+                ).distinct()
             )
 
             lowerName.contains("youtube") -> ProviderConfig(
                 packageNames = listOf("com.google.android.youtube"),
-                appSchemeUris = listOfNotNull(
+                verifiedInAppUris = listOfNotNull(
                     directContentUrl,
-                    "vnd.youtube://results?search_query=$encodedTitle+movie",
-                    "https://www.youtube.com/results?search_query=$encodedTitle"
+                    "vnd.youtube://results?search_query=$formTitleWithYear+movie",
+                    "https://www.youtube.com/results?search_query=$formTitleWithYear"
                 ),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.youtube.com/results?search_query=$encodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://www.youtube.com/results?search_query=$formTitleWithYear"
+                ).distinct()
             )
 
             lowerName.contains("google play") || lowerName.contains("google tv") -> ProviderConfig(
                 packageNames = listOf("com.google.android.videos"),
-                appSchemeUris = listOfNotNull(
+                verifiedInAppUris = listOfNotNull(
                     directContentUrl,
-                    "https://play.google.com/store/search?q=$encodedTitle&c=movies",
-                    "market://search?q=$encodedTitle&c=movies"
+                    "https://play.google.com/store/search?q=$formTitleWithYear&c=movies",
+                    "market://search?q=$formTitleWithYear&c=movies"
                 ),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://play.google.com/store/search?q=$encodedTitle&c=movies"
-                )
+                    safeDirectWeb,
+                    "https://play.google.com/store/search?q=$formTitleWithYear&c=movies"
+                ).distinct()
             )
 
             lowerName.contains("apple tv") -> ProviderConfig(
@@ -429,143 +579,313 @@ object WatchProviderLauncher {
                     "com.apple.atve.androidtv.appletv",
                     "com.apple.atve.sony.appletv"
                 ),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "https://tv.apple.com/search?term=$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://tv.apple.com/search?term=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://tv.apple.com/search?term=$uriTitle"
+                ).distinct()
             )
 
-            lowerName.contains("max") || lowerName.contains("hbo") -> ProviderConfig(
+            lowerName == "max" || lowerName.startsWith("max ") || lowerName.contains("hbo") -> ProviderConfig(
                 packageNames = listOf("com.wbd.stream", "com.hbo.hbonow", "com.hbo.max"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "https://play.max.com/search?q=$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://play.max.com/search?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://play.max.com/"
+                ).distinct()
             )
 
             lowerName.contains("hulu") -> ProviderConfig(
                 packageNames = listOf("com.hulu.plus"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "hulu://search?query=$simpleEncodedTitle",
-                    "https://www.hulu.com/search?q=$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.hulu.com/search?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://www.hulu.com/"
+                ).distinct()
             )
 
             lowerName.contains("peacock") -> ProviderConfig(
                 packageNames = listOf("com.peacocktv.peacockandroid"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "https://www.peacocktv.com/search?q=$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.peacocktv.com/search?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://www.peacocktv.com/search?q=$uriTitle"
+                ).distinct()
             )
 
             lowerName.contains("paramount") -> ProviderConfig(
                 packageNames = listOf("com.cbs.app"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "https://www.paramountplus.com/search/?q=$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.paramountplus.com/search/?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://www.paramountplus.com/search/?q=$uriTitle"
+                ).distinct()
             )
 
             lowerName.contains("crunchyroll") -> ProviderConfig(
                 packageNames = listOf("com.crunchyroll.crunchyroid"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "crunchyroll://search?q=$simpleEncodedTitle",
-                    "https://www.crunchyroll.com/search?q=$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.crunchyroll.com/search?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://www.crunchyroll.com/search?q=$uriTitle"
+                ).distinct()
             )
 
             lowerName.contains("tubi") -> ProviderConfig(
                 packageNames = listOf("com.tubitv"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "tubitv://search/$simpleEncodedTitle",
-                    "https://tubitv.com/search/$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://tubitv.com/search/$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://tubitv.com/search/$uriTitle"
+                ).distinct()
             )
 
             lowerName.contains("pluto") -> ProviderConfig(
                 packageNames = listOf("tv.pluto.android"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "plutotv://search?q=$simpleEncodedTitle",
-                    "https://pluto.tv/search/details?q=$simpleEncodedTitle"
-                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://pluto.tv/search/details?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://pluto.tv/search/details?q=$uriTitle"
+                ).distinct()
             )
 
-            lowerName.contains("aha") -> ProviderConfig(
-                packageNames = listOf("aha.ott.video.movies"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "https://www.aha.video/search?q=$simpleEncodedTitle"
-                ),
+            lowerName.contains("plex") -> ProviderConfig(
+                packageNames = listOf("com.plexapp.android"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.aha.video/search?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://watch.plex.tv/search?q=$uriTitle"
+                ).distinct()
             )
 
-            lowerName.contains("mx player") -> ProviderConfig(
-                packageNames = listOf("com.mxtech.videoplayer.ad", "com.mxtech.videoplayer.pro"),
-                appSchemeUris = listOfNotNull(
-                    directContentUrl,
-                    "https://www.mxplayer.in/search?q=$simpleEncodedTitle"
-                ),
+            lowerName.contains("mubi") -> ProviderConfig(
+                packageNames = listOf("com.mubi"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    "https://www.mxplayer.in/search?q=$simpleEncodedTitle"
-                )
+                    safeDirectWeb,
+                    "https://mubi.com/en/search?query=$uriTitle"
+                ).distinct()
             )
 
+            lowerName.contains("viki") -> ProviderConfig(
+                packageNames = listOf("com.viki.android"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.viki.com/search?q=$uriTitle"
+                ).distinct()
+            )
+
+            lowerName.contains("discovery") -> ProviderConfig(
+                packageNames = listOf(
+                    "com.discovery.discoveryplus.mobile",
+                    "com.discoveryplus.mobile.android",
+                    "com.discovery.discoveryplus.androidtv"
+                ),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.discoveryplus.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("bbc iplayer") || lowerName == "iplayer" -> ProviderConfig(
+                packageNames = listOf("bbc.iplayer.android"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.bbc.co.uk/iplayer/search?q=$uriTitle"
+                ).distinct()
+            )
+
+            lowerName.contains("itvx") || lowerName == "itv" || lowerName.contains("itv hub") -> ProviderConfig(
+                packageNames = listOf("air.ITVMobilePlayer"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.itv.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("channel 4") || lowerName.contains("all 4") -> ProviderConfig(
+                packageNames = listOf("com.channel4.ondemand"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.channel4.com/"
+                ).distinct()
+            )
+
+            lowerName == "now" || lowerName.startsWith("now ") || lowerName.contains("now tv") -> ProviderConfig(
+                packageNames = listOf("com.nowtv.uk"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.nowtv.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("skyshowtime") || lowerName.contains("sky showtime") -> ProviderConfig(
+                packageNames = listOf("com.skyshowtime.skyshowtime.google"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.skyshowtime.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("sky go") -> ProviderConfig(
+                packageNames = listOf("com.bskyb.skygo"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.sky.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("canal+") || lowerName.contains("canal plus") -> ProviderConfig(
+                packageNames = listOf("com.canalplus.canalplus"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.canalplus.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("joyn") -> ProviderConfig(
+                packageNames = listOf("de.prosiebensat1digital.seventv"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.joyn.de/suche?q=$uriTitle"
+                ).distinct()
+            )
+
+            lowerName.contains("movistar") -> ProviderConfig(
+                packageNames = listOf("es.plus.yomvi", "com.movistarplus.androidtv"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.movistarplus.es/"
+                ).distinct()
+            )
+
+            lowerName.contains("rakuten") -> ProviderConfig(
+                packageNames = if (upperRegion == "JP") {
+                    listOf("jp.co.rakuten.video.showtimeplayer", "tv.wuaki", "tv.wuaki.apptv")
+                } else {
+                    listOf("tv.wuaki", "tv.wuaki.apptv", "jp.co.rakuten.video.showtimeplayer")
+                },
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    if (upperRegion == "JP") {
+                        "https://tv.rakuten.co.jp/search/keyword/?q=$uriTitle"
+                    } else {
+                        "https://www.rakuten.tv/"
+                    }
+                ).distinct()
+            )
+
+            lowerName.contains("crave") -> ProviderConfig(
+                packageNames = listOf("ca.bellmedia.cravetv"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.crave.ca/en"
+                ).distinct()
+            )
+
+            lowerName.contains("stan") -> ProviderConfig(
+                packageNames = listOf("au.com.stan.and"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.stan.com.au/"
+                ).distinct()
+            )
+
+            lowerName.contains("binge") -> ProviderConfig(
+                packageNames = listOf("au.com.streamotion.ares"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://binge.com.au/"
+                ).distinct()
+            )
+
+            lowerName.contains("globoplay") -> ProviderConfig(
+                packageNames = listOf("com.globo.globotv"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://globoplay.globo.com/busca/?q=$uriTitle"
+                ).distinct()
+            )
+
+            lowerName == "vix" || lowerName.startsWith("vix ") -> ProviderConfig(
+                packageNames = listOf("com.univision.prendetv"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://vix.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("u-next") || lowerName.contains("unext") -> ProviderConfig(
+                packageNames = listOf("jp.unext.mediaplayer"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://video.unext.jp/freeword?query=$uriTitle"
+                ).distinct()
+            )
+
+            lowerName.contains("tving") -> ProviderConfig(
+                packageNames = listOf("net.cj.cjhv.gs.tving"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.tving.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("coupang") -> ProviderConfig(
+                packageNames = listOf("com.coupang.mobile.play"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.coupangplay.com/"
+                ).distinct()
+            )
+
+            lowerName.contains("wavve") -> ProviderConfig(
+                packageNames = listOf("kr.co.captv.pooqV2"),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
+                webSearchUrls = listOfNotNull(
+                    safeDirectWeb,
+                    "https://www.wavve.com/"
+                ).distinct()
+            )
+
+            // Universal fallback for any other regional or niche provider worldwide:
+            // Routes cleanly to directContentUrl (if HTTPS), localized TMDB/JustWatch webLink,
+            // or Google Watch Search directly in the user's web browser.
             else -> ProviderConfig(
                 packageNames = emptyList(),
-                appSchemeUris = listOfNotNull(directContentUrl),
+                verifiedInAppUris = listOfNotNull(directContentUrl),
                 webSearchUrls = listOfNotNull(
-                    directContentUrl,
-                    webLink,
-                    "https://www.google.com/search?q=watch+$encodedTitle+on+$encodedProvider"
-                )
+                    safeDirectWeb,
+                    safeWebLink,
+                    googleFallback
+                ).distinct()
             )
         }
     }
 
-    private data class ProviderConfig(
+    internal data class ProviderConfig(
         val packageNames: List<String>,
-        val appSchemeUris: List<String>,
+        val verifiedInAppUris: List<String>,
         val webSearchUrls: List<String>
     )
 }

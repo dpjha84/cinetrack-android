@@ -27,7 +27,7 @@
       <li><strong>Account Information (Optional):</strong> If you sign in with Google, we receive your Firebase User ID, display name, and email address via Google Sign-In / Firebase Authentication to sync your watchlist, ratings, custom collections, episode progress, and Pro entitlement across devices. Guest Mode stores library data locally on your device.</li>
       <li><strong>User-Created Library &amp; Preferences:</strong> Titles you track, ratings, reviews, custom lists, selected streaming subscriptions, and preferred region/language.</li>
       <li><strong>Live Swipe-to-Match Rooms:</strong> When you create or join a 6-digit Match Room, participant user IDs, room code, region, selected providers, and swipe choices are temporarily synced in Firebase Firestore to detect mutual matches.</li>
-      <li><strong>Screenshot Vision Scanning (Snap-to-Watchlist):</strong> When you explicitly select a screenshot using the system Android Photo Picker, the selected image is sent via Firebase AI Logic to Gemini Vision solely to identify movie/TV titles and is not permanently retained by WatchPilot.</li>
+      <li><strong>Screenshot Vision Scanning (Optional Future Feature):</strong> Only in app versions where Screenshot Vision Scanning is enabled, if you explicitly select a screenshot using the system Android Photo Picker, the selected image is processed ephemerally to identify movie/TV titles and is not permanently retained by WatchPilot.</li>
       <li><strong>Usage &amp; Diagnostics (Optional Toggle):</strong> Firebase Analytics records privacy-safe screen views, feature usage, and conversion events (you can disable analytics anytime in Profile).</li>
       <li><strong>Advertising &amp; Purchases:</strong> WatchPilot Free displays Google AdMob ads (using device Advertising ID where permitted). WatchPilot Pro purchases and subscriptions are processed securely by Google Play Billing; WatchPilot does not collect or store payment card details.</li>
     </ul>
@@ -35,7 +35,7 @@
     <h2>2. Third-Party Services &amp; Data Attribution</h2>
     <p>WatchPilot integrates the following SDKs and APIs:</p>
     <ul>
-      <li><strong>Google Firebase</strong> (Authentication, Cloud Firestore, Firebase Analytics, Firebase App Check, Firebase AI Logic)</li>
+      <li><strong>Google Firebase</strong> (Authentication, Cloud Firestore, Firebase Analytics, Firebase App Check)</li>
       <li><strong>Google AdMob</strong> (Banner, Interstitial, and Rewarded ads on the Free tier)</li>
       <li><strong>Google Play Billing</strong> (In-app purchases and subscriptions)</li>
       <li><strong>TMDB API &amp; JustWatch:</strong> This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming availability data is powered by JustWatch.</li>

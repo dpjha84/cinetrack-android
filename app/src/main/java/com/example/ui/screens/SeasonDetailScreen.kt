@@ -242,7 +242,8 @@ fun SeasonDetailScreen(
                             seasonNumber = episode.seasonNumber,
                             episodeNumber = episode.episodeNumber,
                             webLink = provider?.webLink ?: providersInfo.justWatchLink,
-                            directContentUrl = provider?.directContentUrl
+                            directContentUrl = provider?.directContentUrl,
+                            regionCode = providersInfo.regionCode.ifBlank { effectiveRegionCode }
                         )
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -358,7 +359,8 @@ fun SeasonDetailScreen(
                             seasonNumber = episode.seasonNumber,
                             episodeNumber = episode.episodeNumber,
                             webLink = provider?.webLink ?: providersInfo.justWatchLink,
-                            directContentUrl = provider?.directContentUrl
+                            directContentUrl = provider?.directContentUrl,
+                            regionCode = providersInfo.regionCode.ifBlank { effectiveRegionCode }
                         )
                     },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
@@ -392,7 +394,8 @@ fun SeasonDetailScreen(
                     seasonNumber = episode.seasonNumber,
                     episodeNumber = episode.episodeNumber,
                     webLink = provider?.webLink ?: providersInfo.justWatchLink,
-                    directContentUrl = provider?.directContentUrl
+                    directContentUrl = provider?.directContentUrl,
+                    regionCode = providersInfo.regionCode.ifBlank { effectiveRegionCode }
                 )
             }
         )
@@ -828,7 +831,8 @@ private fun SeasonWatchStatusCard(
                                         seasonNumber = season.seasonNumber,
                                         episodeNumber = 1,
                                         webLink = provider.webLink ?: providersInfo.justWatchLink,
-                                        directContentUrl = provider.directContentUrl
+                                        directContentUrl = provider.directContentUrl,
+                                        regionCode = providersInfo.regionCode
                                     )
                                 },
                                 colors = ButtonDefaults.buttonColors(

@@ -120,6 +120,7 @@ import com.example.data.model.TvWatchStatus
 import com.example.ui.components.RewardedTrialPassBanner
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
+import com.example.util.FeatureFlags
 import com.example.util.WatchProviderLauncher
 
 @Composable
@@ -409,19 +410,21 @@ fun MediaDetailScreen(
                             media = media,
                             onChangeClick = { showWatchlistDialog = true }
                         )
-                        Spacer(modifier = Modifier.height(18.dp))
-                        MediaAiCompanionCard(
-                            isMovie = isMovie,
-                            monetizationState = monetizationState,
-                            briefState = aiBriefState,
-                            onGenerate = { viewModel.generateTitleAiBrief(media) },
-                            onOpenPaywall = {
-                                viewModel.openPaywall(
-                                    "Unlock unlimited Spoiler-Free AI Recaps & Personal Watch-Fit briefs with WatchPilot Pro."
-                                )
-                            },
-                            onRewardEarned = { viewModel.grantRewardedTrialPass("media_detail_recap") }
-                        )
+                        if (FeatureFlags.ENABLE_AI_FEATURES) {
+                            Spacer(modifier = Modifier.height(18.dp))
+                            MediaAiCompanionCard(
+                                isMovie = isMovie,
+                                monetizationState = monetizationState,
+                                briefState = aiBriefState,
+                                onGenerate = { viewModel.generateTitleAiBrief(media) },
+                                onOpenPaywall = {
+                                    viewModel.openPaywall(
+                                        "Unlock unlimited Spoiler-Free AI Recaps & Personal Watch-Fit briefs with WatchPilot Pro."
+                                    )
+                                },
+                                onRewardEarned = { viewModel.grantRewardedTrialPass("media_detail_recap") }
+                            )
+                        }
                         Spacer(modifier = Modifier.height(18.dp))
                         MediaSynopsisAndCastSection(
                             media = media,
@@ -585,20 +588,22 @@ fun MediaDetailScreen(
                         onChangeClick = { showWatchlistDialog = true }
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    if (FeatureFlags.ENABLE_AI_FEATURES) {
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    MediaAiCompanionCard(
-                        isMovie = isMovie,
-                        monetizationState = monetizationState,
-                        briefState = aiBriefState,
-                        onGenerate = { viewModel.generateTitleAiBrief(media) },
-                        onOpenPaywall = {
-                            viewModel.openPaywall(
-                                "Unlock unlimited Spoiler-Free AI Recaps & Personal Watch-Fit briefs with WatchPilot Pro."
-                            )
-                        },
-                        onRewardEarned = { viewModel.grantRewardedTrialPass("media_detail_recap") }
-                    )
+                        MediaAiCompanionCard(
+                            isMovie = isMovie,
+                            monetizationState = monetizationState,
+                            briefState = aiBriefState,
+                            onGenerate = { viewModel.generateTitleAiBrief(media) },
+                            onOpenPaywall = {
+                                viewModel.openPaywall(
+                                    "Unlock unlimited Spoiler-Free AI Recaps & Personal Watch-Fit briefs with WatchPilot Pro."
+                                )
+                            },
+                            onRewardEarned = { viewModel.grantRewardedTrialPass("media_detail_recap") }
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -952,7 +957,8 @@ private fun MediaWhereToWatchCard(
                                                     seasonNumber = if (!isMovie) selectedSeason else null,
                                                     episodeNumber = if (!isMovie) selectedEpisode else null,
                                                     webLink = provider.webLink ?: providersInfo.justWatchLink,
-                                                    directContentUrl = provider.directContentUrl
+                                                    directContentUrl = provider.directContentUrl,
+                                                    regionCode = providersInfo.regionCode.ifBlank { effectiveRegionCode }
                                                 )
                                             }
                                             .testTag("btn_watch_${provider.name.lowercase().replace(" ", "_")}")
@@ -1038,7 +1044,8 @@ private fun MediaWhereToWatchCard(
                                                     seasonNumber = if (!isMovie) selectedSeason else null,
                                                     episodeNumber = if (!isMovie) selectedEpisode else null,
                                                     webLink = provider.webLink ?: providersInfo.justWatchLink,
-                                                    directContentUrl = provider.directContentUrl
+                                                    directContentUrl = provider.directContentUrl,
+                                                    regionCode = providersInfo.regionCode.ifBlank { effectiveRegionCode }
                                                 )
                                             }
                                             .testTag("btn_buy_${provider.name.lowercase().replace(" ", "_")}")
@@ -1088,7 +1095,8 @@ private fun MediaWhereToWatchCard(
                                         isMovie = isMovie,
                                         seasonNumber = if (!isMovie) selectedSeason else null,
                                         episodeNumber = if (!isMovie) selectedEpisode else null,
-                                        webLink = providersInfo.justWatchLink
+                                        webLink = providersInfo.justWatchLink,
+                                        regionCode = providersInfo.regionCode.ifBlank { effectiveRegionCode }
                                     )
                                 },
                                 colors = ButtonDefaults.filledTonalButtonColors(
@@ -1491,7 +1499,8 @@ private fun MediaEpisodeProgressCard(
                                                 seasonNumber = selectedSeason,
                                                 episodeNumber = selectedEpisode,
                                                 webLink = topProvider.webLink ?: providersInfo.justWatchLink,
-                                                directContentUrl = topProvider.directContentUrl
+                                                directContentUrl = topProvider.directContentUrl,
+                                                regionCode = providersInfo.regionCode
                                             )
                                         }
                                         .testTag("btn_watch_episode_progress_direct")

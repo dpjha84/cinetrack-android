@@ -65,6 +65,7 @@ import com.example.data.model.MonetizationState
 import com.example.data.model.PlanType
 import com.example.ui.theme.WatchPilotColors
 import com.example.util.AppStoreActions
+import com.example.util.FeatureFlags
 import com.example.util.findActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -192,23 +193,27 @@ fun WatchPilotProPaywallSheet(
                     ProBenefitRow(
                         icon = Icons.Filled.Savings,
                         title = "OTT Money-Saver Radar & Streaming Alerts",
-                        subtitle = "Spot idle paid apps, filter Library to 'On My Apps', and get New Season & streaming arrival alerts."
+                        subtitle = "Spot idle paid apps with localized pricing, filter Library to 'On My Apps', and get New Season & streaming arrival alerts."
                     )
-                    ProBenefitRow(
-                        icon = Icons.Filled.PhotoCamera,
-                        title = "Unlimited AI Screenshot Vision Scanner",
-                        subtitle = "Turn Reels, TikToks & Top-10 list screenshots into instant TMDB watchlist items."
-                    )
+                    if (FeatureFlags.ENABLE_AI_FEATURES) {
+                        ProBenefitRow(
+                            icon = Icons.Filled.PhotoCamera,
+                            title = "Unlimited AI Screenshot Vision Scanner",
+                            subtitle = "Turn Reels, TikToks & Top-10 list screenshots into instant TMDB watchlist items."
+                        )
+                    }
                     ProBenefitRow(
                         icon = Icons.Filled.Favorite,
                         title = "Unlimited Live Couple & Group Swipe-to-Match",
                         subtitle = "Host unlimited 6-digit rooms to agree on tonight's movie in under 60 seconds."
                     )
-                    ProBenefitRow(
-                        icon = Icons.Filled.AutoAwesome,
-                        title = "Unlimited AI Concierge & Spoiler-Free Recaps",
-                        subtitle = "Get Tonight's Pick plus personalized Watch-Fit & spoiler-free 'Previously On...' recaps."
-                    )
+                    if (FeatureFlags.ENABLE_AI_FEATURES) {
+                        ProBenefitRow(
+                            icon = Icons.Filled.AutoAwesome,
+                            title = "Unlimited AI Concierge & Spoiler-Free Recaps",
+                            subtitle = "Get Tonight's Pick plus personalized Watch-Fit & spoiler-free 'Previously On...' recaps."
+                        )
+                    }
                     ProBenefitRow(
                         icon = Icons.Filled.Insights,
                         title = "Cinema DNA Insights + CSV/JSON Backup",
@@ -235,7 +240,7 @@ fun WatchPilotProPaywallSheet(
                     title = "Annual Pro",
                     price = monetizationState.annualPriceLabel,
                     badge = "BEST VALUE • SAVE 50%",
-                    subtitle = "Less than $1/mo — pays for itself by pausing 1 unused OTT app.",
+                    subtitle = "Save 50%+ vs monthly — pays for itself by pausing 1 unused OTT app.",
                     selected = selectedSku == MonetizationManager.SKU_PRO_ANNUAL,
                     onClick = { selectedSku = MonetizationManager.SKU_PRO_ANNUAL },
                     testTag = "plan_annual_card"
