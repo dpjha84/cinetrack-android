@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
     <string name="firestore_database_id" translatable="false">ai-studio-android-cinetrac-4ecf9912-7c55-47f4-8738-c1cd6f12de97</string>
-    <string name="recaptcha_site_key" translatable="false">6LeUoC8uAAAAAOtUlNhtFUGODI8Bdnbhd58Ro6mI</string>
+    <string name="recaptcha_site_key" translatable="false">6LeMNTMuAAAAAPqiqpx1ND83qtx1nul46ONcPhcY</string>
 </resources>
