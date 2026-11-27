@@ -145,14 +145,14 @@ interface TmdbApiService {
     suspend fun getMovieDetails(
         @Path("movie_id") movieId: Long,
         @Query("api_key") apiKey: String,
-        @Query("append_to_response") appendToResponse: String = "credits,watch/providers"
+        @Query("append_to_response") appendToResponse: String = "credits,watch/providers,external_ids"
     ): TmdbMovieDetailDto
 
     @GET("tv/{series_id}")
     suspend fun getTvDetails(
         @Path("series_id") seriesId: Long,
         @Query("api_key") apiKey: String,
-        @Query("append_to_response") appendToResponse: String = "credits,watch/providers"
+        @Query("append_to_response") appendToResponse: String = "credits,watch/providers,external_ids"
     ): TmdbTvDetailDto
 
     @GET("person/{person_id}")

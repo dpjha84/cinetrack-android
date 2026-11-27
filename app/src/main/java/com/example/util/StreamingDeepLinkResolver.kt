@@ -64,8 +64,8 @@ object StreamingDeepLinkResolver {
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
-        .readTimeout(3, TimeUnit.SECONDS)
-        .callTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(4, TimeUnit.SECONDS)
+        .callTimeout(5, TimeUnit.SECONDS)
         .build()
 
     private val moshi: Moshi = Moshi.Builder().build()
@@ -73,6 +73,12 @@ object StreamingDeepLinkResolver {
     private val itunesAdapter = moshi.adapter(ItunesSearchResponseDto::class.java)
 
     private val cache = ConcurrentHashMap<String, ResolvedStreamingDeepLinks>()
+    private val imdbIdCache = ConcurrentHashMap<String, String>()
+
+    fun registerImdbId(mediaId: String, imdbId: String?) {
+        val clean = imdbId?.trim()?.takeIf { Regex("^tt\\d+$").matches(it) } ?: return
+        imdbIdCache[mediaId.trim()] = clean
+    }
 
     suspend fun resolveForTitle(
         mediaId: String,
@@ -80,11 +86,15 @@ object StreamingDeepLinkResolver {
         isMovie: Boolean,
         releaseYear: Int = 0,
         regionCode: String = "US",
-        providerNames: List<String> = emptyList()
+        providerNames: List<String> = emptyList(),
+        imdbId: String? = null
     ): ResolvedStreamingDeepLinks = withContext(Dispatchers.IO) {
         val upperRegion = regionCode.trim().uppercase(Locale.ROOT).ifBlank { "US" }
         val cacheKey = "${mediaId.trim()}:$upperRegion"
         cache[cacheKey]?.let { return@withContext it }
+
+        val effectiveImdbId = imdbId?.trim()?.takeIf { Regex("^tt\\d+$").matches(it) }
+            ?: imdbIdCache[mediaId.trim()]
 
         val tmdbNumericId = when {
             mediaId.startsWith("tmdb_m_") -> mediaId.removePrefix("tmdb_m_").toLongOrNull()
@@ -99,10 +109,11 @@ object StreamingDeepLinkResolver {
 
         val resolved = coroutineScope {
             val wikidataDeferred = async {
-                if (tmdbNumericId != null) {
-                    withTimeoutOrNull(2600L) {
+                if (tmdbNumericId != null || effectiveImdbId != null) {
+                    withTimeoutOrNull(4000L) {
                         queryWikidataDeepLinks(
                             tmdbId = tmdbNumericId,
+                            imdbId = effectiveImdbId,
                             title = title,
                             isMovie = isMovie,
                             regionCode = upperRegion
@@ -175,11 +186,25 @@ object StreamingDeepLinkResolver {
         }
     }
 
-    internal fun buildWikidataSparqlQuery(tmdbId: Long, isMovie: Boolean): String {
+    internal fun buildWikidataSparqlQuery(
+        tmdbId: Long?,
+        isMovie: Boolean,
+        imdbId: String? = null
+    ): String {
         val tmdbProperty = if (isMovie) "wdt:P4947" else "wdt:P4983"
+        val cleanImdb = imdbId?.trim()?.takeIf { Regex("^tt\\d+$").matches(it) }
+        val matchClause = when {
+            tmdbId != null && cleanImdb != null ->
+                """{ ?item $tmdbProperty "$tmdbId" . } UNION { ?item wdt:P345 "$cleanImdb" . }"""
+            tmdbId != null ->
+                """?item $tmdbProperty "$tmdbId" ."""
+            cleanImdb != null ->
+                """?item wdt:P345 "$cleanImdb" ."""
+            else -> ""
+        }
         return """
             SELECT ?netflix ?hotstar ?prime ?disneyMovie ?disneySeries ?huluMovie ?huluSeries ?max ?appleMovie ?peacock ?crunchyroll ?bbc WHERE {
-              ?item $tmdbProperty "$tmdbId" .
+              $matchClause
               OPTIONAL { ?item wdt:P1874 ?netflix . }
               OPTIONAL { ?item wdt:P11049 ?hotstar . }
               OPTIONAL { ?item wdt:P8055 ?prime . }
@@ -430,13 +455,19 @@ object StreamingDeepLinkResolver {
         title.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "")
 
     private fun queryWikidataDeepLinks(
-        tmdbId: Long,
+        tmdbId: Long?,
+        imdbId: String?,
         title: String,
         isMovie: Boolean,
         regionCode: String
     ): Map<String, String> {
+        if (tmdbId == null && imdbId.isNullOrBlank()) return emptyMap()
         return try {
-            val sparql = buildWikidataSparqlQuery(tmdbId = tmdbId, isMovie = isMovie)
+            val sparql = buildWikidataSparqlQuery(
+                tmdbId = tmdbId,
+                isMovie = isMovie,
+                imdbId = imdbId
+            )
             val encodedQuery = URLEncoder.encode(sparql, "UTF-8")
             val req = Request.Builder()
                 .url("$WIKIDATA_SPARQL_ENDPOINT?format=json&query=$encodedQuery")

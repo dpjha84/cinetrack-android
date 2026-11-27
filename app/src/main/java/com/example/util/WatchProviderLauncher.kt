@@ -1,5 +1,8 @@
 package com.example.util
 
+import android.app.SearchManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -138,37 +141,71 @@ object WatchProviderLauncher {
         }
 
         // =========================================================================
-        // SCENARIO A: APP IS INSTALLED -> TRY DIRECT TITLE OR IN-APP SEARCH FIRST
+        // SCENARIO A: APP IS INSTALLED -> ALWAYS KEEP EXPERIENCE IN-APP
+        // 1. Direct title / episode / verified in-app search URI
+        // 2. Resolved directContentUrl locked to installedPackage
+        // 3. Android standard MEDIA_PLAY_FROM_SEARCH locked to installedPackage
+        // 4. Native app launch + auto-copy title to clipboard for 1-tap paste
         // =========================================================================
         if (installedPackage != null) {
-            var appLaunched = false
-
             // Attempt 1: Verified In-App Title / Episode / Search URIs locked to the installed app
             for (deepLinkUri in targetConfig.verifiedInAppUris) {
                 if (tryStartViewIntent(context, pm, deepLinkUri, installedPackage)) {
-                    appLaunched = true
-                    break
+                    return
                 }
             }
 
             // Attempt 2: Direct Content URL (if not already tried via verifiedInAppUris)
-            if (!appLaunched && !directContentUrl.isNullOrBlank()) {
-                appLaunched = tryStartViewIntent(
+            if (!directContentUrl.isNullOrBlank() &&
+                tryStartViewIntent(
                     context = context,
                     pm = pm,
                     uriString = directContentUrl,
                     targetPackage = installedPackage
                 )
+            ) {
+                return
             }
 
-            if (appLaunched) {
+            // Attempt 3: Standard Android Media Search intent if the installed app declares it
+            if (!cleanTitle.equals(cleanName, ignoreCase = true) &&
+                tryStartMediaSearchIntent(
+                    context = context,
+                    pm = pm,
+                    query = cleanTitle,
+                    targetPackage = installedPackage
+                )
+            ) {
                 return
+            }
+
+            // Attempt 4: Launch the installed native app cleanly + copy title to clipboard
+            try {
+                val launchIntent = pm.getLaunchIntentForPackage(installedPackage)?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (launchIntent != null) {
+                    val copied = if (!cleanTitle.equals(cleanName, ignoreCase = true)) {
+                        copyTitleToClipboard(context, cleanTitle)
+                    } else {
+                        false
+                    }
+                    val hintTitle = when {
+                        cleanTitle.equals(cleanName, ignoreCase = true) -> "Opening $cleanName"
+                        copied -> "Opening $cleanName — \"$cleanTitle\" copied for search"
+                        else -> "Opening $cleanName — search \"$cleanTitle\""
+                    }
+                    Toast.makeText(context, hintTitle, Toast.LENGTH_SHORT).show()
+                    context.startActivity(launchIntent)
+                    return
+                }
+            } catch (_: Exception) {
+                // Fall through to Scenario B browser handoff only if app launch fails
             }
         }
 
         // =========================================================================
-        // SCENARIO B: TITLE-TARGETED WEB HANDOFF (when no direct title / in-app search
-        // exists, or app is not installed) -> Avoid dumping user on app homepage!
+        // SCENARIO B: APP NOT INSTALLED -> TITLE-TARGETED WEB HANDOFF IN BROWSER
         // =========================================================================
         val browserPackage = findWebBrowserPackage(pm)
         val uriTitle = encodeUriComponent(cleanTitle)
@@ -227,29 +264,40 @@ object WatchProviderLauncher {
             }
         }
 
-        // Last-resort safety net if no browser is available on device but the native app is installed
-        if (installedPackage != null) {
-            try {
-                val launchIntent = pm.getLaunchIntentForPackage(installedPackage)?.apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                if (launchIntent != null) {
-                    val hintTitle = if (cleanTitle.equals(cleanName, ignoreCase = true)) {
-                        "Opening $cleanName"
-                    } else {
-                        "Opening $cleanName — search \"$cleanTitle\""
-                    }
-                    Toast.makeText(context, hintTitle, Toast.LENGTH_SHORT).show()
-                    context.startActivity(launchIntent)
-                    return
-                }
-            } catch (_: Exception) {
-                // Fall through to unavailable toast
-            }
-        }
-
         val displayTarget = cleanName.ifBlank { "streaming page" }
         Toast.makeText(context, "Unable to open $displayTarget in browser", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun tryStartMediaSearchIntent(
+        context: Context,
+        pm: PackageManager,
+        query: String,
+        targetPackage: String
+    ): Boolean {
+        return try {
+            val intent = Intent("android.media.action.MEDIA_PLAY_FROM_SEARCH").apply {
+                putExtra(SearchManager.QUERY, query)
+                putExtra("android.intent.extra.title", query)
+                setPackage(targetPackage)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (intent.resolveActivity(pm) == null) {
+                return false
+            }
+            context.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun copyTitleToClipboard(context: Context, title: String): Boolean {
+        return runCatching {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                ?: return false
+            clipboard.setPrimaryClip(ClipData.newPlainText("WatchPilot Title", title))
+            true
+        }.getOrDefault(false)
     }
 
     internal fun isTitleTargetedWebUrl(

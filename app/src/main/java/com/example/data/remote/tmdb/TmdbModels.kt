@@ -68,6 +68,11 @@ data class TmdbPersonCombinedCreditsDto(
 )
 
 @JsonClass(generateAdapter = true)
+data class TmdbExternalIdsDto(
+    @Json(name = "imdb_id") val imdbId: String? = null
+)
+
+@JsonClass(generateAdapter = true)
 data class TmdbMovieDetailDto(
     val id: Long,
     val title: String,
@@ -80,6 +85,8 @@ data class TmdbMovieDetailDto(
     val genres: List<TmdbGenreDto>? = null,
     @Json(name = "original_language") val originalLanguage: String? = null,
     @Json(name = "production_countries") val productionCountries: List<TmdbCountryDto>? = null,
+    @Json(name = "imdb_id") val imdbId: String? = null,
+    @Json(name = "external_ids") val externalIds: TmdbExternalIdsDto? = null,
     val credits: TmdbCreditsDto? = null,
     @Json(name = "watch/providers") val watchProviders: TmdbWatchProvidersResponse? = null
 )
@@ -99,6 +106,7 @@ data class TmdbTvDetailDto(
     val genres: List<TmdbGenreDto>? = null,
     @Json(name = "original_language") val originalLanguage: String? = null,
     @Json(name = "origin_country") val originCountry: List<String>? = null,
+    @Json(name = "external_ids") val externalIds: TmdbExternalIdsDto? = null,
     val seasons: List<TmdbSeasonSummaryDto>? = null,
     val credits: TmdbCreditsDto? = null,
     @Json(name = "watch/providers") val watchProviders: TmdbWatchProvidersResponse? = null

@@ -1099,5 +1099,14 @@ class WatchPilotV2UnitTest {
                 formTitle = "New+Girl"
             )
         )
+
+        // Wikidata SPARQL includes IMDb ID UNION when available
+        val unionSparql = com.example.util.StreamingDeepLinkResolver.buildWikidataSparqlQuery(
+            tmdbId = 1420L,
+            isMovie = false,
+            imdbId = "tt1826940"
+        )
+        assertTrue(unionSparql.contains("""wdt:P4983 "1420""""))
+        assertTrue(unionSparql.contains("""UNION { ?item wdt:P345 "tt1826940" . }"""))
     }
 }

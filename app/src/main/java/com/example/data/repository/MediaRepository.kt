@@ -1775,6 +1775,10 @@ class MediaRepository(
             if (id.startsWith("tmdb_m_")) {
                 val tmdbId = id.removePrefix("tmdb_m_").toLongOrNull() ?: return@withContext emptyList()
                 val detail = TmdbClient.api.getMovieDetails(tmdbId, apiKey)
+                StreamingDeepLinkResolver.registerImdbId(
+                    mediaId = id,
+                    imdbId = detail.externalIds?.imdbId ?: detail.imdbId
+                )
                 val latestExisting = mediaDao.getMediaByIdDirect(id)
                 val updated = TmdbClient.movieDetailToEntity(detail, latestExisting)
                 mediaDao.insertOrUpdate(updated)
@@ -1789,6 +1793,10 @@ class MediaRepository(
             } else if (id.startsWith("tmdb_tv_")) {
                 val tmdbId = id.removePrefix("tmdb_tv_").toLongOrNull() ?: return@withContext emptyList()
                 val detail = TmdbClient.api.getTvDetails(tmdbId, apiKey)
+                StreamingDeepLinkResolver.registerImdbId(
+                    mediaId = id,
+                    imdbId = detail.externalIds?.imdbId
+                )
                 val latestExisting = mediaDao.getMediaByIdDirect(id)
                 val updated = TmdbClient.tvDetailToEntity(detail, latestExisting)
                 mediaDao.insertOrUpdate(updated)
