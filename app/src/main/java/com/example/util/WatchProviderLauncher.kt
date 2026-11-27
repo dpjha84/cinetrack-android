@@ -138,13 +138,21 @@ object WatchProviderLauncher {
         }
 
         // =========================================================================
-        // SCENARIO A: APP IS INSTALLED -> OPEN APP SAFELY (ZERO IN-APP ERRORS)
+        // SCENARIO A: APP IS INSTALLED -> TRY DIRECT TITLE OR IN-APP SEARCH FIRST
         // =========================================================================
         if (installedPackage != null) {
             var appLaunched = false
 
-            // Attempt 1: Verified Direct Content URL locked to the installed app
-            if (!directContentUrl.isNullOrBlank()) {
+            // Attempt 1: Verified In-App Title / Episode / Search URIs locked to the installed app
+            for (deepLinkUri in targetConfig.verifiedInAppUris) {
+                if (tryStartViewIntent(context, pm, deepLinkUri, installedPackage)) {
+                    appLaunched = true
+                    break
+                }
+            }
+
+            // Attempt 2: Direct Content URL (if not already tried via verifiedInAppUris)
+            if (!appLaunched && !directContentUrl.isNullOrBlank()) {
                 appLaunched = tryStartViewIntent(
                     context = context,
                     pm = pm,
@@ -153,58 +161,49 @@ object WatchProviderLauncher {
                 )
             }
 
-            // Attempt 2: Verified In-App Search / Title Deep Links (clean title, no guessed paths)
-            if (!appLaunched) {
-                for (deepLinkUri in targetConfig.verifiedInAppUris) {
-                    if (tryStartViewIntent(context, pm, deepLinkUri, installedPackage)) {
-                        appLaunched = true
-                        break
-                    }
-                }
-            }
-
-            // Attempt 3: Clean Native App Launch (guaranteed error-free fallback inside installed app)
-            if (!appLaunched) {
-                try {
-                    val launchIntent = pm.getLaunchIntentForPackage(installedPackage)?.apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    if (launchIntent != null) {
-                        val hintTitle = if (cleanTitle.equals(cleanName, ignoreCase = true)) {
-                            "Opening $cleanName"
-                        } else {
-                            "Opening $cleanName — search \"$cleanTitle\""
-                        }
-                        Toast.makeText(context, hintTitle, Toast.LENGTH_SHORT).show()
-                        context.startActivity(launchIntent)
-                        appLaunched = true
-                    }
-                } catch (_: Exception) {
-                    // Fall through to browser web fallback if launching package failed
-                }
-            }
-
             if (appLaunched) {
                 return
             }
         }
 
         // =========================================================================
-        // SCENARIO B: NOT INSTALLED / UNKNOWN PROVIDER -> ROUTE CLEANLY TO THE WEB
+        // SCENARIO B: TITLE-TARGETED WEB HANDOFF (when no direct title / in-app search
+        // exists, or app is not installed) -> Avoid dumping user on app homepage!
         // =========================================================================
         val browserPackage = findWebBrowserPackage(pm)
-        val candidateWebUrls = buildList {
-            safeHttpUrl(directContentUrl)?.let { add(it) }
-            targetConfig.webSearchUrls.forEach { url ->
-                safeHttpUrl(url)?.let { add(it) }
-            }
-            safeHttpUrl(webLink)?.let { add(it) }
-            add(buildGoogleWatchSearchUrl(cleanName = cleanName, cleanTitle = cleanTitle, releaseYear = releaseYear))
+        val uriTitle = encodeUriComponent(cleanTitle)
+        val formTitle = encodeFormParam(cleanTitle)
+        val googleFallback = buildGoogleWatchSearchUrl(
+            cleanName = cleanName,
+            cleanTitle = cleanTitle,
+            releaseYear = releaseYear
+        )
+        val safeDirectWeb = safeHttpUrl(directContentUrl)
+        val safeWebLink = safeHttpUrl(webLink)
+
+        val rawWebCandidates = buildList {
+            safeDirectWeb?.let { add(it) }
+            targetConfig.webSearchUrls.forEach { url -> safeHttpUrl(url)?.let { add(it) } }
+            safeWebLink?.let { add(it) }
+            add(googleFallback)
         }.distinct()
 
+        // Always prioritize URLs that target this exact title (direct URL, provider search query,
+        // TMDB/JustWatch watch link, or Google "watch <title> on <provider>") ahead of bare homepages.
+        val (titleTargetedUrls, bareHomepageUrls) = rawWebCandidates.partition { url ->
+            isTitleTargetedWebUrl(
+                url = url,
+                safeDirectWeb = safeDirectWeb,
+                safeWebLink = safeWebLink,
+                uriTitle = uriTitle,
+                formTitle = formTitle
+            )
+        }
+        val candidateWebUrls = (titleTargetedUrls + bareHomepageUrls).distinct()
+
         for (webUrl in candidateWebUrls) {
-            // Prefer targeting the resolved web browser directly so a stub/misconfigured
-            // non-launched app cannot hijack the link and throw an in-app error.
+            // Prefer targeting the resolved web browser directly so an installed OTT app cannot
+            // intercept an unverified /search URL and throw an in-app "Something went wrong" dialog.
             if (browserPackage != null &&
                 tryStartViewIntent(
                     context = context,
@@ -228,8 +227,44 @@ object WatchProviderLauncher {
             }
         }
 
+        // Last-resort safety net if no browser is available on device but the native app is installed
+        if (installedPackage != null) {
+            try {
+                val launchIntent = pm.getLaunchIntentForPackage(installedPackage)?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                if (launchIntent != null) {
+                    val hintTitle = if (cleanTitle.equals(cleanName, ignoreCase = true)) {
+                        "Opening $cleanName"
+                    } else {
+                        "Opening $cleanName — search \"$cleanTitle\""
+                    }
+                    Toast.makeText(context, hintTitle, Toast.LENGTH_SHORT).show()
+                    context.startActivity(launchIntent)
+                    return
+                }
+            } catch (_: Exception) {
+                // Fall through to unavailable toast
+            }
+        }
+
         val displayTarget = cleanName.ifBlank { "streaming page" }
         Toast.makeText(context, "Unable to open $displayTarget in browser", Toast.LENGTH_SHORT).show()
+    }
+
+    internal fun isTitleTargetedWebUrl(
+        url: String,
+        safeDirectWeb: String?,
+        safeWebLink: String?,
+        uriTitle: String,
+        formTitle: String
+    ): Boolean {
+        if (url == safeDirectWeb || url == safeWebLink) return true
+        val lower = url.lowercase(Locale.ROOT)
+        if (lower.contains("google.com/search?")) return true
+        if (uriTitle.isNotBlank() && url.contains(uriTitle, ignoreCase = true)) return true
+        if (formTitle.isNotBlank() && url.contains(formTitle, ignoreCase = true)) return true
+        return false
     }
 
     private fun findWebBrowserPackage(pm: PackageManager): String? {
@@ -391,6 +426,14 @@ object WatchProviderLauncher {
                 val primeInApp = mutableListOf<String>()
                 if (!directContentUrl.isNullOrBlank()) {
                     primeInApp.add(directContentUrl)
+                    val asin = Regex("""(?:asin=|gti=|detail/|dp/)([A-Z0-9]{10})""")
+                        .find(directContentUrl)
+                        ?.groupValues
+                        ?.getOrNull(1)
+                    if (!asin.isNullOrBlank()) {
+                        primeInApp.add("https://www.primevideo.com/dp/$asin")
+                        primeInApp.add("amzn://video/detail/$asin")
+                    }
                 }
                 // Prime Video Android uses HTTPS App Links on app.primevideo.com globally
                 primeInApp.add("https://app.primevideo.com/search?phrase=$uriTitle")
@@ -409,7 +452,7 @@ object WatchProviderLauncher {
                         "com.amazon.avod.thirdpartyclient",
                         "com.amazon.amazonvideo.livingroom"
                     ),
-                    verifiedInAppUris = primeInApp,
+                    verifiedInAppUris = primeInApp.distinct(),
                     webSearchUrls = listOfNotNull(
                         safeDirectWeb,
                         "https://www.primevideo.com/search/ref=atv_nb_sr?phrase=$uriTitle",

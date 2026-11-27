@@ -48,6 +48,8 @@ import com.example.util.CsvLibraryPorter
 import com.example.util.OfflineCachePolicy
 import com.example.util.OnboardingRegionalPolicy
 import com.example.util.PersonalizationEngine
+import com.example.util.ResolvedStreamingDeepLinks
+import com.example.util.StreamingDeepLinkResolver
 import com.example.util.TrendingRotationPolicy
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
@@ -1827,11 +1829,14 @@ class MediaRepository(
     suspend fun fetchLiveWatchProviders(
         mediaId: String,
         regionCode: String,
-        apiKey: String
+        apiKey: String,
+        resolveDeepLinks: Boolean = true
     ): WatchProvidersInfo? = withContext(Dispatchers.IO) {
         if (apiKey.isBlank() || apiKey == "YOUR_TMDB_API_KEY") return@withContext null
         try {
-            val response = if (mediaId.startsWith("tmdb_m_")) {
+            val isMovie = mediaId.startsWith("tmdb_m_")
+            val existing = mediaDao.getMediaByIdDirect(mediaId)
+            val response = if (isMovie) {
                 val movieId = mediaId.removePrefix("tmdb_m_").toLongOrNull() ?: return@withContext null
                 TmdbClient.api.getMovieWatchProviders(movieId, apiKey)
             } else if (mediaId.startsWith("tmdb_tv_")) {
@@ -1846,6 +1851,27 @@ class MediaRepository(
                 ?: response.results?.values?.firstOrNull()
                 ?: return@withContext null
 
+            val allRawProviders = (
+                regionData.flatrate.orEmpty() +
+                    regionData.free.orEmpty() +
+                    regionData.ads.orEmpty() +
+                    regionData.rent.orEmpty() +
+                    regionData.buy.orEmpty()
+                ).map { it.providerName }.distinct()
+
+            val resolvedDeepLinks = if (resolveDeepLinks) {
+                StreamingDeepLinkResolver.resolveForTitle(
+                    mediaId = mediaId,
+                    title = existing?.title.orEmpty(),
+                    isMovie = isMovie,
+                    releaseYear = existing?.releaseYear ?: 0,
+                    regionCode = regionCode,
+                    providerNames = allRawProviders
+                )
+            } else {
+                ResolvedStreamingDeepLinks()
+            }
+
             val regionLabel = RegionalDefaults.getRegionLabel(regionCode)
             val streamItems = (regionData.flatrate.orEmpty()).mapIndexed { idx, p ->
                 WatchProviderItem(
@@ -1854,7 +1880,11 @@ class MediaRepository(
                     logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
                     type = WatchProviderType.STREAM,
                     webLink = regionData.link,
-                    directContentUrl = null
+                    directContentUrl = StreamingDeepLinkResolver.matchDirectUrl(
+                        resolved = resolvedDeepLinks,
+                        providerName = p.providerName,
+                        regionCode = regionCode
+                    )
                 )
             }
             val freeItems = (regionData.free.orEmpty() + regionData.ads.orEmpty()).mapIndexed { idx, p ->
@@ -1864,7 +1894,11 @@ class MediaRepository(
                     logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
                     type = WatchProviderType.FREE,
                     webLink = regionData.link,
-                    directContentUrl = null
+                    directContentUrl = StreamingDeepLinkResolver.matchDirectUrl(
+                        resolved = resolvedDeepLinks,
+                        providerName = p.providerName,
+                        regionCode = regionCode
+                    )
                 )
             }
             val rentItems = regionData.rent.orEmpty().mapIndexed { idx, p ->
@@ -1874,7 +1908,11 @@ class MediaRepository(
                     logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
                     type = WatchProviderType.RENT,
                     webLink = regionData.link,
-                    directContentUrl = null
+                    directContentUrl = StreamingDeepLinkResolver.matchDirectUrl(
+                        resolved = resolvedDeepLinks,
+                        providerName = p.providerName,
+                        regionCode = regionCode
+                    )
                 )
             }
             val buyItems = regionData.buy.orEmpty().mapIndexed { idx, p ->
@@ -1884,7 +1922,11 @@ class MediaRepository(
                     logoUrl = p.logoPath?.let { "https://image.tmdb.org/t/p/w154$it" },
                     type = WatchProviderType.BUY,
                     webLink = regionData.link,
-                    directContentUrl = null
+                    directContentUrl = StreamingDeepLinkResolver.matchDirectUrl(
+                        resolved = resolvedDeepLinks,
+                        providerName = p.providerName,
+                        regionCode = regionCode
+                    )
                 )
             }
 
@@ -1899,7 +1941,6 @@ class MediaRepository(
             )
 
             // Replace/upsert regional streaming providers tag cleanly without duplicating blocks
-            val existing = mediaDao.getMediaByIdDirect(mediaId)
             val includedItems = (streamItems + freeItems).distinctBy { it.name }
             if (existing != null && includedItems.isNotEmpty()) {
                 val upperReg = regionCode.uppercase()
@@ -1941,7 +1982,7 @@ class MediaRepository(
             tracked.map { item ->
                 async {
                     sem.withPermit {
-                        fetchLiveWatchProviders(item.id, upperReg, apiKey)
+                        fetchLiveWatchProviders(item.id, upperReg, apiKey, resolveDeepLinks = false)
                     }
                 }
             }.awaitAll()
@@ -1987,7 +2028,7 @@ class MediaRepository(
                         mediaDao.insertAll(listOf(baseEntity))
                     }
                     if (toSave.getProvidersForRegion(regionCode).isEmpty()) {
-                        fetchLiveWatchProviders(toSave.id, regionCode, apiKey)
+                        fetchLiveWatchProviders(toSave.id, regionCode, apiKey, resolveDeepLinks = false)
                     }
                     return@withContext mediaDao.getMediaByIdDirect(baseEntity.id) ?: toSave
                 }

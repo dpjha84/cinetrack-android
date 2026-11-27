@@ -952,4 +952,152 @@ class WatchPilotV2UnitTest {
             )
         )
     }
+
+    @Test
+    fun streamingDeepLinkResolver_parsesWikidataAndItunesAndMatchesRegionalProviders() {
+        val wikidataJson = """
+            {
+              "results": {
+                "bindings": [
+                  {
+                    "netflix": { "type": "literal", "value": "70196145" },
+                    "hotstar": { "type": "literal", "value": "shows/new-girl/1541498" },
+                    "prime": { "type": "literal", "value": "B07BYSTXMF" },
+                    "disneySeries": { "type": "literal", "value": "2G2vQ2v5z" },
+                    "huluSeries": { "type": "literal", "value": "new-girl-1234" },
+                    "max": { "type": "literal", "value": "series/abcd-1234" },
+                    "peacock": { "type": "literal", "value": "watch/asset/tv/new-girl/999" },
+                    "crunchyroll": { "type": "literal", "value": "GR751KNZY" },
+                    "bbc": { "type": "literal", "value": "b006q2x0" }
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val parsed = com.example.util.StreamingDeepLinkResolver.parseWikidataBindings(
+            jsonBody = wikidataJson,
+            title = "New Girl",
+            isMovie = false,
+            regionCode = "IN"
+        )
+        val resolved = com.example.util.ResolvedStreamingDeepLinks(parsed)
+
+        assertEquals(
+            "https://www.hotstar.com/in/shows/new-girl/1541498",
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "JioHotstar", "IN")
+        )
+        assertEquals(
+            "https://www.hotstar.com/in/shows/new-girl/1541498",
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "Disney Plus", "IN")
+        )
+        assertEquals(
+            "https://www.disneyplus.com/series/wp/2G2vQ2v5z",
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "Disney Plus", "US")
+        )
+        assertEquals(
+            "https://www.netflix.com/title/70196145",
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "Netflix", "US")
+        )
+        assertEquals(
+            "https://app.primevideo.com/detail?asin=B07BYSTXMF",
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "Amazon Prime Video", "IN")
+        )
+        assertEquals(
+            null,
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "Paramount+ Amazon Channel", "GB")
+        )
+        assertEquals(
+            "https://play.max.com/series/abcd-1234",
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "Max", "US")
+        )
+        assertEquals(
+            "https://www.hulu.com/series/new-girl-1234",
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "Hulu", "US")
+        )
+        assertEquals(
+            "https://www.crunchyroll.com/series/GR751KNZY",
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "Crunchyroll", "US")
+        )
+        assertEquals(
+            "https://www.bbc.co.uk/programmes/b006q2x0",
+            com.example.util.StreamingDeepLinkResolver.matchDirectUrl(resolved, "BBC iPlayer", "GB")
+        )
+
+        // Numeric Hotstar ID normalizes cleanly to show slug URL
+        assertEquals(
+            "https://www.hotstar.com/in/shows/new-girl/1541498",
+            com.example.util.StreamingDeepLinkResolver.normalizeHotstarUrl(
+                raw = "1541498",
+                title = "New Girl",
+                isMovie = false,
+                regionCode = "IN"
+            )
+        )
+
+        // iTunes response matching for Apple TV
+        val itunesJson = """
+            {
+              "resultCount": 2,
+              "results": [
+                {
+                  "collectionName": "New Girl, Season 1",
+                  "collectionViewUrl": "https://tv.apple.com/us/season/season-1/umc.cmc.123?showId=umc.cmc.456",
+                  "releaseDate": "2011-09-20T07:00:00Z"
+                },
+                {
+                  "collectionName": "Something Else",
+                  "collectionViewUrl": "https://tv.apple.com/us/show/other/umc.cmc.999",
+                  "releaseDate": "2020-01-01T00:00:00Z"
+                }
+              ]
+            }
+        """.trimIndent()
+        assertEquals(
+            "https://tv.apple.com/us/season/season-1/umc.cmc.123?showId=umc.cmc.456",
+            com.example.util.StreamingDeepLinkResolver.parseItunesSearchResponse(
+                jsonBody = itunesJson,
+                title = "New Girl",
+                isMovie = false,
+                releaseYear = 2011
+            )
+        )
+
+        // Prime Video ASIN direct URL expands to app detail, dp link, and amzn scheme before generic search
+        val primeWithAsin = com.example.util.WatchProviderLauncher.resolveProviderConfig(
+            providerName = "Amazon Prime Video",
+            title = "New Girl",
+            directContentUrl = "https://app.primevideo.com/detail?asin=B07BYSTXMF",
+            regionCode = "IN"
+        )
+        assertEquals(
+            listOf(
+                "https://app.primevideo.com/detail?asin=B07BYSTXMF",
+                "https://www.primevideo.com/dp/B07BYSTXMF",
+                "amzn://video/detail/B07BYSTXMF",
+                "https://app.primevideo.com/search?phrase=New%20Girl"
+            ),
+            primeWithAsin.verifiedInAppUris
+        )
+
+        // Title-targeted detection separates real search/deep links from bare homepages
+        assertTrue(
+            com.example.util.WatchProviderLauncher.isTitleTargetedWebUrl(
+                url = "https://www.hotstar.com/in/explore?search_query=New%20Girl",
+                safeDirectWeb = null,
+                safeWebLink = null,
+                uriTitle = "New%20Girl",
+                formTitle = "New+Girl"
+            )
+        )
+        assertFalse(
+            com.example.util.WatchProviderLauncher.isTitleTargetedWebUrl(
+                url = "https://www.hulu.com/",
+                safeDirectWeb = null,
+                safeWebLink = null,
+                uriTitle = "New%20Girl",
+                formTitle = "New+Girl"
+            )
+        )
+    }
 }
