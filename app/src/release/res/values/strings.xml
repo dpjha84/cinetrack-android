@@ -3,6 +3,6 @@
     <string name="admob_app_id" translatable="false">ca-app-pub-9351754143985661~7563396418</string>
     <string name="admob_banner_unit_id" translatable="false">ca-app-pub-9351754143985661/7910003742</string>
     <string name="admob_interstitial_unit_id" translatable="false">ca-app-pub-9351754143985661/8006168632</string>
-    <!-- Replace with your AdMob Rewarded Ad Unit ID from AdMob Console to enable Watch-an-Ad Pro Trial Passes in release -->
-    <string name="admob_rewarded_unit_id" translatable="false"></string>
+    <!-- Live Production Google AdMob Rewarded Ad Unit ID for Watch-an-Ad Pro Trial Passes -->
+    <string name="admob_rewarded_unit_id" translatable="false">ca-app-pub-9351754143985661/6357703287</string>
 </resources>
