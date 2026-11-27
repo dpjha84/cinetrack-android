@@ -10,10 +10,12 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       KS_B64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+      GRADLE_OPTS: "-Dorg.gradle.internal.http.connectionTimeout=60000 -Dorg.gradle.internal.http.socketTimeout=60000"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: 21 }
+      - uses: gradle/actions/setup-gradle@v4
 
       # app/build.gradle.kts signs the debug build with ${rootDir}/debug.keystore, which is
       # gitignored, so generate one (or restore it from debug.keystore.base64 if committed).
@@ -45,7 +47,10 @@ jobs:
           python3 -c "import json; json.load(open('app/google-services.json')); print('google-services.json OK')"
 
       # Test APK (debug-signed, installable on any phone)
-      - run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace || ./gradlew assembleDebug --refresh-dependencies --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: watchpilot-debug-apk
