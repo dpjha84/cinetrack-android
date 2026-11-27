@@ -15,6 +15,7 @@ object OnboardingPreferences {
     private const val KEY_RATE_DISMISS_COUNT = "rate_prompt_dismiss_count"
     private const val KEY_RATE_HAS_RATED = "rate_prompt_has_rated"
     private const val KEY_RATE_NEVER_ASK = "rate_prompt_never_ask"
+    private const val KEY_DISMISSED_GUEST_SAVE_BANNER = "dismissed_guest_save_banner"
 
     fun hasCompletedOnboarding(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -89,5 +90,21 @@ object OnboardingPreferences {
             .putBoolean(KEY_RATE_HAS_RATED, state.hasRatedApp)
             .putBoolean(KEY_RATE_NEVER_ASK, state.neverAskAgain)
             .apply()
+    }
+
+    fun hasDismissedGuestSaveBanner(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_DISMISSED_GUEST_SAVE_BANNER, false)
+    }
+
+    fun setDismissedGuestSaveBanner(context: Context, dismissed: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_DISMISSED_GUEST_SAVE_BANNER, dismissed)
+            .apply()
+    }
+
+    fun shouldShowGuestSaveBanner(isSignedIn: Boolean, isDismissed: Boolean): Boolean {
+        return !isSignedIn && !isDismissed
     }
 }

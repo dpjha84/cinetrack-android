@@ -31,4 +31,24 @@
     <string name="offline_search_banner">Offline mode • Searching saved items &amp; cached history</string>
     <string name="offline_search_cached_count">%1$d cached</string>
     <string name="onboarding_region_popular">Popular in %1$s</string>
+    <string name="guest_save_banner_title">Save your library data</string>
+    <string name="guest_save_banner_desc">Sync your watchlist, ratings, episode progress, and custom lists across all your devices with cloud backup.</string>
+    <string name="guest_save_banner_cta">Save</string>
+    <string name="guest_save_banner_dismiss_cd">Dismiss save your library data banner</string>
+    <string name="guest_save_dialog_badge">CLOUD SYNC &amp; BACKUP</string>
+    <string name="guest_save_dialog_title">Back up &amp; sync with Google</string>
+    <string name="guest_save_dialog_subtitle">Sign in with your Google account to keep your WatchPilot library safe and unlock connected features:</string>
+    <string name="guest_save_benefit_sync_title">Cross-device library sync</string>
+    <string name="guest_save_benefit_sync_desc">Keep your watchlist, episode progress, and custom lists updated on every phone &amp; tablet.</string>
+    <string name="guest_save_benefit_ratings_title">Protect ratings, reviews &amp; history</string>
+    <string name="guest_save_benefit_ratings_desc">Never lose your movie scores, personal notes, or watch history if you switch or reset devices.</string>
+    <string name="guest_save_benefit_rooms_title">Live Swipe Match rooms</string>
+    <string name="guest_save_benefit_rooms_desc">Host and join real-time watch-night matching rooms with friends.</string>
+    <string name="guest_save_benefit_pro_title">Seamless Pro &amp; preference restore</string>
+    <string name="guest_save_benefit_pro_desc">Automatically restore your WatchPilot Pro status, region, and streaming apps.</string>
+    <string name="guest_save_dialog_cta_google">Continue with Google</string>
+    <string name="guest_save_dialog_cta_later">Maybe later</string>
+    <string name="guest_save_dialog_signing_in">Signing in…</string>
+    <string name="guest_save_dialog_success">Library synced with Google!</string>
+    <string name="guest_save_dialog_unavailable">Unable to start Google Sign-In on this screen.</string>
 </resources>

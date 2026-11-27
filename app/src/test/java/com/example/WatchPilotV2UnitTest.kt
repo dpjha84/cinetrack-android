@@ -924,4 +924,32 @@ class WatchPilotV2UnitTest {
         assertEquals("Game of Thrones", topTv[9].title)
         assertTrue(topTv.all { it.id.startsWith("tmdb_tv_") && it.mediaType == MediaType.TV_SHOW.name })
     }
+
+    @Test
+    fun guestSaveLibraryBanner_visibleOnlyForUndismissedGuestUsers() {
+        assertTrue(
+            com.example.data.local.OnboardingPreferences.shouldShowGuestSaveBanner(
+                isSignedIn = false,
+                isDismissed = false
+            )
+        )
+        assertFalse(
+            com.example.data.local.OnboardingPreferences.shouldShowGuestSaveBanner(
+                isSignedIn = false,
+                isDismissed = true
+            )
+        )
+        assertFalse(
+            com.example.data.local.OnboardingPreferences.shouldShowGuestSaveBanner(
+                isSignedIn = true,
+                isDismissed = false
+            )
+        )
+        assertFalse(
+            com.example.data.local.OnboardingPreferences.shouldShowGuestSaveBanner(
+                isSignedIn = true,
+                isDismissed = true
+            )
+        )
+    }
 }

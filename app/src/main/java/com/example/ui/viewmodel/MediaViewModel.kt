@@ -315,6 +315,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         OnboardingPreferences.isDarkTheme(application)
     )
     val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
+    private val _hasDismissedGuestSaveBanner = MutableStateFlow(
+        OnboardingPreferences.hasDismissedGuestSaveBanner(application)
+    )
+    val hasDismissedGuestSaveBanner: StateFlow<Boolean> = _hasDismissedGuestSaveBanner.asStateFlow()
     val onboardingStep = MutableStateFlow(0)
     val onboardingAuthLoading = MutableStateFlow(false)
     val onboardingAuthError = MutableStateFlow<String?>(null)
@@ -1956,6 +1960,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun continueAsGuest() {
         FirebaseAuthHelper.continueAsGuest()
+    }
+
+    fun dismissGuestSaveBanner() {
+        _hasDismissedGuestSaveBanner.value = true
+        OnboardingPreferences.setDismissedGuestSaveBanner(getApplication(), true)
     }
 
     fun signInWithGoogle(

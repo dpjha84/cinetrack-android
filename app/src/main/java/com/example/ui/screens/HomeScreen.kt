@@ -94,8 +94,18 @@ import com.example.ui.theme.WatchPilotColors
 import com.example.ui.util.LocalAdaptiveLayoutInfo
 import com.example.ui.viewmodel.MediaViewModel
 import com.example.util.PersonalizationEngine
+import android.widget.Toast
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocalFireDepartment
@@ -104,9 +114,16 @@ import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Upcoming
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.window.Dialog
+import com.example.data.local.OnboardingPreferences
+import com.example.ui.components.GoogleSignInIcon
 import com.example.util.FeatureFlags
+import com.example.util.findActivity
 
 @Composable
 fun HomeScreen(
@@ -135,6 +152,19 @@ fun HomeScreen(
     val favoritePeopleList by viewModel.favoritePeople.collectAsStateWithLifecycle()
     val effectiveRegion by viewModel.effectiveRegionCode.collectAsStateWithLifecycle()
     val monetizationState by viewModel.monetizationState.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val hasDismissedGuestSaveBanner by viewModel.hasDismissedGuestSaveBanner.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    var showGoogleSavePromptDialog by remember { mutableStateOf(false) }
+    var isSigningInFromBanner by remember { mutableStateOf(false) }
+    var bannerSignInError by remember { mutableStateOf<String?>(null) }
+
+    val showGuestSaveBanner = OnboardingPreferences.shouldShowGuestSaveBanner(
+        isSignedIn = currentUser != null,
+        isDismissed = hasDismissedGuestSaveBanner
+    )
 
     val adaptive = LocalAdaptiveLayoutInfo.current
     val gridColumns = adaptive.posterGridColumns
@@ -227,6 +257,22 @@ fun HomeScreen(
                                 )
                             }
                         }
+                    }
+
+                    AnimatedVisibility(
+                        visible = showGuestSaveBanner,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        GuestSaveLibraryBanner(
+                            onSaveClick = {
+                                bannerSignInError = null
+                                showGoogleSavePromptDialog = true
+                            },
+                            onDismissClick = {
+                                viewModel.dismissGuestSaveBanner()
+                            }
+                        )
                     }
 
                     // Signature WatchPilot Action Cards
@@ -797,6 +843,44 @@ fun HomeScreen(
                     onPersonClick = onPersonClick
                 )
             }
+        }
+
+        if (showGoogleSavePromptDialog) {
+            GoogleSignInBenefitsDialog(
+                isLoading = isSigningInFromBanner,
+                errorMessage = bannerSignInError,
+                onContinueWithGoogle = {
+                    val hostActivity = activity
+                    if (hostActivity == null) {
+                        bannerSignInError = context.getString(R.string.guest_save_dialog_unavailable)
+                    } else {
+                        bannerSignInError = null
+                        isSigningInFromBanner = true
+                        viewModel.signInWithGoogle(
+                            activity = hostActivity,
+                            onSuccess = {
+                                isSigningInFromBanner = false
+                                showGoogleSavePromptDialog = false
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.guest_save_dialog_success),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onError = { error ->
+                                isSigningInFromBanner = false
+                                bannerSignInError = error
+                            }
+                        )
+                    }
+                },
+                onDismiss = {
+                    if (!isSigningInFromBanner) {
+                        bannerSignInError = null
+                        showGoogleSavePromptDialog = false
+                    }
+                }
+            )
         }
     }
 }
@@ -1562,6 +1646,394 @@ private fun PickedForYouCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun GuestSaveLibraryBanner(
+    onSaveClick: () -> Unit,
+    onDismissClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val themeColors = WatchPilotColors.current
+    val borderBrush = Brush.linearGradient(
+        colors = listOf(
+            themeColors.goldAccent.copy(alpha = 0.85f),
+            themeColors.cyanAccent.copy(alpha = 0.80f)
+        )
+    )
+    val backdropBrush = Brush.linearGradient(
+        colors = listOf(
+            themeColors.goldChipContainer.copy(alpha = 0.70f),
+            Color.Transparent,
+            themeColors.cyanChipContainer.copy(alpha = 0.45f)
+        )
+    )
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.25.dp, borderBrush),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("card_guest_save_banner")
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(backdropBrush)
+        ) {
+            IconButton(
+                onClick = onDismissClick,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(2.dp)
+                    .minimumInteractiveComponentSize()
+                    .testTag("home_btn_dismiss_save_banner")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.guest_save_banner_dismiss_cd),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, top = 14.dp, end = 14.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = 36.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = themeColors.goldChipContainer,
+                        border = BorderStroke(1.dp, themeColors.goldChipBorder),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Filled.CloudSync,
+                                contentDescription = null,
+                                tint = themeColors.goldAccent,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.guest_save_banner_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(R.string.guest_save_banner_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 17.sp
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = themeColors.cyanChipContainer,
+                        border = BorderStroke(1.dp, themeColors.cyanChipBorder)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.guest_save_dialog_badge),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = themeColors.cyanAccent,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = onSaveClick,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = themeColors.goldSolidBg,
+                            contentColor = themeColors.onGoldSolid
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .heightIn(min = 38.dp)
+                            .testTag("home_btn_save_library_banner")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CloudDone,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.guest_save_banner_cta),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoogleSignInBenefitsDialog(
+    isLoading: Boolean,
+    errorMessage: String?,
+    onContinueWithGoogle: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val themeColors = WatchPilotColors.current
+
+    Dialog(onDismissRequest = { if (!isLoading) onDismiss() }) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            border = BorderStroke(1.dp, themeColors.goldChipBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 440.dp)
+                .testTag("dialog_google_save_benefits")
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = themeColors.cyanChipContainer,
+                        border = BorderStroke(1.dp, themeColors.cyanChipBorder)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.guest_save_dialog_badge),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = themeColors.cyanAccent,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .testTag("dialog_btn_close_google_benefits")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.guest_save_dialog_cta_later),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(R.string.guest_save_dialog_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = stringResource(R.string.guest_save_dialog_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GoogleSignInBenefitRow(
+                        icon = Icons.Filled.CloudSync,
+                        accent = themeColors.cyanAccent,
+                        containerColor = themeColors.cyanChipContainer,
+                        borderColor = themeColors.cyanChipBorder,
+                        title = stringResource(R.string.guest_save_benefit_sync_title),
+                        description = stringResource(R.string.guest_save_benefit_sync_desc)
+                    )
+                    GoogleSignInBenefitRow(
+                        icon = Icons.Filled.Star,
+                        accent = themeColors.goldAccent,
+                        containerColor = themeColors.goldChipContainer,
+                        borderColor = themeColors.goldChipBorder,
+                        title = stringResource(R.string.guest_save_benefit_ratings_title),
+                        description = stringResource(R.string.guest_save_benefit_ratings_desc)
+                    )
+                    GoogleSignInBenefitRow(
+                        icon = Icons.Filled.Groups,
+                        accent = themeColors.greenAccent,
+                        containerColor = themeColors.greenChipContainer,
+                        borderColor = themeColors.greenChipBorder,
+                        title = stringResource(R.string.guest_save_benefit_rooms_title),
+                        description = stringResource(R.string.guest_save_benefit_rooms_desc)
+                    )
+                    GoogleSignInBenefitRow(
+                        icon = Icons.Filled.VerifiedUser,
+                        accent = themeColors.goldAccent,
+                        containerColor = themeColors.goldChipContainer,
+                        borderColor = themeColors.goldChipBorder,
+                        title = stringResource(R.string.guest_save_benefit_pro_title),
+                        description = stringResource(R.string.guest_save_benefit_pro_desc)
+                    )
+                }
+
+                if (!errorMessage.isNullOrBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = themeColors.redChipContainer,
+                        border = BorderStroke(1.dp, themeColors.redChipBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = errorMessage,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = themeColors.redAccent,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Button(
+                        onClick = onContinueWithGoogle,
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = themeColors.goldSolidBg,
+                            contentColor = themeColors.onGoldSolid
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("dialog_btn_google_signin")
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                color = themeColors.onGoldSolid,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.guest_save_dialog_signing_in),
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            GoogleSignInIcon(modifier = Modifier.testTag("dialog_icon_google_signin"))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = stringResource(R.string.guest_save_dialog_cta_google),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    TextButton(
+                        onClick = onDismiss,
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .minimumInteractiveComponentSize()
+                            .testTag("dialog_btn_google_later")
+                    ) {
+                        Text(
+                            text = stringResource(R.string.guest_save_dialog_cta_later),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoogleSignInBenefitRow(
+    icon: ImageVector,
+    accent: Color,
+    containerColor: Color,
+    borderColor: Color,
+    title: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = containerColor,
+            border = BorderStroke(1.dp, borderColor),
+            modifier = Modifier.size(34.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 16.sp
+            )
         }
     }
 }
