@@ -17,7 +17,7 @@ android {
     applicationId = "com.dpjha.moviebuddy"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1006
+    versionCode = 1007
     versionName = "5.1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

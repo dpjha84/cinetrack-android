@@ -24,7 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * WatchPilot Google Play Billing 7.x Gateway.
+ * WatchPilot Google Play Billing 8.x Gateway.
  */
 object EditionBillingProvider {
     fun createGateway(
@@ -71,8 +71,10 @@ private class PlayBillingClientGateway(
         .enablePendingPurchases(
             PendingPurchasesParams.newBuilder()
                 .enableOneTimeProducts()
+                .enablePrepaidPlans()
                 .build()
         )
+        .enableAutoServiceReconnection()
         .build()
 
     override fun connect() {

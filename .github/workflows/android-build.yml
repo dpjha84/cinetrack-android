@@ -2,9 +2,11 @@ name: Android build
 on:
   workflow_dispatch:
   push:
-    tags: ['v*']
 permissions:
   contents: read
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-24.04
